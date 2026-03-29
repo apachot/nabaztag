@@ -106,3 +106,32 @@ The smoke test exercises:
 - ears
 - audio
 - one supported LED target: `center`
+
+## Production domain
+
+The production public entrypoints are:
+
+- `https://nabaztag.org/`: Flask portal
+- `https://nabaztag.org/api/`: FastAPI API
+- `https://nabaztag.org/vl`: Violet Platform HTTP root
+- `https://nabaztag.org/vl/locate.jsp`: initial Nabaztag locate response
+- `5222/TCP` on `nabaztag.org`: XMPP listener
+
+Legacy routes under `https://dev.emotia.com/nabaztag/` are redirected to `https://nabaztag.org/`.
+
+## systemd
+
+Production service unit files are versioned in:
+
+- [nabaztag-portal.service](/Users/apachot/Documents/GitHub/nabaztag/deploy/systemd/nabaztag-portal.service)
+- [nabaztag-xmpp.service](/Users/apachot/Documents/GitHub/nabaztag/deploy/systemd/nabaztag-xmpp.service)
+
+To install them on the Debian server:
+
+```bash
+sudo cp deploy/systemd/nabaztag-portal.service /etc/systemd/system/
+sudo cp deploy/systemd/nabaztag-xmpp.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now nabaztag-portal.service
+sudo systemctl enable --now nabaztag-xmpp.service
+```

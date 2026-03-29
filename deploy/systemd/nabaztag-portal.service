@@ -1,0 +1,25 @@
+[Unit]
+Description=Nabaztag portal (Flask/Gunicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=pollitics
+Group=pollitics
+WorkingDirectory=/home/pollitics/nabaztag/apps/portal
+Environment=NABAZTAG_API_BASE_URL=http://127.0.0.1:9315
+Environment=NABAZTAG_VL_PING_SERVER=nabaztag.org
+Environment=NABAZTAG_VL_BROAD_SERVER=nabaztag.org
+Environment=NABAZTAG_VL_XMPP_SERVER=nabaztag.org
+Environment=NABAZTAG_VL_XMPP_ALT_SERVER=nabaztag.org
+Environment=NABAZTAG_VL_XMPP_PORT=5222
+Environment=NABAZTAG_VL_XMPP_ALT_PORT=443
+Environment=NABAZTAG_VL_XMPP_TIMEOUT=8
+ExecStart=/home/pollitics/nabaztag/venv/bin/gunicorn --workers 2 --threads 4 --bind 127.0.0.1:9316 portal_app:create_app()
+Restart=always
+RestartSec=3
+StandardOutput=append:/home/pollitics/nabaztag/gunicorn-portal.log
+StandardError=append:/home/pollitics/nabaztag/gunicorn-portal.log
+
+[Install]
+WantedBy=multi-user.target

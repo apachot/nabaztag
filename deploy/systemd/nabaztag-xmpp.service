@@ -1,0 +1,20 @@
+[Unit]
+Description=Nabaztag XMPP listener
+After=network.target nabaztag-portal.service
+
+[Service]
+Type=simple
+User=pollitics
+Group=pollitics
+WorkingDirectory=/home/pollitics/nabaztag/apps/portal
+Environment=NABAZTAG_VL_XMPP_SERVER=nabaztag.org
+Environment=NABAZTAG_XMPP_BIND_HOST=0.0.0.0
+Environment=NABAZTAG_XMPP_BIND_PORT=5222
+ExecStart=/home/pollitics/nabaztag/venv/bin/python -m portal_app.xmpp_server
+Restart=always
+RestartSec=3
+StandardOutput=append:/home/pollitics/nabaztag/xmpp.log
+StandardError=append:/home/pollitics/nabaztag/xmpp.log
+
+[Install]
+WantedBy=multi-user.target
