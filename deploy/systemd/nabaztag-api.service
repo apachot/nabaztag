@@ -1,0 +1,20 @@
+[Unit]
+Description=Nabaztag API (FastAPI/Uvicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=pollitics
+Group=pollitics
+WorkingDirectory=/home/pollitics/nabaztag/apps/api
+Environment=NABAZTAG_GATEWAY_DRIVER=simulated
+Environment=NABAZTAG_GATEWAY_HOST=127.0.0.1
+Environment=NABAZTAG_GATEWAY_PORT=10543
+ExecStart=/home/pollitics/nabaztag/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 9315
+Restart=always
+RestartSec=3
+StandardOutput=append:/home/pollitics/nabaztag/gunicorn-api.log
+StandardError=append:/home/pollitics/nabaztag/gunicorn-api.log
+
+[Install]
+WantedBy=multi-user.target
