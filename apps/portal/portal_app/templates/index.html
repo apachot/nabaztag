@@ -1,23 +1,195 @@
 {% extends "base.html" %}
 
-{% block title %}Accueil | Nabaztag Portal{% endblock %}
+{% block title %}nabaztag.org | Redonner vie aux lapins intelligents{% endblock %}
 
 {% block content %}
-  <section class="hero">
-    <h1>Compte, lapins, enrôlement</h1>
-    <p>
-      Cette interface Flask devient la couche produit: compte utilisateur, connexion,
-      inventaire des lapins et préparation du provisioning. L’API FastAPI reste la
-      couche de communication device.
-    </p>
-    <div class="actions" style="margin-top: 18px;">
-      {% if current_user.is_authenticated %}
-        <a class="button primary" href="{{ url_for('main.dashboard') }}">Voir mes lapins</a>
-      {% else %}
-        <a class="button primary" href="{{ url_for('auth.register') }}">Créer un compte</a>
-        <a class="pill" href="{{ url_for('auth.login') }}">Se connecter</a>
-      {% endif %}
-    </div>
-  </section>
-{% endblock %}
+  <div class="landing">
+    <section class="hero hero-landing">
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <div class="eyebrow">Projet open source en cours de développement</div>
+          <h1>Offrir une nouvelle intelligence à nos Nabaztag.</h1>
+          <p>
+            nabaztag.org est un projet communautaire pour reconnecter les lapins à un serveur
+            moderne, les piloter depuis le web et, à terme, leur redonner une voix, une mémoire
+            et de nouvelles interactions grâce aux briques open source d’aujourd’hui.
+          </p>
+          <div class="hero-bullets">
+            <div>
+              <span>•</span>
+              <div>
+                <strong>Green IT</strong><br>
+                Nous luttons contre l’obsolescence programmée en réemployant du matériel encore désirable.
+              </div>
+            </div>
+            <div>
+              <span>•</span>
+              <div>
+                <strong>Ouvert et documenté</strong><br>
+                Le projet s’appuie sur du code lisible, des protocoles documentés et un dépôt GitHub public.
+              </div>
+            </div>
+            <div>
+              <span>•</span>
+              <div>
+                <strong>Fun mais sérieux</strong><br>
+                Oreilles, LEDs, audio, provisioning, serveur Violet compatible: les primitives passent avant la magie.
+              </div>
+            </div>
+          </div>
+          <div class="actions" style="margin-top: 22px;">
+            {% if current_user.is_authenticated %}
+              <a class="button primary" href="{{ url_for('main.dashboard') }}">Accéder à mes lapins</a>
+            {% else %}
+              <a class="button primary" href="{{ url_for('auth.register') }}">Rejoindre le projet</a>
+              <a class="pill" href="{{ url_for('auth.login') }}">Se connecter</a>
+            {% endif %}
+            <a class="pill" href="https://github.com/apachot/nabaztag" target="_blank" rel="noreferrer">Voir le dépôt GitHub</a>
+          </div>
+        </div>
+        <div class="hero-stats">
+          <div class="stat-card">
+            <strong>2000s → 2026</strong>
+            <div>Un objet culte du web ambiant remis sur pied avec une architecture actuelle.</div>
+          </div>
+          <div class="stat-card">
+            <strong>HTTP + XMPP</strong>
+            <div>Le serveur Violet se reconstruit étape par étape pour rester compatible avec les lapins d’origine.</div>
+          </div>
+          <div class="stat-card">
+            <strong>Phase actuelle</strong>
+            <div>Provisioning, compte utilisateur, rattachement des lapins et compatibilité protocolaire en cours.</div>
+          </div>
+        </div>
+      </div>
+    </section>
 
+    <section class="section-grid">
+      <article class="feature-card">
+        <div class="feature-icon">↺</div>
+        <span class="kicker">Démarche</span>
+        <h3>Réparer plutôt que jeter</h3>
+        <p>
+          Le Nabaztag n’est pas seulement un gadget vintage. C’est un excellent terrain pour montrer
+          qu’un objet connecté peut être réhabilité au lieu d’être abandonné dès que son service ferme.
+        </p>
+        <p class="soft">
+          Le projet s’inscrit dans une logique de sobriété numérique, de réemploi, de documentation
+          et de transmission technique.
+        </p>
+      </article>
+      <article class="feature-card">
+        <div class="feature-icon">⌁</div>
+        <span class="kicker">Objectif</span>
+        <h3>Un compagnon open source, pas une boîte noire</h3>
+        <p>
+          L’ambition est de proposer un serveur moderne sur lequel on peut connecter son lapin,
+          gérer son compte, retrouver son historique, puis enrichir progressivement les usages:
+          audio, automatisations, agents vocaux et modèles open source.
+        </p>
+        <p class="soft">
+          Le site est volontairement transparent: le projet est encore en construction, et chaque
+          brique est visible publiquement.
+        </p>
+      </article>
+    </section>
+
+    <section class="timeline-card">
+      <span class="kicker">Histoire</span>
+      <h3>Pourquoi le Nabaztag compte encore</h3>
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-year">2005</div>
+          <div>
+            <strong>Le lapin arrive dans les foyers.</strong><br>
+            Entre réveil lumineux, infos web, météo et messages sonores, il incarne une forme
+            joyeuse et tangible d’Internet domestique.
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-year">Années 2010</div>
+          <div>
+            <strong>Les services ferment, les lapins se taisent.</strong><br>
+            Comme beaucoup d’objets connectés, la dépendance à une plateforme distante rend le
+            matériel inutile malgré son bon état physique.
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-year">Aujourd’hui</div>
+          <div>
+            <strong>La communauté reprend la main.</strong><br>
+            On reconstruit un socle compatible, documenté et hackable pour que ces objets puissent
+            à nouveau vivre, évoluer et raconter autre chose que leur propre obsolescence.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="photo-card">
+      <span class="kicker">Galerie</span>
+      <h3>Le lapin, l’objet, la présence</h3>
+      <div class="photo-grid">
+        <article class="photo">
+          <img src="https://commons.wikimedia.org/wiki/Special:FilePath/Nabaztag.jpg" alt="Photo d'un Nabaztag blanc">
+          <div class="photo-body">
+            <h4>Une silhouette immédiate</h4>
+            <div class="soft">Oreilles motorisées, nez lumineux, présence physique: le Nabaztag reste instantanément reconnaissable.</div>
+          </div>
+        </article>
+        <article class="photo">
+          <img src="https://commons.wikimedia.org/wiki/Special:FilePath/Nabaztag%20tag.jpg" alt="Photo d'un Nabaztag tag">
+          <div class="photo-body">
+            <h4>Des générations différentes</h4>
+            <div class="soft">Le projet vise à mieux documenter les variantes matérielles et les chemins de remise en service.</div>
+          </div>
+        </article>
+        <article class="photo">
+          <img src="https://commons.wikimedia.org/wiki/Special:FilePath/Nabazmobny1.jpg" alt="Photo d'un Nabazmob">
+          <div class="photo-body">
+            <h4>Un imaginaire intact</h4>
+            <div class="soft">Même éteints depuis des années, ces lapins continuent à susciter attachement, curiosité et envie de bidouiller.</div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="cta-grid">
+      <article class="cta-card">
+        <span class="kicker">Construire ensemble</span>
+        <h3>Un vrai projet communautaire</h3>
+        <p>
+          Le projet a besoin de profils variés: personnes qui ont encore un lapin, archivistes du web,
+          bidouilleurs hardware, développeurs backend, frontend, Python, protocoles XMPP, STT/TTS et
+          modèles open source.
+        </p>
+        <div class="link-list">
+          <a class="link-tile" href="https://github.com/apachot/nabaztag" target="_blank" rel="noreferrer">
+            <strong>Dépôt GitHub</strong>
+            <span class="soft">Code source, architecture serveur, suivi du développement et documentation.</span>
+          </a>
+          {% if current_user.is_authenticated %}
+            <a class="link-tile" href="{{ url_for('main.dashboard') }}">
+              <strong>Mon espace lapins</strong>
+              <span class="soft">Rattacher un lapin, suivre son état et préparer sa configuration.</span>
+            </a>
+          {% else %}
+            <a class="link-tile" href="{{ url_for('auth.register') }}">
+              <strong>Créer un compte</strong>
+              <span class="soft">Rejoindre le portail et participer aux tests de remise en ligne.</span>
+            </a>
+          {% endif %}
+        </div>
+      </article>
+      <article class="cta-card">
+        <span class="kicker">Feuille de route</span>
+        <h3>Ce qui arrive ensuite</h3>
+        <ul class="steps">
+          <li>stabiliser complètement la compatibilité Violet Platform et la connexion des lapins</li>
+          <li>améliorer le provisioning et la pédagogie de remise en service</li>
+          <li>outiller LEDs, oreilles, audio et événements dans une interface claire</li>
+          <li>ouvrir ensuite la voie à des interactions vocales basées sur des modèles open source</li>
+        </ul>
+      </article>
+    </section>
+  </div>
+{% endblock %}
