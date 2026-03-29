@@ -34,8 +34,9 @@
             <input id="home_wifi_password" name="home_wifi_password" type="password" required>
           </div>
           <div class="field">
-            <label for="server_base_url">Adresse du serveur</label>
+            <label for="server_base_url">Portail web</label>
             <input id="server_base_url" name="server_base_url" value="{{ latest_session.server_base_url if latest_session else portal_base_url }}" placeholder="{{ portal_base_url }}" required>
+            <div class="meta">URL du portail web. La valeur injectée dans <span class="mono">Violet Platform</span> sera <span class="mono">{{ violet_platform_value }}</span>.</div>
           </div>
         </div>
         <div class="actions">
