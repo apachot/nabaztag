@@ -22,7 +22,7 @@ def _env(name: str, default: str) -> str:
 
 
 def _xmpp_domain() -> str:
-    return _env("NABAZTAG_VL_XMPP_SERVER", "dev.emotia.com")
+    return _env("NABAZTAG_VL_XMPP_SERVER", "nabaztag.org")
 
 
 def _stream_open(domain: str, stream_id: str) -> str:
