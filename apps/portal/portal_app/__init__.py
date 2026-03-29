@@ -25,6 +25,8 @@ def create_app() -> Flask:
         NABAZTAG_VL_BROAD_SERVER=os.getenv("NABAZTAG_VL_BROAD_SERVER", "dev.emotia.com"),
         NABAZTAG_VL_XMPP_SERVER=os.getenv("NABAZTAG_VL_XMPP_SERVER", "dev.emotia.com"),
         NABAZTAG_VL_XMPP_PORT=int(os.getenv("NABAZTAG_VL_XMPP_PORT", "5222")),
+        NABAZTAG_XMPP_BIND_HOST=os.getenv("NABAZTAG_XMPP_BIND_HOST", "0.0.0.0"),
+        NABAZTAG_XMPP_BIND_PORT=int(os.getenv("NABAZTAG_XMPP_BIND_PORT", "5222")),
         SQLALCHEMY_DATABASE_URI=os.getenv(
             "NABAZTAG_PORTAL_DATABASE_URL",
             f"sqlite:///{instance_path / 'portal.db'}",
