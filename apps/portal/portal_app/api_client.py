@@ -7,7 +7,10 @@ from flask import current_app
 
 
 class NabaztagApiError(RuntimeError):
-    pass
+    def __init__(self, message: str, *, status_code: int | None = None, detail: str | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.detail = detail
 
 
 def _api_request(path: str, *, method: str = "GET", payload: dict | None = None) -> dict | list:
@@ -24,7 +27,11 @@ def _api_request(path: str, *, method: str = "GET", payload: dict | None = None)
             return json.loads(response.read().decode("utf-8"))
     except error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
-        raise NabaztagApiError(f"API error {exc.code}: {detail}") from exc
+        raise NabaztagApiError(
+            f"API error {exc.code}: {detail}",
+            status_code=exc.code,
+            detail=detail,
+        ) from exc
     except error.URLError as exc:
         raise NabaztagApiError(f"API unavailable: {exc.reason}") from exc
 

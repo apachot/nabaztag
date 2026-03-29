@@ -91,6 +91,42 @@ def _record_device_observation(
     return observation
 
 
+def _sync_remote_rabbit(rabbit: Rabbit, *, linked_serial: str | None = None) -> str | None:
+    remote_id = rabbit.remote_rabbit_id
+    needs_recreate = not remote_id
+
+    if remote_id and not needs_recreate:
+        try:
+            fetch_remote_rabbit(remote_id)
+        except NabaztagApiError as exc:
+            if exc.status_code == 404:
+                needs_recreate = True
+            else:
+                raise
+
+    if needs_recreate:
+        remote_payload = create_remote_rabbit(name=rabbit.name, slug=rabbit.slug)
+        remote_id = remote_payload["id"]
+        rabbit.remote_rabbit_id = remote_id
+        db.session.add(
+            RabbitEventLog(
+                rabbit_id=rabbit.id,
+                source="portal",
+                event_type="rabbit.remote.recreated",
+                payload=json.dumps({"remote_rabbit_id": remote_id}),
+            )
+        )
+
+    if rabbit.target_host and remote_id:
+        set_remote_target(remote_id, rabbit.target_host, rabbit.target_port or 10543)
+
+    if linked_serial and remote_id:
+        link_remote_device(remote_id, linked_serial)
+
+    db.session.commit()
+    return remote_id
+
+
 @main_bp.route("/vl", methods=["GET", "POST", "HEAD"])
 @main_bp.route("/vl/", methods=["GET", "POST", "HEAD"])
 def violet_platform():
@@ -206,6 +242,12 @@ def rabbit_detail(rabbit_id: int):
     remote_events: list[dict] = []
     remote_error = None
 
+    linked_device = (
+        DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(DeviceObservation.last_seen_at.desc())
+        .first()
+    )
+
     if rabbit.remote_rabbit_id:
         try:
             remote_rabbit = fetch_remote_rabbit(rabbit.remote_rabbit_id)
@@ -213,7 +255,21 @@ def rabbit_detail(rabbit_id: int):
             rabbit.connection_status = remote_rabbit.get("connection_status", rabbit.connection_status)
             db.session.commit()
         except NabaztagApiError as exc:
-            remote_error = str(exc)
+            if exc.status_code == 404:
+                try:
+                    remote_id = _sync_remote_rabbit(
+                        rabbit,
+                        linked_serial=linked_device.serial if linked_device else None,
+                    )
+                    if remote_id:
+                        remote_rabbit = fetch_remote_rabbit(remote_id)
+                        remote_events = fetch_remote_events(remote_id)
+                        rabbit.connection_status = remote_rabbit.get("connection_status", rabbit.connection_status)
+                        db.session.commit()
+                except NabaztagApiError as sync_exc:
+                    remote_error = str(sync_exc)
+            else:
+                remote_error = str(exc)
 
     provisioning_sessions = (
         ProvisioningSession.query.filter_by(rabbit_id=rabbit.id)
@@ -224,11 +280,6 @@ def rabbit_detail(rabbit_id: int):
         RabbitEventLog.query.filter_by(rabbit_id=rabbit.id)
         .order_by(RabbitEventLog.created_at.desc())
         .all()
-    )
-    linked_device = (
-        DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
-        .order_by(DeviceObservation.last_seen_at.desc())
-        .first()
     )
     available_devices = (
         DeviceObservation.query.filter(
@@ -452,13 +503,22 @@ def rabbit_action(rabbit_id: int):
     if action not in {"connect", "disconnect", "sync"}:
         flash("Action invalide.", "error")
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
-    if not rabbit.remote_rabbit_id:
-        flash("Ce lapin n'est pas encore enregistré dans l'API device.", "error")
-        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     payload = {"mode": "device"} if action == "connect" else {}
     try:
-        result = send_remote_action(rabbit.remote_rabbit_id, action, payload)
+        linked_device = (
+            DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
+            .order_by(DeviceObservation.last_seen_at.desc())
+            .first()
+        )
+        remote_id = _sync_remote_rabbit(
+            rabbit,
+            linked_serial=linked_device.serial if linked_device else None,
+        )
+        if not remote_id:
+            flash("Ce lapin n'est pas encore enregistré dans l'API device.", "error")
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+        result = send_remote_action(remote_id, action, payload)
         rabbit.connection_status = result.get("rabbit", {}).get("connection_status", rabbit.connection_status)
         db.session.add(
             RabbitEventLog(
@@ -501,11 +561,10 @@ def claim_device(rabbit_id: int):
         )
     )
 
-    if rabbit.remote_rabbit_id:
-        try:
-            link_remote_device(rabbit.remote_rabbit_id, observation.serial)
-        except NabaztagApiError as exc:
-            flash(f"Lapin physique lié localement, mais non synchronisé à l'API: {exc}", "error")
+    try:
+        _sync_remote_rabbit(rabbit, linked_serial=observation.serial)
+    except NabaztagApiError as exc:
+        flash(f"Lapin physique lié localement, mais non synchronisé à l'API: {exc}", "error")
 
     db.session.commit()
     flash(f"Lapin physique {observation.serial} rattaché.", "success")
