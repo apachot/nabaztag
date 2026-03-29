@@ -7,6 +7,7 @@ from .models import (
     CommandStatus,
     CommandType,
     ConnectionCommand,
+    ConnectionStatus,
     EarsCommand,
     LedCommand,
     Rabbit,
