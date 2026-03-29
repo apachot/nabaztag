@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import time
+from pathlib import Path
 
 from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
@@ -33,11 +35,23 @@ def _locate_reply() -> str:
     broad_server = current_app.config["NABAZTAG_VL_BROAD_SERVER"]
     xmpp_server = current_app.config["NABAZTAG_VL_XMPP_SERVER"]
     xmpp_port = current_app.config["NABAZTAG_VL_XMPP_PORT"]
+    xmpp_alt_server = current_app.config["NABAZTAG_VL_XMPP_ALT_SERVER"]
+    xmpp_alt_port = current_app.config["NABAZTAG_VL_XMPP_ALT_PORT"]
+    xmpp_timeout = current_app.config["NABAZTAG_VL_XMPP_TIMEOUT"]
     return (
         f"ping {ping_server}\n"
         f"broad {broad_server}\n"
         f"xmpp_domain {xmpp_server}:{xmpp_port}\n"
+        f"xmpp_alt {xmpp_alt_server}:{xmpp_alt_port}\n"
+        f"xmpp_timeout {xmpp_timeout}\n"
+        f"date {int(time.time())}\n"
     )
+
+
+def _recordings_dir() -> Path:
+    recordings_dir = Path(current_app.instance_path) / "recordings"
+    recordings_dir.mkdir(parents=True, exist_ok=True)
+    return recordings_dir
 
 
 @main_bp.route("/vl", methods=["GET", "POST", "HEAD"])
@@ -67,6 +81,37 @@ def violet_locate():
         body.strip(),
     )
     return Response(body, mimetype="text/plain")
+
+
+@main_bp.route("/vl/record.jsp", methods=["POST"])
+def violet_record():
+    serial_number = (request.args.get("sn") or "").replace(":", "").lower() or "unknown"
+    payload = request.get_data(cache=False)
+    filename = f"record_{serial_number}_{int(time.time())}.wav"
+    filepath = _recordings_dir() / filename
+    filepath.write_bytes(payload)
+    current_app.logger.info(
+        "nabaztag.record sn=%s size=%s file=%s",
+        serial_number,
+        len(payload),
+        str(filepath),
+    )
+    return Response("", mimetype="text/plain")
+
+
+@main_bp.route("/vl/rfid.jsp", methods=["GET", "POST"])
+def violet_rfid():
+    serial_number = (request.args.get("sn") or "").replace(":", "").lower()
+    tag_id = request.args.get("t") or ""
+    current_app.logger.info("nabaztag.rfid sn=%s tag=%s", serial_number, tag_id)
+    return Response("", mimetype="text/plain")
+
+
+@main_bp.route("/vl/sendMailXMPP.jsp", methods=["GET", "POST"])
+def violet_send_mail_xmpp():
+    mac = (request.args.get("m") or "").replace(":", "").lower()
+    current_app.logger.info("nabaztag.send_mail_xmpp mac=%s args=%s", mac, dict(request.args))
+    return Response("", mimetype="text/plain")
 
 
 @main_bp.get("/")
