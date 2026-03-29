@@ -104,6 +104,28 @@ class RabbitEventLog(db.Model):
     rabbit = db.relationship("Rabbit", back_populates="event_logs")
 
 
+class RabbitDeviceCommand(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    rabbit_id = db.Column(db.Integer, db.ForeignKey("rabbit.id"), nullable=False, index=True)
+    serial = db.Column(db.String(32), nullable=False, index=True)
+    command_type = db.Column(db.String(64), nullable=False, index=True)
+    payload = db.Column(db.Text)
+    status = db.Column(db.String(32), default="queued", nullable=False, index=True)
+    error = db.Column(db.Text)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    sent_at = db.Column(db.DateTime(timezone=True))
+
+
+class RabbitRecording(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    rabbit_id = db.Column(db.Integer, db.ForeignKey("rabbit.id"), nullable=False, index=True)
+    serial = db.Column(db.String(32), nullable=False, index=True)
+    filename = db.Column(db.String(255), nullable=False, unique=True)
+    source_path = db.Column(db.String(255), nullable=False)
+    mode = db.Column(db.String(32))
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+
+
 @login_manager.user_loader
 def load_user(user_id: str) -> User | None:
     if not user_id.isdigit():

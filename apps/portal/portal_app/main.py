@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import secrets
 import time
 from pathlib import Path
 
@@ -17,8 +18,23 @@ from .api_client import (
     send_remote_action,
     set_remote_target,
 )
+from .device_protocol import (
+    build_audio_packet,
+    build_choreography_packet,
+    build_ears_packet,
+    build_nose_or_bottom_packet,
+    choreography_storage_path,
+)
 from .extensions import db
-from .models import DeviceObservation, ProvisioningSession, Rabbit, RabbitEventLog, utc_now
+from .models import (
+    DeviceObservation,
+    ProvisioningSession,
+    Rabbit,
+    RabbitDeviceCommand,
+    RabbitEventLog,
+    RabbitRecording,
+    utc_now,
+)
 
 main_bp = Blueprint("main", __name__)
 
@@ -55,6 +71,12 @@ def _recordings_dir() -> Path:
     return recordings_dir
 
 
+def _choreographies_dir() -> Path:
+    chor_dir = Path(current_app.instance_path) / "chor"
+    chor_dir.mkdir(parents=True, exist_ok=True)
+    return chor_dir
+
+
 def _bootcode_path() -> Path:
     return Path(current_app.root_path).parents[2] / "deploy" / "assets" / "bootcode.default"
 
@@ -89,6 +111,67 @@ def _record_device_observation(
         observation.hardware = hardware
     db.session.commit()
     return observation
+
+
+def _rabbit_for_serial(serial: str | None) -> Rabbit | None:
+    normalized = _normalize_serial(serial)
+    if not normalized:
+        return None
+    observation = DeviceObservation.query.filter_by(serial=normalized).first()
+    if observation and observation.rabbit_id:
+        return Rabbit.query.get(observation.rabbit_id)
+    return None
+
+
+def _append_rabbit_event(
+    rabbit: Rabbit | None,
+    *,
+    source: str,
+    event_type: str,
+    payload: dict,
+    level: str = "info",
+) -> None:
+    if rabbit is None:
+        return
+    db.session.add(
+        RabbitEventLog(
+            rabbit_id=rabbit.id,
+            source=source,
+            event_type=event_type,
+            payload=json.dumps(payload),
+            level=level,
+        )
+    )
+
+
+def _enqueue_device_command(
+    rabbit: Rabbit,
+    *,
+    command_type: str,
+    payload: dict,
+    serial: str | None = None,
+) -> RabbitDeviceCommand:
+    linked_device = (
+        DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(DeviceObservation.last_seen_at.desc())
+        .first()
+    )
+    resolved_serial = _normalize_serial(serial or (linked_device.serial if linked_device else rabbit.target_host))
+    command = RabbitDeviceCommand(
+        rabbit_id=rabbit.id,
+        serial=resolved_serial,
+        command_type=command_type,
+        payload=json.dumps(payload),
+    )
+    db.session.add(command)
+    _append_rabbit_event(
+        rabbit,
+        source="portal",
+        event_type=f"rabbit.command.{command_type}.queued",
+        payload=payload,
+    )
+    db.session.commit()
+    return command
 
 
 def _sync_remote_rabbit(rabbit: Rabbit, *, linked_serial: str | None = None) -> str | None:
@@ -151,6 +234,19 @@ def violet_locate():
         hardware=request.args.get("h"),
     )
     body = _locate_reply()
+    rabbit = _rabbit_for_serial(serial_number)
+    _append_rabbit_event(
+        rabbit,
+        source="device",
+        event_type="rabbit.locate",
+        payload={
+            "serial": serial_number,
+            "firmware": request.args.get("v"),
+            "hardware": request.args.get("h"),
+            "path": request.path,
+        },
+    )
+    db.session.commit()
     current_app.logger.info(
         "nabaztag.locate sn=%s hardware=%s firmware=%s reply=%s",
         serial_number,
@@ -169,6 +265,18 @@ def violet_bootcode():
         firmware=request.args.get("v"),
         hardware=request.args.get("h"),
     )
+    rabbit = _rabbit_for_serial(request.args.get("m"))
+    _append_rabbit_event(
+        rabbit,
+        source="device",
+        event_type="rabbit.bootcode",
+        payload={
+            "serial": _normalize_serial(request.args.get("m")),
+            "firmware": request.args.get("v"),
+            "hardware": request.args.get("h"),
+        },
+    )
+    db.session.commit()
     current_app.logger.info(
         "nabaztag.bc mac=%s firmware=%s hardware=%s bootcode=%s",
         (request.args.get("m") or "").lower(),
@@ -194,6 +302,29 @@ def violet_record():
     filename = f"record_{serial_number}_{int(time.time())}.wav"
     filepath = _recordings_dir() / filename
     filepath.write_bytes(payload)
+    rabbit = _rabbit_for_serial(serial_number)
+    if rabbit is not None:
+        db.session.add(
+            RabbitRecording(
+                rabbit_id=rabbit.id,
+                serial=serial_number,
+                filename=filename,
+                source_path=str(filepath),
+                mode=request.args.get("m"),
+            )
+        )
+    _append_rabbit_event(
+        rabbit,
+        source="device",
+        event_type="rabbit.recording.uploaded",
+        payload={
+            "serial": serial_number,
+            "filename": filename,
+            "size": len(payload),
+            "mode": request.args.get("m"),
+        },
+    )
+    db.session.commit()
     current_app.logger.info(
         "nabaztag.record sn=%s size=%s file=%s",
         serial_number,
@@ -207,6 +338,14 @@ def violet_record():
 def violet_rfid():
     serial_number = (request.args.get("sn") or "").replace(":", "").lower()
     tag_id = request.args.get("t") or ""
+    rabbit = _rabbit_for_serial(serial_number)
+    _append_rabbit_event(
+        rabbit,
+        source="device",
+        event_type="rabbit.rfid.detected",
+        payload={"serial": serial_number, "tag": tag_id},
+    )
+    db.session.commit()
     current_app.logger.info("nabaztag.rfid sn=%s tag=%s", serial_number, tag_id)
     return Response("", mimetype="text/plain")
 
@@ -216,6 +355,14 @@ def violet_send_mail_xmpp():
     mac = (request.args.get("m") or "").replace(":", "").lower()
     current_app.logger.info("nabaztag.send_mail_xmpp mac=%s args=%s", mac, dict(request.args))
     return Response("", mimetype="text/plain")
+
+
+@main_bp.get("/ojn_local/chor/<path:filename>")
+def serve_choreography(filename: str):
+    path = choreography_storage_path(_choreographies_dir(), filename)
+    if not path.exists():
+        return Response("Not found\n", status=404, mimetype="text/plain")
+    return send_file(path, mimetype="application/octet-stream", as_attachment=False, download_name=path.name)
 
 
 @main_bp.get("/")
@@ -293,6 +440,18 @@ def rabbit_detail(rabbit_id: int):
         .limit(10)
         .all()
     )
+    recordings = (
+        RabbitRecording.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(RabbitRecording.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    queued_commands = (
+        RabbitDeviceCommand.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(RabbitDeviceCommand.created_at.desc())
+        .limit(20)
+        .all()
+    )
     return render_template(
         "rabbits/detail.html",
         rabbit=rabbit,
@@ -303,6 +462,8 @@ def rabbit_detail(rabbit_id: int):
         event_logs=event_logs,
         linked_device=linked_device,
         available_devices=available_devices,
+        recordings=recordings,
+        queued_commands=queued_commands,
     )
 
 
@@ -538,6 +699,67 @@ def rabbit_action(rabbit_id: int):
         flash(str(exc), "error")
 
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+
+@main_bp.post("/rabbits/<int:rabbit_id>/device/ears")
+@login_required
+def rabbit_device_ears(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    left = request.form.get("left", "").strip()
+    right = request.form.get("right", "").strip()
+    if not left.isdigit() or not right.isdigit():
+        flash("Positions d'oreilles invalides.", "error")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+    _enqueue_device_command(
+        rabbit,
+        command_type="ears",
+        payload={"left": int(left), "right": int(right)},
+    )
+    flash("Commande oreilles mise en file.", "success")
+    return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+
+@main_bp.post("/rabbits/<int:rabbit_id>/device/led")
+@login_required
+def rabbit_device_led(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    target = request.form.get("target", "").strip().lower()
+    color = request.form.get("color", "").strip().lower()
+    if target not in {"nose", "left", "center", "right", "bottom"} or not color.startswith("#") or len(color) != 7:
+        flash("Commande LED invalide.", "error")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+    _enqueue_device_command(
+        rabbit,
+        command_type="led",
+        payload={"target": target, "color": color},
+    )
+    flash("Commande LED mise en file.", "success")
+    return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+
+@main_bp.post("/rabbits/<int:rabbit_id>/device/audio")
+@login_required
+def rabbit_device_audio(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    url = request.form.get("url", "").strip()
+    if not url:
+        flash("URL audio obligatoire.", "error")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+    _enqueue_device_command(
+        rabbit,
+        command_type="audio",
+        payload={"url": url},
+    )
+    flash("Lecture audio mise en file.", "success")
+    return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+
+@main_bp.get("/recordings/<path:filename>")
+@login_required
+def download_recording(filename: str):
+    recording = RabbitRecording.query.filter_by(filename=filename).first_or_404()
+    rabbit = Rabbit.query.filter_by(id=recording.rabbit_id, owner_id=current_user.id).first_or_404()
+    return send_file(recording.source_path, mimetype="audio/wav", as_attachment=False, download_name=Path(recording.source_path).name)
 
 
 @main_bp.post("/rabbits/<int:rabbit_id>/claim-device")

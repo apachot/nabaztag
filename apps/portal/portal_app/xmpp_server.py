@@ -3,11 +3,23 @@ from __future__ import annotations
 import asyncio
 import base64
 import binascii
+import json
 import logging
 import os
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 
+from . import create_app
+from .device_protocol import (
+    EncodedPacket,
+    build_audio_packet,
+    build_choreography_packet,
+    build_ears_packet,
+    build_nose_or_bottom_packet,
+)
+from .models import DeviceObservation, RabbitDeviceCommand, RabbitEventLog, RabbitRecording, utc_now
+from .extensions import db
 
 LOG = logging.getLogger("nabaztag.xmpp")
 
@@ -16,6 +28,8 @@ STREAM_NS = "http://etherx.jabber.org/streams"
 CLIENT_NS = "jabber:client"
 BIND_NS = "urn:ietf:params:xml:ns:xmpp-bind"
 SESSION_NS = "urn:ietf:params:xml:ns:xmpp-session"
+APP = create_app()
+ACTIVE_SESSIONS: dict[str, "XmppSession"] = {}
 
 
 def _env(name: str, default: str) -> str:
@@ -76,6 +90,18 @@ class XmppSession:
     resource: str | None = None
     buffer: str = field(default_factory=str)
     raw_mode: bool = False
+
+    async def send_packet(self, packet: EncodedPacket) -> None:
+        if not self.username or not self.resource:
+            raise RuntimeError("Rabbit session is not ready yet")
+        encoded = base64.b64encode(packet.payload).decode("ascii")
+        stanza = (
+            f"<message from='net.openjabnab.platform@{self.domain}/services' "
+            f"to='{self.username}@{self.domain}/{self.resource}' id='py-{int(asyncio.get_running_loop().time() * 1000)}'>"
+            f"<packet xmlns='violet:packet' format='1.0' ttl='604800'>{encoded}</packet>"
+            "</message>"
+        )
+        await self.write(stanza)
 
     async def write(self, data: str) -> None:
         LOG.info("xmpp -> %s %s", self.peer, data[:400])
@@ -142,6 +168,8 @@ class XmppSession:
         if self.auth_step >= 10 and "<bind" in chunk and "<resource>" in chunk:
             resource = _extract_resource(chunk) or "idle"
             self.resource = resource
+            if self.username:
+                ACTIVE_SESSIONS[self.username.lower()] = self
             iq_id = _extract_attr(chunk, "id") or "bind-1"
             jid = f"{self.username or 'anonymous'}@{self.domain}/{resource}"
             await self.write(
@@ -178,6 +206,36 @@ class XmppSession:
             return
 
         if chunk == " ":
+            return
+
+        if "<message" in chunk and "<button" in chunk:
+            click_value = _extract_tag_value(chunk, "clic")
+            if self.username and click_value:
+                _record_device_event(
+                    self.username,
+                    "rabbit.button",
+                    {
+                        "click": int(click_value),
+                        "peer": self.peer,
+                        "resource": self.resource,
+                    },
+                )
+            return
+
+        if "<message" in chunk and "<ears" in chunk:
+            left = _extract_tag_value(chunk, "left")
+            right = _extract_tag_value(chunk, "right")
+            if self.username and left is not None and right is not None:
+                _record_device_event(
+                    self.username,
+                    "rabbit.ears.moved",
+                    {
+                        "left": int(left),
+                        "right": int(right),
+                        "peer": self.peer,
+                        "resource": self.resource,
+                    },
+                )
             return
 
         LOG.warning("unhandled xmpp stanza from %s: %s", self.peer, chunk[:400])
@@ -217,9 +275,119 @@ async def _handle_connection(reader: asyncio.StreamReader, writer: asyncio.Strea
     except Exception:
         LOG.exception("xmpp connection failure %s", peer)
     finally:
+        if session.username:
+            ACTIVE_SESSIONS.pop(session.username.lower(), None)
         LOG.info("xmpp disconnect %s", peer)
         writer.close()
         await writer.wait_closed()
+
+
+def _record_device_event(serial: str, event_type: str, payload: dict) -> None:
+    with APP.app_context():
+        normalized = serial.lower()
+        observation = DeviceObservation.query.filter_by(serial=normalized).first()
+        rabbit_id = observation.rabbit_id if observation else None
+        if observation is not None:
+            observation.last_seen_at = utc_now()
+            observation.last_path = f"xmpp:{event_type}"
+            db.session.add(observation)
+        if rabbit_id is not None:
+            db.session.add(
+                RabbitEventLog(
+                    rabbit_id=rabbit_id,
+                    source="device",
+                    event_type=event_type,
+                    payload=json.dumps(payload),
+                )
+            )
+        db.session.commit()
+
+
+def _choreography_root() -> Path:
+    root = Path(APP.instance_path) / "chor"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _build_packet_for_command(command: RabbitDeviceCommand) -> EncodedPacket:
+    payload = json.loads(command.payload or "{}")
+    if command.command_type == "audio":
+        return build_audio_packet(payload["url"])
+    if command.command_type == "ears":
+        return build_ears_packet(int(payload["left"]), int(payload["right"]))
+    if command.command_type == "led":
+        target = payload["target"]
+        color = payload["color"]
+        if target in {"nose", "bottom"}:
+            return build_nose_or_bottom_packet(target, color)
+        filename = f"rabbit-{command.rabbit_id}-{command.id}-{target}.chor"
+        packet, choreography = build_choreography_packet(target=target, color=color, filename=filename)
+        choreography_path = _choreography_root() / filename
+        choreography_path.write_bytes(choreography)
+        return packet
+    raise RuntimeError(f"Unsupported command type: {command.command_type}")
+
+
+async def _dispatch_commands_once() -> None:
+    with APP.app_context():
+        queued = (
+            RabbitDeviceCommand.query.filter_by(status="queued")
+            .order_by(RabbitDeviceCommand.created_at.asc())
+            .limit(50)
+            .all()
+        )
+
+    for command in queued:
+        session = ACTIVE_SESSIONS.get(command.serial.lower())
+        if session is None or not session.resource:
+            continue
+        try:
+            packet = _build_packet_for_command(command)
+            await session.send_packet(packet)
+            with APP.app_context():
+                current = db.session.get(RabbitDeviceCommand, command.id)
+                if current is None:
+                    continue
+                current.status = "sent"
+                current.sent_at = utc_now()
+                db.session.add(current)
+                db.session.add(
+                    RabbitEventLog(
+                        rabbit_id=current.rabbit_id,
+                        source="device",
+                        event_type=f"rabbit.command.{current.command_type}.sent",
+                        payload=json.dumps({"serial": current.serial, "description": packet.description}),
+                    )
+                )
+                db.session.commit()
+        except Exception as exc:
+            LOG.exception("command dispatch failure id=%s", command.id)
+            with APP.app_context():
+                current = db.session.get(RabbitDeviceCommand, command.id)
+                if current is None:
+                    continue
+                current.status = "failed"
+                current.error = str(exc)
+                db.session.add(current)
+                db.session.add(
+                    RabbitEventLog(
+                        rabbit_id=current.rabbit_id,
+                        source="device",
+                        event_type=f"rabbit.command.{current.command_type}.failed",
+                        payload=json.dumps({"serial": current.serial, "error": str(exc)}),
+                        level="error",
+                    )
+                )
+                db.session.commit()
+
+
+async def _dispatch_loop() -> None:
+    while True:
+        try:
+            await _dispatch_commands_once()
+        except Exception:
+            LOG.exception("command dispatcher failure")
+        await asyncio.sleep(1.0)
 
 
 async def _run() -> None:
@@ -231,6 +399,7 @@ async def _run() -> None:
     port = int(_env("NABAZTAG_XMPP_BIND_PORT", "5222"))
     server = await asyncio.start_server(_handle_connection, host, port)
     LOG.info("xmpp listener ready on %s:%s for domain %s", host, port, _xmpp_domain())
+    asyncio.create_task(_dispatch_loop())
     async with server:
         await server.serve_forever()
 

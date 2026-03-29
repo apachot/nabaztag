@@ -59,6 +59,42 @@
 
     <section class="grid">
       <article class="panel">
+        <h2>Pilotage réel</h2>
+        <div class="stack">
+          <form method="post" action="{{ url_for('main.rabbit_device_ears', rabbit_id=rabbit.id) }}" class="stack">
+            <strong>Oreilles</strong>
+            <label>Oreille gauche</label>
+            <input type="number" name="left" min="0" max="16" value="{{ remote_rabbit.state.left_ear if remote_rabbit else 8 }}">
+            <label>Oreille droite</label>
+            <input type="number" name="right" min="0" max="16" value="{{ remote_rabbit.state.right_ear if remote_rabbit else 8 }}">
+            <button class="button primary" type="submit">Bouger les oreilles</button>
+          </form>
+
+          <form method="post" action="{{ url_for('main.rabbit_device_led', rabbit_id=rabbit.id) }}" class="stack">
+            <strong>LEDs</strong>
+            <label>Cible</label>
+            <select name="target">
+              <option value="nose">Nez</option>
+              <option value="left">Corps gauche</option>
+              <option value="center">Corps centre</option>
+              <option value="right">Corps droite</option>
+              <option value="bottom">LED du bas</option>
+            </select>
+            <label>Couleur</label>
+            <input type="color" name="color" value="#ff6600">
+            <button class="button primary" type="submit">Changer la LED</button>
+          </form>
+
+          <form method="post" action="{{ url_for('main.rabbit_device_audio', rabbit_id=rabbit.id) }}" class="stack">
+            <strong>Audio</strong>
+            <label>URL MP3 / WAV</label>
+            <input type="url" name="url" placeholder="https://.../sound.mp3">
+            <button class="button primary" type="submit">Lire l'audio</button>
+          </form>
+        </div>
+      </article>
+
+      <article class="panel">
         <h2>Lapin physique détecté</h2>
         {% if linked_device %}
           <div class="rabbit-card">
@@ -128,6 +164,48 @@
     </section>
 
     <section class="grid">
+      <article class="panel">
+        <h2>Commandes envoyées</h2>
+        <div class="stack">
+          {% for command in queued_commands %}
+            <div class="rabbit-card">
+              <strong>{{ command.command_type }}</strong>
+              <div class="meta">Statut: {{ command.status }}</div>
+              <div class="meta">Créée: {{ command.created_at }}</div>
+              {% if command.sent_at %}
+                <div class="meta">Envoyée: {{ command.sent_at }}</div>
+              {% endif %}
+              {% if command.error %}
+                <div class="meta">Erreur: {{ command.error }}</div>
+              {% endif %}
+              {% if command.payload %}
+                <div class="mono">{{ command.payload }}</div>
+              {% endif %}
+            </div>
+          {% else %}
+            <p>Aucune commande envoyée.</p>
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="panel">
+        <h2>Enregistrements</h2>
+        <div class="stack">
+          {% for recording in recordings %}
+            <div class="rabbit-card">
+              <strong>{{ recording.filename }}</strong>
+              <div class="meta">Créé le: {{ recording.created_at }}</div>
+              <div class="meta">Mode: {{ recording.mode or "n/a" }}</div>
+              <audio controls preload="none" style="width: 100%;">
+                <source src="{{ url_for('main.download_recording', filename=recording.filename) }}" type="audio/wav">
+              </audio>
+            </div>
+          {% else %}
+            <p>Aucun enregistrement reçu.</p>
+          {% endfor %}
+        </div>
+      </article>
+
       <article class="panel">
         <h2>Historique local</h2>
         <div class="stack">
