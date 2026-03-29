@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,6 +29,13 @@ from .protocol.client import ProtocolClient
 from .settings import GatewayError
 
 service = create_service()
+
+
+def _build_violet_platform_value(server_base_url: str) -> str:
+    normalized = server_base_url.strip().rstrip("/")
+    parsed = urlparse(normalized if "://" in normalized else f"https://{normalized}")
+    host = parsed.netloc or parsed.path
+    return f"{host.rstrip('/')}/vl"
 
 app = FastAPI(
     title="Nabaztag API",
@@ -62,7 +70,7 @@ def root() -> dict[str, str]:
 @app.post("/api/bootstrap/submit", response_model=BootstrapConfigResult)
 def submit_bootstrap_config(payload: BootstrapConfigRequest) -> BootstrapConfigResult:
     base_url = payload.server_base_url.rstrip("/")
-    violet_platform = f"{base_url}/vl"
+    violet_platform = _build_violet_platform_value(base_url)
     bootstrap_url = f"http://{payload.bootstrap_host}:{payload.bootstrap_port}/"
     return BootstrapConfigResult(
         submitted=False,

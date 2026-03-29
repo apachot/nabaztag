@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from .api_client import (
@@ -25,7 +25,22 @@ def _portal_base_url() -> str:
 
 
 def _violet_platform_value() -> str:
-    return f"{_portal_base_url().rstrip('/')}/vl"
+    return f"{request.host}/vl"
+
+
+@main_bp.route("/vl", methods=["GET", "POST", "HEAD"])
+@main_bp.route("/vl/", methods=["GET", "POST", "HEAD"])
+def violet_platform():
+    payload = request.get_data(cache=False, as_text=True)
+    current_app.logger.info(
+        "nabaztag.vl request method=%s path=%s args=%s headers=%s body=%s",
+        request.method,
+        request.path,
+        dict(request.args),
+        {key: value for key, value in request.headers.items()},
+        payload[:1000],
+    )
+    return Response("Nabaztag Violet Platform endpoint ready.\n", mimetype="text/plain")
 
 
 @main_bp.get("/")
