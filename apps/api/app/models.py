@@ -56,6 +56,7 @@ class Rabbit(BaseModel):
     slug: str
     name: str
     connection_status: ConnectionStatus = ConnectionStatus.SIMULATED
+    device_serial: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
     state: RabbitState = Field(default_factory=RabbitState)
@@ -83,6 +84,10 @@ class RabbitSync(BaseModel):
 class RabbitTargetUpdate(BaseModel):
     host: str = Field(min_length=1, max_length=255)
     port: int = Field(default=10543, ge=1, le=65535)
+
+
+class RabbitDeviceLink(BaseModel):
+    serial: str = Field(min_length=8, max_length=32)
 
 
 class Event(BaseModel):

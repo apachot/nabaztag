@@ -52,12 +52,32 @@ class Rabbit(db.Model):
         back_populates="rabbit",
         cascade="all, delete-orphan",
     )
+    device_observations = db.relationship(
+        "DeviceObservation",
+        back_populates="rabbit",
+        cascade="save-update, merge",
+    )
     event_logs = db.relationship(
         "RabbitEventLog",
         back_populates="rabbit",
         cascade="all, delete-orphan",
         order_by="desc(RabbitEventLog.created_at)",
     )
+
+
+class DeviceObservation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    serial = db.Column(db.String(32), unique=True, nullable=False, index=True)
+    last_seen_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    last_ip = db.Column(db.String(64))
+    last_user_agent = db.Column(db.String(255))
+    last_path = db.Column(db.String(255))
+    firmware = db.Column(db.String(64))
+    hardware = db.Column(db.String(32))
+    last_query = db.Column(db.Text)
+    rabbit_id = db.Column(db.Integer, db.ForeignKey("rabbit.id"), index=True)
+
+    rabbit = db.relationship("Rabbit", back_populates="device_observations")
 
 
 class ProvisioningSession(db.Model):

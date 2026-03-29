@@ -12,12 +12,13 @@ from .api_client import (
     create_remote_rabbit,
     fetch_remote_events,
     fetch_remote_rabbit,
+    link_remote_device,
     prepare_remote_bootstrap,
     send_remote_action,
     set_remote_target,
 )
 from .extensions import db
-from .models import ProvisioningSession, Rabbit, RabbitEventLog
+from .models import DeviceObservation, ProvisioningSession, Rabbit, RabbitEventLog, utc_now
 
 main_bp = Blueprint("main", __name__)
 
@@ -58,6 +59,38 @@ def _bootcode_path() -> Path:
     return Path(current_app.root_path).parents[2] / "deploy" / "assets" / "bootcode.default"
 
 
+def _normalize_serial(value: str | None) -> str:
+    return "".join(character for character in (value or "").lower() if character in "0123456789abcdef")
+
+
+def _record_device_observation(
+    *,
+    serial: str | None,
+    firmware: str | None = None,
+    hardware: str | None = None,
+) -> DeviceObservation | None:
+    normalized = _normalize_serial(serial)
+    if not normalized:
+        return None
+
+    observation = DeviceObservation.query.filter_by(serial=normalized).first()
+    if observation is None:
+        observation = DeviceObservation(serial=normalized)
+        db.session.add(observation)
+
+    observation.last_seen_at = utc_now()
+    observation.last_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+    observation.last_user_agent = request.headers.get("User-Agent", "")[:255]
+    observation.last_path = request.path
+    observation.last_query = request.query_string.decode("utf-8", errors="replace")[:2000]
+    if firmware:
+        observation.firmware = firmware
+    if hardware:
+        observation.hardware = hardware
+    db.session.commit()
+    return observation
+
+
 @main_bp.route("/vl", methods=["GET", "POST", "HEAD"])
 @main_bp.route("/vl/", methods=["GET", "POST", "HEAD"])
 def violet_platform():
@@ -76,6 +109,11 @@ def violet_platform():
 @main_bp.route("/vl/locate.jsp", methods=["GET", "POST", "HEAD"])
 def violet_locate():
     serial_number = (request.args.get("sn") or "").replace(":", "").lower()
+    _record_device_observation(
+        serial=serial_number,
+        firmware=request.args.get("v"),
+        hardware=request.args.get("h"),
+    )
     body = _locate_reply()
     current_app.logger.info(
         "nabaztag.locate sn=%s hardware=%s firmware=%s reply=%s",
@@ -90,6 +128,11 @@ def violet_locate():
 @main_bp.route("/vl/bc.jsp", methods=["GET", "HEAD"])
 def violet_bootcode():
     bootcode = _bootcode_path()
+    _record_device_observation(
+        serial=request.args.get("m"),
+        firmware=request.args.get("v"),
+        hardware=request.args.get("h"),
+    )
     current_app.logger.info(
         "nabaztag.bc mac=%s firmware=%s hardware=%s bootcode=%s",
         (request.args.get("m") or "").lower(),
@@ -182,6 +225,19 @@ def rabbit_detail(rabbit_id: int):
         .order_by(RabbitEventLog.created_at.desc())
         .all()
     )
+    linked_device = (
+        DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(DeviceObservation.last_seen_at.desc())
+        .first()
+    )
+    available_devices = (
+        DeviceObservation.query.filter(
+            (DeviceObservation.rabbit_id.is_(None)) | (DeviceObservation.rabbit_id == rabbit.id)
+        )
+        .order_by(DeviceObservation.last_seen_at.desc())
+        .limit(10)
+        .all()
+    )
     return render_template(
         "rabbits/detail.html",
         rabbit=rabbit,
@@ -190,6 +246,8 @@ def rabbit_detail(rabbit_id: int):
         remote_error=remote_error,
         provisioning_sessions=provisioning_sessions,
         event_logs=event_logs,
+        linked_device=linked_device,
+        available_devices=available_devices,
     )
 
 
@@ -415,4 +473,40 @@ def rabbit_action(rabbit_id: int):
     except NabaztagApiError as exc:
         flash(str(exc), "error")
 
+    return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+
+@main_bp.post("/rabbits/<int:rabbit_id>/claim-device")
+@login_required
+def claim_device(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    observation_id = request.form.get("observation_id", "").strip()
+    if not observation_id.isdigit():
+        flash("Périphérique invalide.", "error")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    observation = DeviceObservation.query.get(int(observation_id))
+    if observation is None:
+        flash("Périphérique introuvable.", "error")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    observation.rabbit_id = rabbit.id
+    rabbit.connection_status = "online"
+    db.session.add(
+        RabbitEventLog(
+            rabbit_id=rabbit.id,
+            source="portal",
+            event_type="rabbit.device.claimed",
+            payload=json.dumps({"serial": observation.serial}),
+        )
+    )
+
+    if rabbit.remote_rabbit_id:
+        try:
+            link_remote_device(rabbit.remote_rabbit_id, observation.serial)
+        except NabaztagApiError as exc:
+            flash(f"Lapin physique lié localement, mais non synchronisé à l'API: {exc}", "error")
+
+    db.session.commit()
+    flash(f"Lapin physique {observation.serial} rattaché.", "success")
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))

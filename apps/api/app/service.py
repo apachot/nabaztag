@@ -11,6 +11,7 @@ from .models import (
     LedCommand,
     Rabbit,
     RabbitCreate,
+    RabbitDeviceLink,
     RabbitSync,
     RabbitTarget,
     RabbitTargetUpdate,
@@ -58,6 +59,20 @@ class RabbitService:
             "rabbit.target.updated",
             "Rabbit target updated",
             rabbit.target.model_dump(),
+        )
+        return rabbit
+
+    def link_device(self, rabbit_id: str, payload: RabbitDeviceLink) -> Rabbit:
+        rabbit = self.store.get_rabbit(rabbit_id)
+        rabbit.device_serial = payload.serial.lower()
+        rabbit.connection_status = ConnectionStatus.ONLINE
+        rabbit.updated_at = utc_now()
+        self.store.replace_rabbit(rabbit)
+        self.store.append_event(
+            rabbit_id,
+            "rabbit.device.linked",
+            "Rabbit linked to observed device",
+            {"serial": rabbit.device_serial, "connection_status": rabbit.connection_status},
         )
         return rabbit
 

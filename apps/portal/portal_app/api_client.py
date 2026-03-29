@@ -41,6 +41,14 @@ def set_remote_target(remote_id: str, host: str, port: int) -> dict:
     )
 
 
+def link_remote_device(remote_id: str, serial: str) -> dict:
+    return _api_request(
+        f"/api/rabbits/{remote_id}/link-device",
+        method="POST",
+        payload={"serial": serial},
+    )
+
+
 def prepare_remote_bootstrap(
     *,
     rabbit_id: str | None,

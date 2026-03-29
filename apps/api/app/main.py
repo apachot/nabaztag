@@ -19,6 +19,7 @@ from .models import (
     LedCommand,
     Rabbit,
     RabbitCreate,
+    RabbitDeviceLink,
     RabbitSummary,
     RabbitSync,
     RabbitTargetUpdate,
@@ -132,6 +133,14 @@ def get_rabbit(rabbit_id: str) -> Rabbit:
 def update_rabbit_target(rabbit_id: str, payload: RabbitTargetUpdate) -> Rabbit:
     try:
         return service.set_target(rabbit_id, payload)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Rabbit not found") from exc
+
+
+@app.post("/api/rabbits/{rabbit_id}/link-device", response_model=Rabbit)
+def link_rabbit_device(rabbit_id: str, payload: RabbitDeviceLink) -> Rabbit:
+    try:
+        return service.link_device(rabbit_id, payload)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Rabbit not found") from exc
 
