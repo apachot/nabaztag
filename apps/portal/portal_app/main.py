@@ -251,6 +251,10 @@ def rabbit_detail(rabbit_id: int):
     if rabbit.remote_rabbit_id:
         try:
             remote_rabbit = fetch_remote_rabbit(rabbit.remote_rabbit_id)
+            if linked_device and remote_rabbit.get("device_serial") != linked_device.serial:
+                remote_id = _sync_remote_rabbit(rabbit, linked_serial=linked_device.serial)
+                if remote_id:
+                    remote_rabbit = fetch_remote_rabbit(remote_id)
             remote_events = fetch_remote_events(rabbit.remote_rabbit_id)
             rabbit.connection_status = remote_rabbit.get("connection_status", rabbit.connection_status)
             db.session.commit()
