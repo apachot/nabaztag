@@ -28,6 +28,18 @@ def _violet_platform_value() -> str:
     return f"{request.host}/vl"
 
 
+def _locate_reply() -> str:
+    ping_server = current_app.config["NABAZTAG_VL_PING_SERVER"]
+    broad_server = current_app.config["NABAZTAG_VL_BROAD_SERVER"]
+    xmpp_server = current_app.config["NABAZTAG_VL_XMPP_SERVER"]
+    xmpp_port = current_app.config["NABAZTAG_VL_XMPP_PORT"]
+    return (
+        f"ping {ping_server}\n"
+        f"broad {broad_server}\n"
+        f"xmpp_domain {xmpp_server}:{xmpp_port}\n"
+    )
+
+
 @main_bp.route("/vl", methods=["GET", "POST", "HEAD"])
 @main_bp.route("/vl/", methods=["GET", "POST", "HEAD"])
 def violet_platform():
@@ -41,6 +53,20 @@ def violet_platform():
         payload[:1000],
     )
     return Response("Nabaztag Violet Platform endpoint ready.\n", mimetype="text/plain")
+
+
+@main_bp.route("/vl/locate.jsp", methods=["GET", "POST", "HEAD"])
+def violet_locate():
+    serial_number = (request.args.get("sn") or "").replace(":", "").lower()
+    body = _locate_reply()
+    current_app.logger.info(
+        "nabaztag.locate sn=%s hardware=%s firmware=%s reply=%s",
+        serial_number,
+        request.args.get("h"),
+        request.args.get("v"),
+        body.strip(),
+    )
+    return Response(body, mimetype="text/plain")
 
 
 @main_bp.get("/")
