@@ -81,6 +81,21 @@ def _extract_tag_value(stanza: str, tag: str) -> str | None:
     return match.group(1) if match else None
 
 
+def _reply_iq(request: str, iq_type: str, content: str | None = None) -> str:
+    iq_id = _extract_attr(request, "id") or "iq-1"
+    from_attr = _extract_attr(request, "from")
+    to_attr = _extract_attr(request, "to")
+    attributes = [f"id='{iq_id}'", f"type='{iq_type}'"]
+    if to_attr:
+        attributes.append(f"from='{to_attr}'")
+    if from_attr:
+        attributes.append(f"to='{from_attr}'")
+    head = f"<iq {' '.join(attributes)}"
+    if content is None:
+        return head + "/>"
+    return head + f">{content}</iq>"
+
+
 @dataclass
 class XmppSession:
     writer: asyncio.StreamWriter
@@ -171,34 +186,30 @@ class XmppSession:
             self.resource = resource
             if self.username:
                 ACTIVE_SESSIONS[self.username.lower()] = self
-            iq_id = _extract_attr(chunk, "id") or "bind-1"
             jid = f"{self.username or 'anonymous'}@{self.domain}/{resource}"
-            await self.write(
-                f"<iq type='result' id='{iq_id}'><bind xmlns='{BIND_NS}'><jid>{jid}</jid></bind></iq>"
-            )
+            await self.write(_reply_iq(chunk, "result", f"<bind xmlns='{BIND_NS}'><jid>{jid}</jid></bind>"))
             return
 
         if self.auth_step >= 10 and f"<session xmlns='{SESSION_NS}'/>" in chunk:
-            iq_id = _extract_attr(chunk, "id") or "session-1"
-            await self.write(f"<iq type='result' id='{iq_id}'><session xmlns='{SESSION_NS}'/></iq>")
+            await self.write(_reply_iq(chunk, "result", f"<session xmlns='{SESSION_NS}'/>"))
             return
 
         if self.auth_step >= 10 and 'xmlns="jabber:iq:version"' in chunk:
             return
 
         if self.auth_step >= 10 and 'xmlns="violet:iq:sources"' in chunk:
-            iq_id = _extract_attr(chunk, "id") or "sources-1"
             status = base64.b64encode(build_init_packet()).decode("ascii")
             await self.write(
-                f"<iq type='result' id='{iq_id}'>"
-                f"<query xmlns='violet:iq:sources'><packet xmlns='violet:packet' format='1.0' ttl='604800'>{status}</packet></query>"
-                "</iq>"
+                _reply_iq(
+                    chunk,
+                    "result",
+                    f"<query xmlns='violet:iq:sources'><packet xmlns='violet:packet' format='1.0' ttl='604800'>{status}</packet></query>",
+                )
             )
             return
 
         if self.auth_step >= 10 and "<unbind" in chunk and "<resource>" in chunk:
-            iq_id = _extract_attr(chunk, "id") or "unbind-1"
-            await self.write(f"<iq type='result' id='{iq_id}'></iq>")
+            await self.write(_reply_iq(chunk, "result", None))
             return
 
         if self.auth_step >= 10 and chunk.startswith("<presence"):
