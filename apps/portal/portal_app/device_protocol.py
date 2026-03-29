@@ -67,16 +67,49 @@ def encode_message_packet(message: str) -> bytes:
     return bytes(encoded)
 
 
+def _frame_packet(packet_type: int, internal: bytes) -> bytes:
+    length = len(internal)
+    return bytes(
+        [
+            0x7F,
+            packet_type,
+            (length >> 16) & 0xFF,
+            (length >> 8) & 0xFF,
+            length & 0xFF,
+        ]
+    ) + internal + b"\xFF"
+
+
+def _frame_packet_list(*packets: tuple[int, bytes]) -> bytes:
+    payload = bytearray([0x7F])
+    for packet_type, internal in packets:
+        length = len(internal)
+        payload.extend(
+            [
+                packet_type,
+                (length >> 16) & 0xFF,
+                (length >> 8) & 0xFF,
+                length & 0xFF,
+            ]
+        )
+        payload.extend(internal)
+    payload.append(0xFF)
+    return bytes(payload)
+
+
 def build_audio_packet(url: str) -> EncodedPacket:
     message = f"MU {url}\nPL 3\nMW\n"
     return EncodedPacket(
-        payload=encode_message_packet(message),
+        payload=_frame_packet(0x0A, encode_message_packet(message)),
         description=f"Play audio {url}",
     )
 
 
 def build_ears_packet(left: int, right: int) -> EncodedPacket:
-    payload = bytes([0x7F, 0xFF, 0xFF, 0xFE, AmbientService.MOVE_LEFT_EAR, left, AmbientService.MOVE_RIGHT_EAR, right])
+    payload = _frame_packet(
+        0x04,
+        bytes([0x7F, 0xFF, 0xFF, 0xFE, AmbientService.MOVE_LEFT_EAR, left, AmbientService.MOVE_RIGHT_EAR, right]),
+    )
     return EncodedPacket(payload=payload, description=f"Move ears to left={left} right={right}")
 
 
@@ -94,7 +127,7 @@ def build_nose_or_bottom_packet(target: str, color: str) -> EncodedPacket:
     else:
         service = AmbientService.BOTTOM_LED
         value = red
-    payload = bytes([0x7F, 0xFF, 0xFF, 0xFE, service, value])
+    payload = _frame_packet(0x04, bytes([0x7F, 0xFF, 0xFF, 0xFE, service, value]))
     return EncodedPacket(payload=payload, description=f"Set {target} LED to {color}")
 
 
@@ -110,11 +143,30 @@ def build_choreography_packet(*, target: str, color: str, filename: str) -> tupl
     message = f"CH broadcast/ojn_local/chor/{filename}\n"
     return (
         EncodedPacket(
-            payload=encode_message_packet(message),
+            payload=_frame_packet(0x0A, encode_message_packet(message)),
             description=f"Run LED choreography for {target} -> {color}",
         ),
         bytes(body),
     )
+
+
+def build_init_packet() -> bytes:
+    ambient = bytes(
+        [
+            0x7F,
+            0xFF,
+            0xFF,
+            0xFE,
+            AmbientService.NOSE,
+            0x00,
+            AmbientService.MOVE_LEFT_EAR,
+            0x00,
+            AmbientService.MOVE_RIGHT_EAR,
+            0x00,
+        ]
+    )
+    sleep = bytes([0x00])
+    return _frame_packet_list((0x04, ambient), (0x0B, sleep))
 
 
 def choreography_storage_path(root: Path, filename: str) -> Path:

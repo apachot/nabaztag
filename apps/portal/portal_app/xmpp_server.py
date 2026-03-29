@@ -16,6 +16,7 @@ from .device_protocol import (
     build_audio_packet,
     build_choreography_packet,
     build_ears_packet,
+    build_init_packet,
     build_nose_or_bottom_packet,
 )
 from .models import DeviceObservation, RabbitDeviceCommand, RabbitEventLog, RabbitRecording, utc_now
@@ -187,9 +188,10 @@ class XmppSession:
 
         if self.auth_step >= 10 and 'xmlns="violet:iq:sources"' in chunk:
             iq_id = _extract_attr(chunk, "id") or "sources-1"
+            status = base64.b64encode(build_init_packet()).decode("ascii")
             await self.write(
                 f"<iq type='result' id='{iq_id}'>"
-                "<query xmlns='violet:iq:sources'><packet xmlns='violet:packet' format='1.0' ttl='604800'></packet></query>"
+                f"<query xmlns='violet:iq:sources'><packet xmlns='violet:packet' format='1.0' ttl='604800'>{status}</packet></query>"
                 "</iq>"
             )
             return
