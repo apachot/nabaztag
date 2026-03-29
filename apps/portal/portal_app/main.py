@@ -4,7 +4,7 @@ import json
 import time
 from pathlib import Path
 
-from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, url_for
+from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 
 from .api_client import (
@@ -54,6 +54,10 @@ def _recordings_dir() -> Path:
     return recordings_dir
 
 
+def _bootcode_path() -> Path:
+    return Path(current_app.root_path).parents[2] / "deploy" / "assets" / "bootcode.default"
+
+
 @main_bp.route("/vl", methods=["GET", "POST", "HEAD"])
 @main_bp.route("/vl/", methods=["GET", "POST", "HEAD"])
 def violet_platform():
@@ -81,6 +85,27 @@ def violet_locate():
         body.strip(),
     )
     return Response(body, mimetype="text/plain")
+
+
+@main_bp.route("/vl/bc.jsp", methods=["GET", "HEAD"])
+def violet_bootcode():
+    bootcode = _bootcode_path()
+    current_app.logger.info(
+        "nabaztag.bc mac=%s firmware=%s hardware=%s bootcode=%s",
+        (request.args.get("m") or "").lower(),
+        request.args.get("v"),
+        request.args.get("h"),
+        str(bootcode),
+    )
+    return send_file(
+        bootcode,
+        mimetype="application/octet-stream",
+        as_attachment=False,
+        conditional=True,
+        download_name="bootcode.default",
+        etag=True,
+        last_modified=bootcode.stat().st_mtime,
+    )
 
 
 @main_bp.route("/vl/record.jsp", methods=["POST"])
