@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Accueil | Nabaztag Portal{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <h1>Compte, lapins, enrôlement</h1>
+    <p>
+      Cette interface Flask devient la couche produit: compte utilisateur, connexion,
+      inventaire des lapins et préparation du provisioning. L’API FastAPI reste la
+      couche de communication device.
+    </p>
+    <div class="actions" style="margin-top: 18px;">
+      {% if current_user.is_authenticated %}
+        <a class="button primary" href="{{ url_for('main.dashboard') }}">Voir mes lapins</a>
+      {% else %}
+        <a class="button primary" href="{{ url_for('auth.register') }}">Créer un compte</a>
+        <a class="pill" href="{{ url_for('auth.login') }}">Se connecter</a>
+      {% endif %}
+    </div>
+  </section>
+{% endblock %}
+

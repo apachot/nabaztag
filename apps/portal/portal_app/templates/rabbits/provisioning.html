@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Provisioning {{ rabbit.name }} | Nabaztag Portal{% endblock %}
+
+{% block content %}
+  <section class="stack">
+    <section class="hero">
+      <h1>Provisioning de {{ rabbit.name }}</h1>
+      <p>
+        Cette page prépare le paramétrage historique du lapin : Wi-Fi maison et valeur
+        `Violet Platform` vers ton serveur.
+      </p>
+      <div class="meta">Remote ID: <span class="mono">{{ rabbit.remote_rabbit_id or 'non synchronisé' }}</span></div>
+    </section>
+
+    <section class="panel" style="max-width: 760px;">
+      <h2>Préparer la session</h2>
+      <div class="notice" style="margin-bottom: 16px;">
+        Valeur attendue dans le champ <span class="mono">Violet Platform</span> du lapin :
+        <span class="mono">{{ violet_platform_value }}</span>
+      </div>
+      <form method="post">
+        <div class="grid">
+          <div class="field">
+            <label for="setup_ssid">SSID du lapin en mode config</label>
+            <input id="setup_ssid" name="setup_ssid" value="{{ latest_session.setup_ssid if latest_session else 'NabaztagXX' }}">
+          </div>
+          <div class="field">
+            <label for="home_wifi_ssid">Wi-Fi maison</label>
+            <input id="home_wifi_ssid" name="home_wifi_ssid" value="{{ latest_session.home_wifi_ssid if latest_session else '' }}" required>
+          </div>
+          <div class="field">
+            <label for="home_wifi_password">Mot de passe Wi-Fi</label>
+            <input id="home_wifi_password" name="home_wifi_password" type="password" required>
+          </div>
+          <div class="field">
+            <label for="server_base_url">Adresse du serveur</label>
+            <input id="server_base_url" name="server_base_url" value="{{ latest_session.server_base_url if latest_session else portal_base_url }}" placeholder="{{ portal_base_url }}" required>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="button primary" type="submit">Préparer le provisioning</button>
+          <a class="pill" href="{{ url_for('main.rabbit_detail', rabbit_id=rabbit.id) }}">Retour</a>
+        </div>
+      </form>
+      <ol class="steps" style="margin-top: 18px;">
+        <li>Branche le lapin en gardant le bouton appuyé pour le faire entrer en mode configuration.</li>
+        <li>Connecte ton ordinateur au Wi-Fi du lapin, par exemple <span class="mono">{{ latest_session.setup_ssid if latest_session else 'NabaztagXX' }}</span>.</li>
+        <li>Ouvre <span class="mono">http://192.168.0.1/</span>.</li>
+        <li>Dans l’écran avancé, saisis ton SSID maison, ton mot de passe Wi-Fi et <span class="mono">{{ violet_platform_value }}</span> dans <span class="mono">Violet Platform</span>.</li>
+        <li>Valide avec <strong>Update and Start</strong>, puis attends le redémarrage du lapin.</li>
+      </ol>
+    </section>
+  </section>
+{% endblock %}

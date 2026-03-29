@@ -1,0 +1,91 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+from flask_login import UserMixin
+from werkzeug.security import check_password_hash, generate_password_hash
+
+from .extensions import db, login_manager
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+
+    rabbits = db.relationship("Rabbit", back_populates="owner", cascade="all, delete-orphan")
+
+    def set_password(self, password: str) -> None:
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password: str) -> bool:
+        return check_password_hash(self.password_hash, password)
+
+
+class Rabbit(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    slug = db.Column(db.String(64), nullable=False)
+    connection_status = db.Column(db.String(32), default="offline", nullable=False)
+    remote_rabbit_id = db.Column(db.String(64), unique=True, index=True)
+    target_host = db.Column(db.String(255))
+    target_port = db.Column(db.Integer, default=10543)
+    notes = db.Column(db.Text)
+    provisioning_state = db.Column(db.String(32), default="draft", nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = db.Column(
+        db.DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+
+    owner_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    owner = db.relationship("User", back_populates="rabbits")
+    provisioning_sessions = db.relationship(
+        "ProvisioningSession",
+        back_populates="rabbit",
+        cascade="all, delete-orphan",
+    )
+    event_logs = db.relationship(
+        "RabbitEventLog",
+        back_populates="rabbit",
+        cascade="all, delete-orphan",
+        order_by="desc(RabbitEventLog.created_at)",
+    )
+
+
+class ProvisioningSession(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    rabbit_id = db.Column(db.Integer, db.ForeignKey("rabbit.id"), nullable=False, index=True)
+    setup_ssid = db.Column(db.String(64))
+    home_wifi_ssid = db.Column(db.String(64))
+    server_base_url = db.Column(db.String(255))
+    status = db.Column(db.String(32), default="draft", nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+
+    rabbit = db.relationship("Rabbit", back_populates="provisioning_sessions")
+
+
+class RabbitEventLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    rabbit_id = db.Column(db.Integer, db.ForeignKey("rabbit.id"), nullable=False, index=True)
+    level = db.Column(db.String(16), default="info", nullable=False)
+    source = db.Column(db.String(64), nullable=False)
+    event_type = db.Column(db.String(120), nullable=False)
+    payload = db.Column(db.Text)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+
+    rabbit = db.relationship("Rabbit", back_populates="event_logs")
+
+
+@login_manager.user_loader
+def load_user(user_id: str) -> User | None:
+    if not user_id.isdigit():
+        return None
+    return db.session.get(User, int(user_id))

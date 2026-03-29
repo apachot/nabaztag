@@ -1,0 +1,13 @@
+.DS_Store
+.next
+node_modules
+dist
+coverage
+__pycache__
+.pytest_cache
+.mypy_cache
+.venv
+venv
+*.pyc
+apps/api/uploads
+*.tgz

@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}{{ rabbit.name }} | Nabaztag Portal{% endblock %}
+
+{% block content %}
+  <section class="stack">
+    <section class="hero">
+      <h1>{{ rabbit.name }}</h1>
+      <div class="meta">Slug: <span class="mono">{{ rabbit.slug }}</span></div>
+      <div class="meta">Statut local: {{ rabbit.connection_status }}</div>
+      <div class="meta">
+        Remote ID:
+        {% if rabbit.remote_rabbit_id %}
+          <span class="mono">{{ rabbit.remote_rabbit_id }}</span>
+        {% else %}
+          non synchronisé
+        {% endif %}
+      </div>
+      <div class="meta">
+        Cible:
+        {% if rabbit.target_host %}
+          <span class="mono">{{ rabbit.target_host }}:{{ rabbit.target_port }}</span>
+        {% else %}
+          non renseignée
+        {% endif %}
+      </div>
+      {% if rabbit.notes %}
+        <p>{{ rabbit.notes }}</p>
+      {% endif %}
+      <div class="actions" style="margin-top: 16px;">
+        <a class="pill" href="{{ url_for('main.edit_rabbit', rabbit_id=rabbit.id) }}">Modifier</a>
+        <a class="pill" href="{{ url_for('main.rabbit_provisioning', rabbit_id=rabbit.id) }}">Provisioning</a>
+        <form method="post" action="{{ url_for('main.rabbit_action', rabbit_id=rabbit.id) }}">
+          <input type="hidden" name="action" value="connect">
+          <button class="button primary" type="submit">Connecter</button>
+        </form>
+        <form method="post" action="{{ url_for('main.rabbit_action', rabbit_id=rabbit.id) }}">
+          <input type="hidden" name="action" value="sync">
+          <button class="pill" type="submit">Sync</button>
+        </form>
+        <form method="post" action="{{ url_for('main.rabbit_action', rabbit_id=rabbit.id) }}">
+          <input type="hidden" name="action" value="disconnect">
+          <button class="pill" type="submit">Déconnecter</button>
+        </form>
+      </div>
+    </section>
+
+    {% if remote_error %}
+      <section class="flash error">{{ remote_error }}</section>
+    {% endif %}
+
+    <section class="grid">
+      <article class="panel">
+        <h2>État device</h2>
+        {% if remote_rabbit %}
+          <div class="meta">Connexion: {{ remote_rabbit.connection_status }}</div>
+          <div class="meta">Créé le: {{ remote_rabbit.created_at }}</div>
+          <div class="meta">Mis à jour: {{ remote_rabbit.updated_at }}</div>
+          <pre class="mono" style="white-space: pre-wrap;">{{ remote_rabbit.state | tojson(indent=2) }}</pre>
+        {% else %}
+          <p>Aucun état remote disponible.</p>
+        {% endif %}
+      </article>
+
+      <article class="panel">
+        <h2>Provisioning</h2>
+        {% for session in provisioning_sessions %}
+          <div class="rabbit-card">
+            <div class="meta">Statut: {{ session.status }}</div>
+            <div class="meta">Wi-Fi maison: {{ session.home_wifi_ssid or "n/a" }}</div>
+            <div class="meta">Serveur: {{ session.server_base_url or "n/a" }}</div>
+            <div class="meta">Créé le: {{ session.created_at }}</div>
+          </div>
+        {% else %}
+          <p>Aucune session de provisioning enregistrée.</p>
+        {% endfor %}
+      </article>
+    </section>
+
+    <section class="grid">
+      <article class="panel">
+        <h2>Historique local</h2>
+        <div class="stack">
+          {% for event in event_logs %}
+            <div class="rabbit-card">
+              <strong>{{ event.event_type }}</strong>
+              <div class="meta">{{ event.source }} · {{ event.created_at }}</div>
+              {% if event.payload %}
+                <div class="mono">{{ event.payload }}</div>
+              {% endif %}
+            </div>
+          {% else %}
+            <p>Aucun événement local.</p>
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="panel">
+        <h2>Événements device</h2>
+        <div class="stack">
+          {% for event in remote_events %}
+            <div class="rabbit-card">
+              <strong>{{ event.type }}</strong>
+              <div class="meta">{{ event.created_at }}</div>
+              <div>{{ event.message }}</div>
+              <div class="mono">{{ event.payload | tojson }}</div>
+            </div>
+          {% else %}
+            <p>Aucun événement device.</p>
+          {% endfor %}
+        </div>
+      </article>
+    </section>
+  </section>
+{% endblock %}

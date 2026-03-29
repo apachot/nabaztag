@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nabaztag-portal"
+version = "0.1.0"
+description = "Flask portal for Nabaztag accounts and rabbits"
+requires-python = ">=3.10"
+dependencies = [
+  "Flask>=3.0,<4.0",
+  "Flask-Login>=0.6,<1.0",
+  "Flask-SQLAlchemy>=3.1,<4.0",
+  "gunicorn>=23.0,<24.0"
+]
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["portal_app*"]
+
