@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import binascii
 import logging
 import os
 import re
@@ -74,6 +75,7 @@ class XmppSession:
     username: str | None = None
     resource: str | None = None
     buffer: str = field(default_factory=str)
+    raw_mode: bool = False
 
     async def write(self, data: str) -> None:
         LOG.info("xmpp -> %s %s", self.peer, data[:400])
@@ -191,9 +193,27 @@ async def _handle_connection(reader: asyncio.StreamReader, writer: asyncio.Strea
             data = await reader.read(4096)
             if not data:
                 break
-            text = data.decode("utf-8", errors="ignore").strip()
-            if text:
-                await session.handle_chunk(text)
+            try:
+                text = data.decode("utf-8")
+            except UnicodeDecodeError:
+                text = ""
+
+            printable_ratio = 0.0
+            if data:
+                printable_ratio = sum(32 <= byte <= 126 or byte in (9, 10, 13) for byte in data) / len(data)
+
+            if text and printable_ratio > 0.8:
+                stripped = text.strip()
+                if stripped:
+                    await session.handle_chunk(stripped)
+            else:
+                hex_preview = binascii.hexlify(data[:64]).decode("ascii")
+                LOG.warning(
+                    "xmpp non-text payload from %s bytes=%s hex=%s",
+                    peer,
+                    len(data),
+                    hex_preview,
+                )
     except Exception:
         LOG.exception("xmpp connection failure %s", peer)
     finally:
