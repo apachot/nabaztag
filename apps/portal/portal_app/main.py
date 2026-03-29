@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 import secrets
 import time
+from mimetypes import guess_type
 from pathlib import Path
 
 from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
+from werkzeug.utils import secure_filename
 
 from .api_client import (
     NabaztagApiError,
@@ -75,6 +77,12 @@ def _choreographies_dir() -> Path:
     chor_dir = Path(current_app.instance_path) / "chor"
     chor_dir.mkdir(parents=True, exist_ok=True)
     return chor_dir
+
+
+def _audio_assets_dir() -> Path:
+    audio_dir = Path(current_app.instance_path) / "audio"
+    audio_dir.mkdir(parents=True, exist_ok=True)
+    return audio_dir
 
 
 def _bootcode_path() -> Path:
@@ -363,6 +371,15 @@ def serve_choreography(filename: str):
     if not path.exists():
         return Response("Not found\n", status=404, mimetype="text/plain")
     return send_file(path, mimetype="application/octet-stream", as_attachment=False, download_name=path.name)
+
+
+@main_bp.get("/media/audio/<path:filename>")
+def serve_audio_asset(filename: str):
+    path = _audio_assets_dir() / filename
+    if not path.exists():
+        return Response("Not found\n", status=404, mimetype="text/plain")
+    guessed_type = guess_type(path.name)[0] or "application/octet-stream"
+    return send_file(path, mimetype=guessed_type, as_attachment=False, download_name=path.name)
 
 
 @main_bp.get("/")
@@ -751,6 +768,39 @@ def rabbit_device_audio(rabbit_id: int):
         payload={"url": url},
     )
     flash("Lecture audio mise en file.", "success")
+    return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+
+@main_bp.post("/rabbits/<int:rabbit_id>/device/audio/upload")
+@login_required
+def rabbit_device_audio_upload(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    uploaded = request.files.get("audio_file")
+    if uploaded is None or not uploaded.filename:
+        flash("Fichier audio obligatoire.", "error")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    original_name = secure_filename(uploaded.filename)
+    if not original_name:
+        flash("Nom de fichier invalide.", "error")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    extension = Path(original_name).suffix.lower()
+    if extension not in {".mp3", ".wav", ".ogg"}:
+        flash("Formats acceptés: MP3, WAV, OGG.", "error")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    stored_name = f"{rabbit.slug}-{secrets.token_hex(6)}{extension}"
+    destination = _audio_assets_dir() / stored_name
+    uploaded.save(destination)
+
+    asset_url = f"{_portal_base_url()}{url_for('main.serve_audio_asset', filename=stored_name)}"
+    _enqueue_device_command(
+        rabbit,
+        command_type="audio",
+        payload={"url": asset_url, "source": "upload", "filename": original_name},
+    )
+    flash("Audio téléversé et lecture mise en file.", "success")
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
 
