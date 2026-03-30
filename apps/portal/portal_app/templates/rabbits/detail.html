@@ -154,13 +154,6 @@
             <button class="button primary" type="submit">Envoyer le signal</button>
           </form>
 
-          <form method="post" action="{{ url_for('main.rabbit_device_audio', rabbit_id=rabbit.id) }}" class="stack">
-            <strong>Audio</strong>
-            <label>URL MP3 / WAV</label>
-            <input type="url" name="url" placeholder="https://.../sound.mp3">
-            <button class="button primary" type="submit">Lire l'audio</button>
-          </form>
-
           <form method="post" action="{{ url_for('main.rabbit_device_audio_upload', rabbit_id=rabbit.id) }}" enctype="multipart/form-data" class="stack">
             <strong>Audio depuis votre ordinateur</strong>
             <label>Fichier MP3 / WAV / OGG</label>
