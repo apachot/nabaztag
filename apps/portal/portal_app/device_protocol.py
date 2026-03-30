@@ -98,10 +98,10 @@ def _frame_packet_list(*packets: tuple[int, bytes]) -> bytes:
 
 
 def build_audio_packet(url: str) -> EncodedPacket:
-    message = f"MU {url}\nPL 3\nMW\n"
+    message = f"ST {url}\nPL 3\nMW\n"
     return EncodedPacket(
         payload=_frame_packet(0x0A, encode_message_packet(message)),
-        description=f"Play audio {url}",
+        description=f"Stream audio {url}",
     )
 
 
