@@ -73,7 +73,15 @@ DEFAULT_RABBIT_PERSONALITY_PROMPT = (
     "attachant."
 )
 
-DEFAULT_RABBIT_TTS_VOICE = "fr"
+DEFAULT_RABBIT_TTS_VOICE = "fr+f4"
+RABBIT_TTS_VOICE_PRESETS = [
+    ("fr+f4", "Francaise mutine"),
+    ("fr+f3", "Francaise espiègle"),
+    ("fr+f5", "Francaise legere"),
+    ("french-mbrola-4", "MBROLA feminine"),
+    ("fr", "Francais classique"),
+    ("french-mbrola-1", "MBROLA classique"),
+]
 
 
 def _portal_base_url() -> str:
@@ -923,7 +931,9 @@ def update_rabbit_prompt(rabbit_id: int):
 @login_required
 def update_rabbit_tts_voice(rabbit_id: int):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
-    rabbit.tts_voice = request.form.get("tts_voice", "").strip() or DEFAULT_RABBIT_TTS_VOICE
+    custom_voice = request.form.get("tts_voice_custom", "").strip()
+    preset_voice = request.form.get("tts_voice", "").strip()
+    rabbit.tts_voice = custom_voice or preset_voice or DEFAULT_RABBIT_TTS_VOICE
     db.session.commit()
     flash("Voix TTS du lapin mise a jour.", "success")
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
@@ -1025,6 +1035,7 @@ def rabbit_detail(rabbit_id: int):
         led_color_presets=LED_COLOR_PRESETS,
         DEFAULT_RABBIT_PERSONALITY_PROMPT=DEFAULT_RABBIT_PERSONALITY_PROMPT,
         DEFAULT_RABBIT_TTS_VOICE=DEFAULT_RABBIT_TTS_VOICE,
+        RABBIT_TTS_VOICE_PRESETS=RABBIT_TTS_VOICE_PRESETS,
         rabbit_photo_url=_rabbit_photo_url(rabbit),
     )
 

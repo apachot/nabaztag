@@ -224,14 +224,20 @@
         <h2>Voix TTS</h2>
         <form method="post" action="{{ url_for('main.update_rabbit_tts_voice', rabbit_id=rabbit.id) }}" class="stack">
           <div class="meta">
-            Valeur envoyee a <span class="mono">espeak -v</span>. Exemples utiles : <span class="mono">fr</span>,
-            <span class="mono">fr+f3</span>, <span class="mono">fr+m3</span>.
+            Choisis une voix predefinie, ou saisis une valeur custom si tu veux tester autre chose avec
+            <span class="mono">espeak -v</span>.
           </div>
+          <select name="tts_voice">
+            {% for voice_value, voice_label in RABBIT_TTS_VOICE_PRESETS %}
+              <option value="{{ voice_value }}" {% if (rabbit.tts_voice or DEFAULT_RABBIT_TTS_VOICE) == voice_value %}selected{% endif %}>
+                {{ voice_label }} · {{ voice_value }}
+              </option>
+            {% endfor %}
+          </select>
           <input
             type="text"
-            name="tts_voice"
-            value="{{ rabbit.tts_voice or DEFAULT_RABBIT_TTS_VOICE }}"
-            placeholder="fr"
+            name="tts_voice_custom"
+            placeholder="Valeur custom espeak, ex: fr+croak"
             spellcheck="false"
             autocapitalize="off"
             autocomplete="off"
