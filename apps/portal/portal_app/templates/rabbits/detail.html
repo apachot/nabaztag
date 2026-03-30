@@ -5,74 +5,119 @@
 {% block content %}
   <section class="stack">
     <section class="hero">
-      <h1>{{ rabbit.name }}</h1>
-      {% if rabbit_photo_url %}
-        <div style="margin: 18px 0 20px;">
+      <div class="hero-split">
+        <div>
+          <h1>{{ rabbit.name }}</h1>
+          <div class="meta">Slug: <span class="mono">{{ rabbit.slug }}</span></div>
+          <div class="meta">Statut local: <span id="rabbit-status">{{ rabbit.connection_status }}</span></div>
+          <div class="meta">
+            Connexion device:
+            <span id="rabbit-remote-connection">
+              {% if remote_rabbit %}
+                {{ remote_rabbit.connection_status }}
+              {% else %}
+                n/a
+              {% endif %}
+            </span>
+          </div>
+          <div class="meta">
+            Serial device:
+            <span class="mono" id="rabbit-remote-serial">
+              {% if remote_rabbit and remote_rabbit.device_serial %}
+                {{ remote_rabbit.device_serial }}
+              {% else %}
+                n/a
+              {% endif %}
+            </span>
+          </div>
+          <div class="meta">
+            Oreilles:
+            <span id="rabbit-ears-summary">
+              {% if remote_rabbit and remote_rabbit.state %}
+                G {{ remote_rabbit.state.left_ear }} · D {{ remote_rabbit.state.right_ear }}
+              {% else %}
+                n/a
+              {% endif %}
+            </span>
+          </div>
+          <div class="meta">
+            Audio:
+            <span id="rabbit-audio-summary">
+              {% if remote_rabbit and remote_rabbit.state %}
+                {% if remote_rabbit.state.audio_playing %}
+                  en lecture
+                {% else %}
+                  au repos
+                {% endif %}
+              {% else %}
+                n/a
+              {% endif %}
+            </span>
+          </div>
+          <div class="meta">
+            Remote ID:
+            {% if rabbit.remote_rabbit_id %}
+              <span class="mono">{{ rabbit.remote_rabbit_id }}</span>
+            {% else %}
+              non synchronisé
+            {% endif %}
+          </div>
+          <div class="meta">
+            Cible:
+            {% if rabbit.target_host %}
+              <span class="mono" id="rabbit-target">{{ rabbit.target_host }}:{{ rabbit.target_port }}</span>
+            {% else %}
+              non renseignée
+            {% endif %}
+          </div>
+          <div class="meta">
+            Lapin physique:
+            {% if linked_device %}
+              <span class="mono" id="linked-device-serial">{{ linked_device.serial }}</span>
+            {% else %}
+              non rattaché
+            {% endif %}
+          </div>
+          {% if rabbit.notes %}
+            <p>{{ rabbit.notes }}</p>
+          {% endif %}
+          <div class="actions" style="margin-top: 16px;">
+            <a class="pill alert-pill" href="{{ url_for('main.rabbit_alerts', rabbit_id=rabbit.id) }}" title="Voir les alertes" aria-label="Voir les alertes">
+              <span aria-hidden="true">⚑</span>
+              <span>Alertes</span>
+            </a>
+            <a class="pill" href="{{ url_for('main.edit_rabbit', rabbit_id=rabbit.id) }}">Modifier</a>
+            <a class="pill" href="{{ url_for('main.rabbit_details', rabbit_id=rabbit.id) }}">Détails</a>
+          </div>
+        </div>
+        <div>
           <img
-            src="{{ rabbit_photo_url }}"
+            src="{{ rabbit_photo_url or 'https://commons.wikimedia.org/wiki/Special:FilePath/Nabaztag.jpg' }}"
             alt="Photo de {{ rabbit.name }}"
             style="display: block; width: 100%; max-width: 360px; height: auto; border: 1px solid rgba(24, 23, 21, 0.08);"
           >
+          <form
+            method="post"
+            action="{{ url_for('main.upload_rabbit_photo', rabbit_id=rabbit.id) }}"
+            enctype="multipart/form-data"
+            class="stack"
+            style="margin-top: 18px; max-width: 360px;"
+          >
+            <strong>Photo du Nabaztag</strong>
+            <label>Téléverser une image</label>
+            <input type="file" name="photo_file" accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif">
+            <div class="meta">
+              Cette image remplace la photo par défaut du lapin dans le portail.
+            </div>
+            <div class="actions">
+              <button class="button primary" type="submit">Téléverser la photo</button>
+            </div>
+            {% if rabbit.photo_original_name %}
+              <div class="meta">Fichier actuel : {{ rabbit.photo_original_name }}</div>
+            {% endif %}
+          </form>
         </div>
-      {% endif %}
-      <div class="meta">Slug: <span class="mono">{{ rabbit.slug }}</span></div>
-      <div class="meta">Statut local: <span id="rabbit-status">{{ rabbit.connection_status }}</span></div>
-      <div class="meta">
-        Remote ID:
-        {% if rabbit.remote_rabbit_id %}
-          <span class="mono">{{ rabbit.remote_rabbit_id }}</span>
-        {% else %}
-          non synchronisé
-        {% endif %}
       </div>
-      <div class="meta">
-        Cible:
-        {% if rabbit.target_host %}
-          <span class="mono" id="rabbit-target">{{ rabbit.target_host }}:{{ rabbit.target_port }}</span>
-        {% else %}
-          non renseignée
-        {% endif %}
-      </div>
-      <div class="meta">
-        Lapin physique:
-        {% if linked_device %}
-          <span class="mono" id="linked-device-serial">{{ linked_device.serial }}</span>
-        {% else %}
-          non rattaché
-        {% endif %}
-      </div>
-      {% if rabbit.notes %}
-        <p>{{ rabbit.notes }}</p>
-      {% endif %}
-      <div class="actions" style="margin-top: 16px;">
-        <a class="pill alert-pill" href="{{ url_for('main.rabbit_alerts', rabbit_id=rabbit.id) }}" title="Voir les alertes" aria-label="Voir les alertes">
-          <span aria-hidden="true">⚑</span>
-          <span>Alertes</span>
-        </a>
-        <a class="pill" href="{{ url_for('main.edit_rabbit', rabbit_id=rabbit.id) }}">Modifier</a>
-        <a class="pill" href="{{ url_for('main.rabbit_details', rabbit_id=rabbit.id) }}">Détails</a>
-      </div>
-      <form
-        method="post"
-        action="{{ url_for('main.upload_rabbit_photo', rabbit_id=rabbit.id) }}"
-        enctype="multipart/form-data"
-        class="stack"
-        style="margin-top: 22px; max-width: 420px;"
-      >
-        <strong>Photo du Nabaztag</strong>
-        <label>Téléverser une image</label>
-        <input type="file" name="photo_file" accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif">
-        <div class="meta">
-          Ajoute une photo du lapin pour l’identifier visuellement dans le portail.
-          Formats acceptés : JPG, PNG, WEBP, GIF.
-        </div>
-        <div class="actions">
-          <button class="button primary" type="submit">Téléverser la photo</button>
-          {% if rabbit.photo_original_name %}
-            <span class="meta">Fichier actuel : {{ rabbit.photo_original_name }}</span>
-          {% endif %}
-        </div>
-      </form>
     </section>
 
     {% if remote_error %}
@@ -153,21 +198,6 @@
         </div>
       </article>
 
-      <article class="panel" id="device-state-panel" data-url="{{ url_for('main.rabbit_live_summary', rabbit_id=rabbit.id) }}">
-        <h2>État device</h2>
-        <div id="device-state-content">
-          {% if remote_rabbit %}
-            <div class="meta">Connexion: {{ remote_rabbit.connection_status }}</div>
-            <div class="meta">Créé le: {{ remote_rabbit.created_at }}</div>
-            <div class="meta">Mis à jour: {{ remote_rabbit.updated_at }}</div>
-            <div class="meta">Serial: <span class="mono">{{ remote_rabbit.device_serial or "n/a" }}</span></div>
-            <pre class="mono" style="white-space: pre-wrap;">{{ remote_rabbit.state | tojson(indent=2) }}</pre>
-          {% else %}
-            <p>Aucun état remote disponible.</p>
-          {% endif %}
-        </div>
-      </article>
-
       <article class="panel">
         <h2>Ztamp's</h2>
         <div class="meta">Tags RFID déjà détectés par ce lapin.</div>
@@ -188,30 +218,6 @@
     </section>
 
     <section class="grid">
-      <article class="panel">
-        <h2>Commandes envoyées</h2>
-        <div class="stack">
-          {% for command in queued_commands %}
-            <div class="rabbit-card">
-              <strong>{{ command.command_type }}</strong>
-              <div class="meta">Statut: {{ command.status }}</div>
-              <div class="meta">Créée: {{ command.created_at }}</div>
-              {% if command.sent_at %}
-                <div class="meta">Envoyée: {{ command.sent_at }}</div>
-              {% endif %}
-              {% if command.error %}
-                <div class="meta">Erreur: {{ command.error }}</div>
-              {% endif %}
-              {% if command.payload %}
-                <div class="mono">{{ command.payload }}</div>
-              {% endif %}
-            </div>
-          {% else %}
-            <p>Aucune commande envoyée.</p>
-          {% endfor %}
-        </div>
-      </article>
-
       <article class="panel">
         <h2>Enregistrements</h2>
         <div class="stack" id="recordings-list" data-url="{{ url_for('main.rabbit_live_recordings', rabbit_id=rabbit.id) }}">
@@ -244,56 +250,24 @@
         </div>
       </article>
 
-      <article class="panel">
-        <h2>Historique local</h2>
-        <div class="stack" id="history-list" data-url="{{ url_for('main.rabbit_live_history', rabbit_id=rabbit.id) }}">
-          {% for event in event_logs %}
-            <div class="rabbit-card">
-              <strong>{{ event.event_type }}</strong>
-              <div class="meta">{{ event.source }} · {{ event.created_at }}</div>
-              {% if event.payload %}
-                <div class="mono">{{ event.payload }}</div>
-              {% endif %}
-            </div>
-          {% else %}
-            <p>Aucun événement local.</p>
-          {% endfor %}
-        </div>
-      </article>
-
-      <article class="panel">
-        <h2>Événements device</h2>
-        <div class="stack">
-          {% for event in remote_events %}
-            <div class="rabbit-card">
-              <strong>{{ event.type }}</strong>
-              <div class="meta">{{ event.created_at }}</div>
-              <div>{{ event.message }}</div>
-              <div class="mono">{{ event.payload | tojson }}</div>
-            </div>
-          {% else %}
-            <p>Aucun événement device.</p>
-          {% endfor %}
-        </div>
-      </article>
     </section>
   </section>
 
   <script>
     (() => {
       const recordingsContainer = document.getElementById("recordings-list");
-      const historyContainer = document.getElementById("history-list");
-      const deviceStatePanel = document.getElementById("device-state-panel");
-      const deviceStateContent = document.getElementById("device-state-content");
       const rabbitStatus = document.getElementById("rabbit-status");
+      const rabbitRemoteConnection = document.getElementById("rabbit-remote-connection");
+      const rabbitRemoteSerial = document.getElementById("rabbit-remote-serial");
+      const rabbitEarsSummary = document.getElementById("rabbit-ears-summary");
+      const rabbitAudioSummary = document.getElementById("rabbit-audio-summary");
       const rabbitTarget = document.getElementById("rabbit-target");
       const linkedDeviceSerial = document.getElementById("linked-device-serial");
       const ztampsContainer = document.getElementById("ztamps-list");
       const toastStack = document.getElementById("toast-stack");
       const endpoint = "{{ url_for('main.rabbit_live_events', rabbit_id=rabbit.id) }}";
       const recordingsEndpoint = recordingsContainer ? recordingsContainer.dataset.url : null;
-      const historyEndpoint = historyContainer ? historyContainer.dataset.url : null;
-      const summaryEndpoint = deviceStatePanel ? deviceStatePanel.dataset.url : null;
+      const summaryEndpoint = "{{ url_for('main.rabbit_live_summary', rabbit_id=rabbit.id) }}";
       const ztampsEndpoint = ztampsContainer ? ztampsContainer.dataset.url : null;
       let lastId = 0;
       let started = false;
@@ -453,29 +427,6 @@
         return card;
       };
 
-      const renderHistoryEvent = (event) => {
-        const card = document.createElement("div");
-        card.className = "rabbit-card";
-
-        const title = document.createElement("strong");
-        title.textContent = event.event_type;
-        card.appendChild(title);
-
-        const meta = document.createElement("div");
-        meta.className = "meta";
-        meta.textContent = `${event.source} · ${formatTimestamp(event.created_at)}`;
-        card.appendChild(meta);
-
-        if (event.payload) {
-          const details = document.createElement("div");
-          details.className = "mono";
-          details.textContent = JSON.stringify(event.payload);
-          card.appendChild(details);
-        }
-
-        return card;
-      };
-
       const renderZtamp = (ztamp) => {
         const card = document.createElement("div");
         card.className = "rabbit-card";
@@ -522,31 +473,8 @@
         }
       };
 
-      const refreshHistory = async () => {
-        if (!historyContainer || !historyEndpoint) return;
-        try {
-          const response = await fetch(historyEndpoint, {
-            headers: { "X-Requested-With": "fetch" },
-            cache: "no-store",
-          });
-          if (!response.ok) return;
-          const data = await response.json();
-          const events = data.events || [];
-          historyContainer.innerHTML = "";
-          if (!events.length) {
-            historyContainer.innerHTML = "<p>Aucun événement local.</p>";
-            return;
-          }
-          for (const event of events) {
-            historyContainer.appendChild(renderHistoryEvent(event));
-          }
-        } catch (error) {
-          console.error("history refresh failed", error);
-        }
-      };
-
       const refreshSummary = async () => {
-        if (!summaryEndpoint || !deviceStateContent) return;
+        if (!summaryEndpoint) return;
         try {
           const response = await fetch(summaryEndpoint, {
             headers: { "X-Requested-With": "fetch" },
@@ -558,26 +486,22 @@
           if (rabbitStatus) rabbitStatus.textContent = data.rabbit?.connection_status || "offline";
           if (rabbitTarget && data.rabbit?.target) rabbitTarget.textContent = data.rabbit.target;
           if (linkedDeviceSerial) linkedDeviceSerial.textContent = data.linked_device?.serial || "non rattaché";
-
-          if (data.remote_error) {
-            deviceStateContent.innerHTML = `<p>${data.remote_error}</p>`;
-            return;
+          if (rabbitRemoteConnection) {
+            rabbitRemoteConnection.textContent = data.remote_state?.connection_status || "n/a";
           }
-
-          if (!data.remote_state) {
-            deviceStateContent.innerHTML = "<p>Aucun état remote disponible.</p>";
-            return;
+          if (rabbitRemoteSerial) {
+            rabbitRemoteSerial.textContent = data.remote_state?.device_serial || "n/a";
           }
-
-          const serial = data.remote_state.device_serial || "n/a";
-          const prettyState = JSON.stringify(data.remote_state.state || {}, null, 2);
-          deviceStateContent.innerHTML = `
-            <div class="meta">Connexion: ${data.remote_state.connection_status || "n/a"}</div>
-            <div class="meta">Créé le: ${data.remote_state.created_at || "n/a"}</div>
-            <div class="meta">Mis à jour: ${data.remote_state.updated_at || "n/a"}</div>
-            <div class="meta">Serial: <span class="mono">${serial}</span></div>
-            <pre class="mono" style="white-space: pre-wrap;">${prettyState}</pre>
-          `;
+          if (rabbitEarsSummary) {
+            const left = data.remote_state?.state?.left_ear;
+            const right = data.remote_state?.state?.right_ear;
+            rabbitEarsSummary.textContent =
+              Number.isInteger(left) && Number.isInteger(right) ? `G ${left} · D ${right}` : "n/a";
+          }
+          if (rabbitAudioSummary) {
+            const audioPlaying = data.remote_state?.state?.audio_playing;
+            rabbitAudioSummary.textContent = audioPlaying ? "en lecture" : "au repos";
+          }
         } catch (error) {
           console.error("summary refresh failed", error);
         }
@@ -616,7 +540,6 @@
           const data = await response.json();
           appendEvents(data.events || []);
           if ((data.events || []).length) {
-            await refreshHistory();
             await refreshSummary();
           }
           if ((data.events || []).some((event) => event.event_type === "rabbit.rfid.detected")) {
@@ -631,7 +554,6 @@
       };
 
       refreshRecordings();
-      refreshHistory();
       refreshSummary();
       refreshZtamps();
       loadEvents();

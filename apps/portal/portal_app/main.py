@@ -214,6 +214,23 @@ def _serialize_event_log(event: RabbitEventLog) -> dict:
     }
 
 
+def _serialize_live_event(event: RabbitEventLog, *, rabbit_id: int) -> dict:
+    serialized = _serialize_event_log(event)
+    payload = serialized.get("payload") or {}
+
+    if serialized["event_type"] == "rabbit.recording.uploaded":
+        filename = payload.get("filename")
+        if filename:
+            recording = RabbitRecording.query.filter_by(rabbit_id=rabbit_id, filename=filename).first()
+            if recording is not None:
+                transcript = _read_recording_transcript(Path(recording.source_path))
+                if transcript:
+                    payload["transcript"] = transcript
+
+    serialized["payload"] = payload
+    return serialized
+
+
 def _latest_ztamps_for_rabbit(rabbit_id: int, *, limit: int = 20) -> list[dict]:
     events = (
         RabbitEventLog.query.filter_by(rabbit_id=rabbit_id, event_type="rabbit.rfid.detected")
@@ -808,20 +825,40 @@ def rabbit_details(rabbit_id: int):
 @login_required
 def rabbit_alerts(rabbit_id: int):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
-    events = (
+    raw_events = (
         RabbitEventLog.query.filter_by(rabbit_id=rabbit.id)
         .filter(RabbitEventLog.event_type.in_(LIVE_EVENT_TYPES))
         .order_by(RabbitEventLog.created_at.desc())
         .limit(100)
         .all()
     )
+    events = [_serialize_live_event(event, rabbit_id=rabbit.id) for event in raw_events]
     commands = (
         RabbitDeviceCommand.query.filter_by(rabbit_id=rabbit.id)
         .order_by(RabbitDeviceCommand.created_at.desc())
         .limit(50)
         .all()
     )
-    return render_template("rabbits/alerts.html", rabbit=rabbit, events=events, commands=commands)
+    timeline_items: list[dict] = []
+    for event in events:
+        timeline_items.append(
+            {
+                "kind": "event",
+                "created_at": event.get("created_at"),
+                "data": event,
+            }
+        )
+    for command in commands:
+        timeline_items.append(
+            {
+                "kind": "command",
+                "created_at": command.created_at.isoformat() if command.created_at else None,
+                "data": command,
+            }
+        )
+
+    timeline_items.sort(key=lambda item: item.get("created_at") or "", reverse=True)
+    return render_template("rabbits/alerts.html", rabbit=rabbit, events=events, timeline_items=timeline_items)
 
 
 @main_bp.get("/rabbits/<int:rabbit_id>/events/live")
@@ -836,21 +873,7 @@ def rabbit_live_events(rabbit_id: int):
         query = query.filter(RabbitEventLog.id > int(after_id_raw))
 
     events = query.order_by(RabbitEventLog.id.asc()).limit(50).all()
-    payload = []
-    for event in events:
-        try:
-            parsed_payload = json.loads(event.payload) if event.payload else None
-        except json.JSONDecodeError:
-            parsed_payload = {"raw": event.payload}
-        payload.append(
-            {
-                "id": event.id,
-                "event_type": event.event_type,
-                "source": event.source,
-                "created_at": event.created_at.isoformat() if event.created_at else None,
-                "payload": parsed_payload,
-            }
-        )
+    payload = [_serialize_live_event(event, rabbit_id=rabbit.id) for event in events]
     return jsonify({"events": payload})
 
 

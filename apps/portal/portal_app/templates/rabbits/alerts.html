@@ -16,32 +16,43 @@
       </div>
     </section>
 
-    <section class="grid">
-      <article class="panel">
-        <h2>Événements détectés</h2>
-        <div id="live-events" class="stack" data-url="{{ url_for('main.rabbit_live_events', rabbit_id=rabbit.id) }}">
-          {% for event in events %}
+    <section class="panel">
+      <h2>Chronologie</h2>
+      <div id="live-events" class="stack" data-url="{{ url_for('main.rabbit_live_events', rabbit_id=rabbit.id) }}">
+        {% for item in timeline_items %}
+          {% if item.kind == "event" %}
+            {% set event = item.data %}
             <div class="rabbit-card">
-              <strong>{{ event.event_type }}</strong>
+              <strong>
+                {% if event.event_type == "rabbit.button" %}
+                  Appui sur le bouton du crâne
+                {% elif event.event_type == "rabbit.recording.uploaded" %}
+                  Nouvel enregistrement reçu{% if event.payload and event.payload.filename %} : {{ event.payload.filename }}{% endif %}
+                {% elif event.event_type == "rabbit.rfid.detected" %}
+                  Tag RFID détecté{% if event.payload and event.payload.tag %} : {{ event.payload.tag }}{% endif %}
+                {% elif event.event_type == "rabbit.ears.moved" %}
+                  Oreilles bougées manuellement
+                {% else %}
+                  {{ event.event_type }}
+                {% endif %}
+              </strong>
               <div class="meta">{{ event.created_at }}</div>
               {% if event.payload %}
                 <div class="mono" style="margin-top: 8px;">{{ event.payload }}</div>
+                {% if event.event_type == "rabbit.recording.uploaded" and event.payload.transcript and event.payload.transcript.text %}
+                  <div style="margin-top: 10px;">
+                    <strong>Texte détecté</strong>
+                    <div>{{ event.payload.transcript.text }}</div>
+                  </div>
+                {% endif %}
               {% endif %}
             </div>
           {% else %}
-            <div class="rabbit-card meta">En attente d'événements...</div>
-          {% endfor %}
-        </div>
-      </article>
-
-      <article class="panel">
-        <h2>Commandes envoyées</h2>
-        <div class="stack">
-          {% for command in commands %}
+            {% set command = item.data %}
             <div class="rabbit-card">
-              <strong>{{ command.command_type }}</strong>
+              <strong>Commande {{ command.command_type }}</strong>
+              <div class="meta">{{ command.created_at }}</div>
               <div class="meta">Statut: {{ command.status }}</div>
-              <div class="meta">Créée: {{ command.created_at }}</div>
               {% if command.sent_at %}
                 <div class="meta">Envoyée: {{ command.sent_at }}</div>
               {% endif %}
@@ -52,11 +63,11 @@
                 <div class="mono" style="margin-top: 8px;">{{ command.payload }}</div>
               {% endif %}
             </div>
-          {% else %}
-            <div class="rabbit-card meta">Aucune commande envoyée.</div>
-          {% endfor %}
-        </div>
-      </article>
+          {% endif %}
+        {% else %}
+          <div class="rabbit-card meta">En attente d'événements...</div>
+        {% endfor %}
+      </div>
     </section>
   </section>
 
@@ -111,6 +122,21 @@
           details.style.marginTop = "8px";
           details.textContent = JSON.stringify(event.payload);
           card.appendChild(details);
+
+          if (event.event_type === "rabbit.recording.uploaded" && event.payload.transcript && event.payload.transcript.text) {
+            const transcriptWrap = document.createElement("div");
+            transcriptWrap.style.marginTop = "10px";
+
+            const transcriptTitle = document.createElement("strong");
+            transcriptTitle.textContent = "Texte détecté";
+            transcriptWrap.appendChild(transcriptTitle);
+
+            const transcriptBody = document.createElement("div");
+            transcriptBody.textContent = event.payload.transcript.text;
+            transcriptWrap.appendChild(transcriptBody);
+
+            card.appendChild(transcriptWrap);
+          }
         }
 
         return card;
