@@ -815,7 +815,13 @@ def rabbit_alerts(rabbit_id: int):
         .limit(100)
         .all()
     )
-    return render_template("rabbits/alerts.html", rabbit=rabbit, events=events)
+    commands = (
+        RabbitDeviceCommand.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(RabbitDeviceCommand.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    return render_template("rabbits/alerts.html", rabbit=rabbit, events=events, commands=commands)
 
 
 @main_bp.get("/rabbits/<int:rabbit_id>/events/live")

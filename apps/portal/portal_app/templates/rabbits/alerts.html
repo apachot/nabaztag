@@ -16,20 +16,47 @@
       </div>
     </section>
 
-    <section class="panel">
-      <div id="live-events" class="stack" data-url="{{ url_for('main.rabbit_live_events', rabbit_id=rabbit.id) }}">
-        {% for event in events %}
-          <div class="rabbit-card">
-            <strong>{{ event.event_type }}</strong>
-            <div class="meta">{{ event.created_at }}</div>
-            {% if event.payload %}
-              <div class="mono" style="margin-top: 8px;">{{ event.payload }}</div>
-            {% endif %}
-          </div>
-        {% else %}
-          <div class="rabbit-card meta">En attente d'événements...</div>
-        {% endfor %}
-      </div>
+    <section class="grid">
+      <article class="panel">
+        <h2>Événements détectés</h2>
+        <div id="live-events" class="stack" data-url="{{ url_for('main.rabbit_live_events', rabbit_id=rabbit.id) }}">
+          {% for event in events %}
+            <div class="rabbit-card">
+              <strong>{{ event.event_type }}</strong>
+              <div class="meta">{{ event.created_at }}</div>
+              {% if event.payload %}
+                <div class="mono" style="margin-top: 8px;">{{ event.payload }}</div>
+              {% endif %}
+            </div>
+          {% else %}
+            <div class="rabbit-card meta">En attente d'événements...</div>
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="panel">
+        <h2>Commandes envoyées</h2>
+        <div class="stack">
+          {% for command in commands %}
+            <div class="rabbit-card">
+              <strong>{{ command.command_type }}</strong>
+              <div class="meta">Statut: {{ command.status }}</div>
+              <div class="meta">Créée: {{ command.created_at }}</div>
+              {% if command.sent_at %}
+                <div class="meta">Envoyée: {{ command.sent_at }}</div>
+              {% endif %}
+              {% if command.error %}
+                <div class="meta">Erreur: {{ command.error }}</div>
+              {% endif %}
+              {% if command.payload %}
+                <div class="mono" style="margin-top: 8px;">{{ command.payload }}</div>
+              {% endif %}
+            </div>
+          {% else %}
+            <div class="rabbit-card meta">Aucune commande envoyée.</div>
+          {% endfor %}
+        </div>
+      </article>
     </section>
   </section>
 
