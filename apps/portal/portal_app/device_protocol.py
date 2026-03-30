@@ -142,10 +142,13 @@ def build_nose_or_bottom_packet(target: str, color: str) -> EncodedPacket:
 def build_choreography_packet(*, target: str, color: str, filename: str) -> tuple[EncodedPacket, bytes]:
     red, green, blue = _hex_to_rgb(color)
     led_id = LED_NAME_TO_CHOREOGRAPHY[target]
-    tempo = 10
+    tempo = 20
     body = bytearray(4)
     body.extend([0x00, 0x01, tempo])
-    body.extend([0x00, 0x07, led_id, red, green, blue, 0x00, 0x00])
+    # Repeat the same LED action for a short period so the effect remains visible
+    # despite the rabbit's own transient activity indicators.
+    for index in range(12):
+        body.extend([0x00 if index == 0 else 0x01, 0x07, led_id, red, green, blue, 0x00, 0x00])
     body[0:4] = (len(body) - 4).to_bytes(4, byteorder="big")
     body.extend(b"\x00\x00\x00\x00")
     message = f"CH broadcast/ojn_local/chor/{filename}\n"
