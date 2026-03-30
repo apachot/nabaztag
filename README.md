@@ -1,22 +1,46 @@
 # Nabaztag Control Surface
 
-Monorepo for a first Nabaztag MVP:
+Monorepo for a modern Nabaztag control stack centered on a Flask portal, a FastAPI device API, and the legacy Violet-compatible endpoints needed by physical rabbits.
 
-- `apps/portal`: Flask portal for accounts, login, and rabbit inventory
+## Apps
+
+- `apps/portal`: Flask portal for accounts, rabbit inventory, device control, conversation history, and AI features
 - `apps/api`: FastAPI backend exposing rabbit state, commands, and event logs
-- `apps/web`: legacy Next.js control surface kept as exploratory UI
+- `apps/web`: legacy Next.js exploratory UI kept for reference
 
-## Scope
+## Current Scope
 
-This first version validates the core primitives before any LLM integration:
+The project now covers more than the initial MVP primitives.
 
-- rabbit registration
-- gateway attach, connect, disconnect, sync
-- connection state and status
-- LEDs
-- ears
-- audio playback
-- recording lifecycle
+Portal and rabbit features:
+
+- account registration and login
+- rabbit inventory and per-rabbit detail page
+- device attach, sync, and remote state display
+- ears, LEDs, and audio playback
+- per-rabbit personality prompt
+- per-rabbit Mistral LLM model selection
+- per-rabbit Mistral Voxtral TTS voice selection
+- generated rabbit performances with text, ears, and LEDs
+- persisted conversation turns with aggressive pruning
+- Violet-compatible recording upload endpoint and transcription pipeline
+
+AI stack:
+
+- Mistral chat completions for generated responses
+- Mistral Voxtral TTS for speech synthesis
+- structured JSON generation so the rabbit can express itself through speech, ears, and LEDs
+
+## Important Limitation
+
+Remote `start recording` / `stop recording` is not currently supported by the Nabaztag protocol gateway.
+
+The API exposes those endpoints, but the protocol gateway explicitly raises an error because raw remote recording control with audio retrieval is not documented in the current `nabd` protocol implementation. The working input path today is the Violet-style recording upload flow handled by the portal.
+
+See:
+
+- `apps/api/app/gateway.py`
+- `docs/protocol-notes.md`
 
 ## Run
 
@@ -30,12 +54,7 @@ export NABAZTAG_API_BASE_URL=http://localhost:8000
 flask --app portal_app:create_app run --debug --port 5000
 ```
 
-### Legacy Web
-
-```bash
-npm install
-npm run dev:web
-```
+The Flask portal runs by default on `http://localhost:5000`.
 
 ### API
 
@@ -46,14 +65,19 @@ pip install -e ./apps/api
 uvicorn app.main:app --reload --app-dir apps/api
 ```
 
-The Flask portal runs by default on `http://localhost:5000`.
+### Legacy Web
 
-## Gateway drivers
+```bash
+npm install
+npm run dev:web
+```
+
+## Gateway Drivers
 
 The API can run with two gateway drivers:
 
 - `simulated`: default, in-memory device behavior
-- `protocol`: reserved for the future Nabaztag protocol adapter
+- `protocol`: Nabaztag protocol adapter
 
 Copy `apps/api/.env.example` to `apps/api/.env` and set:
 
@@ -61,8 +85,7 @@ Copy `apps/api/.env.example` to `apps/api/.env` and set:
 NABAZTAG_GATEWAY_DRIVER=simulated
 ```
 
-When `protocol` is selected, the API boots with the protocol gateway skeleton but device
-operations still return `501 Not Implemented` until the transport layer is wired.
+When `protocol` is selected, the API uses the protocol gateway for supported operations. Not every primitive is implemented by the underlying protocol layer yet, notably remote recording control.
 
 The protocol layer is split into:
 
@@ -72,7 +95,7 @@ The protocol layer is split into:
 
 Current protocol findings are documented in `docs/protocol-notes.md`.
 
-## Protocol smoke test
+## Protocol Smoke Test
 
 1. Copy `apps/api/.env.example` to `apps/api/.env`
 2. Set:
@@ -83,8 +106,7 @@ NABAZTAG_GATEWAY_HOST=<ip-or-host-of-nabd>
 NABAZTAG_GATEWAY_PORT=10543
 ```
 
-`NABAZTAG_GATEWAY_HOST` and `NABAZTAG_GATEWAY_PORT` now act as the default target. The web
-assistant can save a dedicated target per rabbit after detection.
+`NABAZTAG_GATEWAY_HOST` and `NABAZTAG_GATEWAY_PORT` act as the default target. The web assistant can save a dedicated target per rabbit after detection.
 
 3. Start the API:
 
@@ -107,7 +129,7 @@ The smoke test exercises:
 - audio
 - one supported LED target: `center`
 
-## Production domain
+## Production Domain
 
 The production public entrypoints are:
 
@@ -123,8 +145,8 @@ Legacy routes under `https://dev.emotia.com/nabaztag/` are redirected to `https:
 
 Production service unit files are versioned in:
 
-- [nabaztag-portal.service](/Users/apachot/Documents/GitHub/nabaztag/deploy/systemd/nabaztag-portal.service)
-- [nabaztag-xmpp.service](/Users/apachot/Documents/GitHub/nabaztag/deploy/systemd/nabaztag-xmpp.service)
+- `deploy/systemd/nabaztag-portal.service`
+- `deploy/systemd/nabaztag-xmpp.service`
 
 To install them on the Debian server:
 
