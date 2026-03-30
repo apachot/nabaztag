@@ -75,6 +75,23 @@ Chaque lapin peut disposer:
 
 Le but est d'arriver a des lapins qui ne sont pas des copies les uns des autres, mais de vrais personnages.
 
+## Contribuer
+
+Le projet est encore en construction et il est volontairement ouvert a la contribution. Si vous aimez les interfaces tangibles, les objets connectes atypiques, l'IA embarquee dans des experiences physiques, ou simplement le reemploi creatif d'objets anciens, vous etes au bon endroit.
+
+Les contributions utiles ne se limitent pas au code. Le projet a besoin de regards et de competences tres varies:
+
+- backend Python
+- protocoles et integration device
+- UX du portail
+- design d'interaction
+- prompts et orchestration LLM
+- synthese et traitement audio
+- documentation
+- tests avec de vrais lapins
+
+L'objectif n'est pas seulement de "faire tourner" le systeme. Il s'agit de construire une plateforme credible pour des compagnons physiques expressifs, sobres et attachants.
+
 ## Ce que le systeme sait deja faire
 
 La plateforme couvre aujourd'hui les usages suivants:
@@ -108,6 +125,31 @@ Le monorepo est organise autour de trois applications principales:
 - `apps/web`
   Ancienne interface Next.js conservee comme reference exploratoire.
 
+## Ou contribuer dans le code
+
+Pour eviter l'effet "grand depot opaque", voici les principaux points d'entree:
+
+- `apps/portal/portal_app/main.py`
+  Le coeur du portail Flask: routes, logique applicative, actions sur les lapins, conversations, IA et orchestration.
+
+- `apps/portal/portal_app/templates/`
+  Les templates du portail, notamment les fiches lapins et les ecrans de configuration.
+
+- `apps/portal/portal_app/models.py`
+  Le modele de donnees du portail.
+
+- `apps/api/app/main.py`
+  L'API FastAPI exposee aux autres composants.
+
+- `apps/api/app/gateway.py`
+  La couche d'abstraction pour piloter les lapins selon le driver retenu.
+
+- `apps/api/app/protocol/`
+  La partie la plus utile si vous voulez travailler sur le protocole Nabaztag ou etendre les primitives supportees.
+
+- `docs/protocol-notes.md`
+  Le bon point de depart pour comprendre l'etat actuel des connaissances sur le protocole.
+
 ## Pile IA
 
 Le projet utilise aujourd'hui principalement Mistral:
@@ -126,6 +168,8 @@ L'idee n'est pas de demander au modele "dis quelque chose". L'idee est de demand
 Cette structuration est essentielle pour que le lapin existe comme personnage physique, et pas seulement comme canal audio.
 
 ## Lancer le projet en local
+
+Le chemin le plus simple pour contribuer est de faire tourner d'abord le portail et l'API en local avec le driver `simulated`, puis de brancher un vrai lapin ensuite si vous en avez un.
 
 ### Portail Flask
 
@@ -255,3 +299,17 @@ Il cherche a montrer qu'il est possible de:
 - faire du reemploi un moteur d'innovation
 
 Le Nabaztag a toujours ete un objet en avance sur son temps. Ce depot veut lui donner un second souffle, sans trahir ce qui faisait sa singularite: une interface physique, expressive, malicieuse et attachante.
+
+## Chantiers ouverts
+
+Voici quelques axes de contribution particulierement utiles:
+
+- ameliorer l'expressivite du lapin: meilleures performances combinees voix + oreilles + LEDs
+- stabiliser la conversation: memoire, resume, reprise de contexte
+- enrichir les scenarios de vie domestique: interventions aleatoires, routines, reactions contextuelles
+- fiabiliser l'audio: capture, lecture, diagnostics, compatibilite materielle
+- etendre le protocole: nouvelles primitives, meilleure robustesse, commandes manquantes
+- simplifier l'onboarding developpeur: scripts de demarrage, fixtures, jeu de donnees local
+- documenter les cas d'usage et les limites connues
+
+Si vous voulez contribuer, le plus simple est d'ouvrir une issue, proposer une piste, ou envoyer directement une pull request.
