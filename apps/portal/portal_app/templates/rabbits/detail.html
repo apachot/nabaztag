@@ -371,6 +371,9 @@
               {% if ztamp.notes %}
                 <div class="meta">{{ ztamp.notes }}</div>
               {% endif %}
+              <div class="actions" style="margin-top: 10px;">
+                <a class="pill" href="{{ ztamp.edit_url }}">Modifier</a>
+              </div>
             </div>
           {% else %}
             <p>Aucun Ztamp détecté.</p>
@@ -595,6 +598,16 @@
           notes.textContent = ztamp.notes;
           card.appendChild(notes);
         }
+
+        const actions = document.createElement("div");
+        actions.className = "actions";
+        actions.style.marginTop = "10px";
+        const editLink = document.createElement("a");
+        editLink.className = "pill";
+        editLink.href = ztamp.edit_url;
+        editLink.textContent = "Modifier";
+        actions.appendChild(editLink);
+        card.appendChild(actions);
 
         return card;
       };
