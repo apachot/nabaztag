@@ -36,6 +36,8 @@ Ce projet a aussi une dimension Green IT tres forte.
 
 Plutot que de produire un nouvel objet materiel, l'idee est de reemployer un parc existant de Nabaztag. Ces lapins, encore desireux de parler, d'ecouter et de bouger, peuvent retrouver une utilite contemporaine grace a une pile logicielle moderne.
 
+Le principe est important: cette renaissance passe d'abord par le logiciel. Le projet ne repose pas sur un refit materiel, une refonte electronique ou l'ajout de nouveaux modules. L'ambition est de redonner des capacites a des Nabaztag existants, dans leur forme d'origine, sans transformation hardware necessaire.
+
 Cette approche a plusieurs vertus:
 
 - prolonger la duree de vie d'objets electroniques deja fabriques
@@ -242,6 +244,8 @@ sudo systemctl enable --now nabaztag-xmpp.service
 ## Pourquoi ce depot compte
 
 Ce projet ne consiste pas simplement a remettre en ligne un vieux service pour lapins connectes.
+
+Il affirme aussi une idee tres concrete: on peut rendre un objet ancien de nouveau contemporain sans lui imposer de refit materiel. Ici, l'innovation vient d'une surcouche logicielle, de l'orchestration, de l'IA et de la qualite de l'interaction, pas du remplacement de l'objet lui-meme.
 
 Il cherche a montrer qu'il est possible de:
 
