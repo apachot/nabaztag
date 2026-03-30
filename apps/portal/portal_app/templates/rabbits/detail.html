@@ -137,6 +137,22 @@
       <article class="panel">
         <h2>LEDs du Nabaztag</h2>
         <div class="stack">
+          <div>
+            <div class="meta" style="margin-bottom: 12px;">État visuel courant des cinq LEDs du lapin.</div>
+            <div style="position: relative; width: 100%; max-width: 360px;">
+              <img
+                src="{{ url_for('main.rabbit_led_layout_photo') }}"
+                alt="Schéma des LEDs du Nabaztag"
+                style="display: block; width: 100%; height: auto; border: 1px solid rgba(24, 23, 21, 0.08);"
+              >
+              <span id="led-left-indicator" style="position: absolute; left: 29%; top: 55%; width: 20px; height: 20px; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_left if remote_rabbit and remote_rabbit.state else '#000000' }};"></span>
+              <span id="led-center-indicator" style="position: absolute; left: 44%; top: 55%; width: 20px; height: 20px; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_center if remote_rabbit and remote_rabbit.state else '#000000' }};"></span>
+              <span id="led-right-indicator" style="position: absolute; left: 59%; top: 55%; width: 20px; height: 20px; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_right if remote_rabbit and remote_rabbit.state else '#000000' }};"></span>
+              <span id="led-bottom-indicator" style="position: absolute; left: 44%; top: 78%; width: 20px; height: 20px; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_bottom if remote_rabbit and remote_rabbit.state else '#000000' }};"></span>
+              <span id="led-nose-indicator" style="position: absolute; left: 44%; top: 33%; width: 20px; height: 20px; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_nose if remote_rabbit and remote_rabbit.state else '#000000' }};"></span>
+            </div>
+          </div>
+
           <form method="post" action="{{ url_for('main.rabbit_device_led', rabbit_id=rabbit.id) }}" class="stack">
             <strong>LEDs du corps</strong>
             <label>Cible</label>
@@ -215,6 +231,11 @@
       const rabbitAudioSummary = document.getElementById("rabbit-audio-summary");
       const rabbitTarget = document.getElementById("rabbit-target");
       const linkedDeviceSerial = document.getElementById("linked-device-serial");
+      const ledLeftIndicator = document.getElementById("led-left-indicator");
+      const ledCenterIndicator = document.getElementById("led-center-indicator");
+      const ledRightIndicator = document.getElementById("led-right-indicator");
+      const ledBottomIndicator = document.getElementById("led-bottom-indicator");
+      const ledNoseIndicator = document.getElementById("led-nose-indicator");
       const ztampsContainer = document.getElementById("ztamps-list");
       const toastStack = document.getElementById("toast-stack");
       const endpoint = "{{ url_for('main.rabbit_live_events', rabbit_id=rabbit.id) }}";
@@ -349,6 +370,13 @@
         return card;
       };
 
+      const setLedIndicator = (node, color) => {
+        if (!node) return;
+        const normalized = color || "#000000";
+        node.style.background = normalized;
+        node.style.boxShadow = normalized === "#000000" ? "none" : `0 0 14px ${normalized}`;
+      };
+
       const refreshSummary = async () => {
         if (!summaryEndpoint) return;
         try {
@@ -378,6 +406,11 @@
             const audioPlaying = data.remote_state?.state?.audio_playing;
             rabbitAudioSummary.textContent = audioPlaying ? "en lecture" : "au repos";
           }
+          setLedIndicator(ledLeftIndicator, data.remote_state?.state?.led_left);
+          setLedIndicator(ledCenterIndicator, data.remote_state?.state?.led_center);
+          setLedIndicator(ledRightIndicator, data.remote_state?.state?.led_right);
+          setLedIndicator(ledBottomIndicator, data.remote_state?.state?.led_bottom);
+          setLedIndicator(ledNoseIndicator, data.remote_state?.state?.led_nose);
         } catch (error) {
           console.error("summary refresh failed", error);
         }

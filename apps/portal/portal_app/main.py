@@ -123,6 +123,10 @@ def _default_rabbit_photo_path() -> Path:
     return Path(current_app.root_path).parents[2] / "ressources" / "Nabaztag1.jpg"
 
 
+def _rabbit_led_layout_photo_path() -> Path:
+    return Path(current_app.root_path).parents[2] / "ressources" / "nabaztag.jpg"
+
+
 def _normalize_serial(value: str | None) -> str:
     return "".join(character for character in (value or "").lower() if character in "0123456789abcdef")
 
@@ -1427,6 +1431,15 @@ def rabbit_photo(rabbit_id: int):
 @main_bp.get("/rabbit-photo/default")
 def default_rabbit_photo():
     path = _default_rabbit_photo_path()
+    if not path.exists():
+        return Response("Not found\n", status=404, mimetype="text/plain")
+    mimetype = guess_type(path.name)[0] or "application/octet-stream"
+    return send_file(path, mimetype=mimetype, as_attachment=False, download_name=path.name)
+
+
+@main_bp.get("/rabbit-photo/led-layout")
+def rabbit_led_layout_photo():
+    path = _rabbit_led_layout_photo_path()
     if not path.exists():
         return Response("Not found\n", status=404, mimetype="text/plain")
     mimetype = guess_type(path.name)[0] or "application/octet-stream"
