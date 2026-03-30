@@ -23,6 +23,8 @@ from .api_client import (
     link_remote_device,
     prepare_remote_bootstrap,
     send_remote_action,
+    start_remote_recording,
+    stop_remote_recording,
     set_remote_target,
 )
 from .device_protocol import (
@@ -2062,6 +2064,82 @@ def rabbit_device_ears(rabbit_id: int):
         payload={"left": int(left), "right": int(right)},
     )
     message = "Commande oreilles mise en file."
+    flash(message, "success")
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"ok": True, "message": message})
+    return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+
+@main_bp.post("/rabbits/<int:rabbit_id>/device/recording/start")
+@login_required
+def rabbit_device_recording_start(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    if not rabbit.remote_rabbit_id:
+        message = "Ce lapin n'est pas encore synchronisé avec l'API device."
+        flash(message, "error")
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"ok": False, "message": message}), 400
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+    max_duration_raw = request.form.get("max_duration_seconds", "").strip()
+    max_duration = int(max_duration_raw) if max_duration_raw.isdigit() else 10
+    max_duration = max(1, min(120, max_duration))
+    try:
+        result = start_remote_recording(rabbit.remote_rabbit_id, max_duration_seconds=max_duration)
+    except NabaztagApiError as exc:
+        message = str(exc)
+        flash(message, "error")
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"ok": False, "message": message}), 400
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    db.session.add(
+        RabbitEventLog(
+            rabbit_id=rabbit.id,
+            source="api",
+            event_type="rabbit.recording.started",
+            payload=json.dumps(result),
+        )
+    )
+    db.session.commit()
+    message = "Enregistrement déclenché."
+    flash(message, "success")
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"ok": True, "message": message})
+    return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+
+@main_bp.post("/rabbits/<int:rabbit_id>/device/recording/stop")
+@login_required
+def rabbit_device_recording_stop(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    if not rabbit.remote_rabbit_id:
+        message = "Ce lapin n'est pas encore synchronisé avec l'API device."
+        flash(message, "error")
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"ok": False, "message": message}), 400
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+    reason = request.form.get("reason", "user").strip().lower()
+    if reason not in {"user", "timeout"}:
+        reason = "user"
+    try:
+        result = stop_remote_recording(rabbit.remote_rabbit_id, reason=reason)
+    except NabaztagApiError as exc:
+        message = str(exc)
+        flash(message, "error")
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"ok": False, "message": message}), 400
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    db.session.add(
+        RabbitEventLog(
+            rabbit_id=rabbit.id,
+            source="api",
+            event_type="rabbit.recording.stopped",
+            payload=json.dumps(result),
+        )
+    )
+    db.session.commit()
+    message = "Arrêt de l'enregistrement demandé."
     flash(message, "success")
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         return jsonify({"ok": True, "message": message})

@@ -101,3 +101,19 @@ def send_remote_action(remote_id: str, action: str, payload: dict | None = None)
         method="POST",
         payload=payload or {},
     )
+
+
+def start_remote_recording(remote_id: str, *, max_duration_seconds: int = 10) -> dict:
+    return _api_request(
+        f"/api/rabbits/{remote_id}/commands/recording/start",
+        method="POST",
+        payload={"max_duration_seconds": max_duration_seconds},
+    )
+
+
+def stop_remote_recording(remote_id: str, *, reason: str = "user") -> dict:
+    return _api_request(
+        f"/api/rabbits/{remote_id}/commands/recording/stop",
+        method="POST",
+        payload={"reason": reason},
+    )

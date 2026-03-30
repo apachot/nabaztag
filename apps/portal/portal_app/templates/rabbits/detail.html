@@ -94,6 +94,20 @@
             </span>
           </div>
           <div class="meta">
+            Enregistrement:
+            <span id="rabbit-recording-summary">
+              {% if remote_rabbit and remote_rabbit.state %}
+                {% if remote_rabbit.state.recording %}
+                  en cours
+                {% else %}
+                  au repos
+                {% endif %}
+              {% else %}
+                n/a
+              {% endif %}
+            </span>
+          </div>
+          <div class="meta">
             Remote ID:
             {% if rabbit.remote_rabbit_id %}
               <span class="mono">{{ rabbit.remote_rabbit_id }}</span>
@@ -161,6 +175,22 @@
             <label>Fichier MP3 / WAV / OGG</label>
             <input type="file" name="audio_file" accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg">
             <button class="button primary" type="submit">Téléverser et lire</button>
+          </form>
+
+          <form method="post" action="{{ url_for('main.rabbit_device_recording_start', rabbit_id=rabbit.id) }}" class="stack" data-live-submit="true">
+            <strong>Enregistrement distant</strong>
+            <label>Durée max (secondes)</label>
+            <input type="number" name="max_duration_seconds" min="1" max="120" value="10">
+            <div class="actions">
+              <button class="button primary" type="submit">Enregistrer</button>
+            </div>
+          </form>
+
+          <form method="post" action="{{ url_for('main.rabbit_device_recording_stop', rabbit_id=rabbit.id) }}" class="stack" data-live-submit="true">
+            <input type="hidden" name="reason" value="user">
+            <div class="actions">
+              <button class="pill" type="submit">Arrêter l'enregistrement</button>
+            </div>
           </form>
 
           <form method="post" action="{{ url_for('main.rabbit_device_say', rabbit_id=rabbit.id) }}" class="stack" data-live-submit="true">
@@ -346,6 +376,7 @@
       const rabbitRemoteSerial = document.getElementById("rabbit-remote-serial");
       const rabbitEarsSummary = document.getElementById("rabbit-ears-summary");
       const rabbitAudioSummary = document.getElementById("rabbit-audio-summary");
+      const rabbitRecordingSummary = document.getElementById("rabbit-recording-summary");
       const rabbitTarget = document.getElementById("rabbit-target");
       const linkedDeviceSerial = document.getElementById("linked-device-serial");
       const ledLeftIndicator = document.getElementById("led-left-indicator");
@@ -682,6 +713,11 @@
           if (rabbitAudioSummary) {
             const audioPlaying = data.remote_state?.state?.audio_playing;
             rabbitAudioSummary.textContent = audioPlaying ? "en lecture" : "au repos";
+          }
+          if (rabbitRecordingSummary) {
+            const recording = data.remote_state?.state?.recording;
+            rabbitRecordingSummary.textContent =
+              typeof recording === "boolean" ? (recording ? "en cours" : "au repos") : "n/a";
           }
           setLedIndicator(ledLeftIndicator, data.remote_state?.state?.led_left);
           setLedIndicator(ledCenterIndicator, data.remote_state?.state?.led_center);
