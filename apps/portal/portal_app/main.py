@@ -113,7 +113,12 @@ def _maybe_transcode_recording_to_mp3(source_path: Path) -> Path:
                 "-i",
                 str(source_path),
                 "-af",
-                "highpass=f=140,lowpass=f=3400,afftdn=nf=-25,dynaudnorm=f=75:g=9",
+                "highpass=f=280,"
+                "lowpass=f=2600,"
+                "afftdn=nf=-40,"
+                "anlmdn=s=0.0003,"
+                "acompressor=threshold=-20dB:ratio=3:attack=5:release=50,"
+                "dynaudnorm=f=150:g=11",
                 "-codec:a",
                 "libmp3lame",
                 "-q:a",
