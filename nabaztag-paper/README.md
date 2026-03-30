@@ -5,6 +5,8 @@ This directory contains a first scientific paper draft accompanying the Nabaztag
 Files:
 
 - `paper.md`: main manuscript draft in academic Markdown
+- `main.tex`: LaTeX manuscript draft
+- `references.bib`: bibliography starter file
 
 Suggested next steps before submission:
 
@@ -13,3 +15,14 @@ Suggested next steps before submission:
 3. add references and prior work citations
 4. add figures for architecture, rabbit interface, and interaction flow
 5. add a short evaluation protocol or field study section if empirical results become available
+
+## Build
+
+Example build sequence with `latexmk`:
+
+```bash
+cd nabaztag-paper
+latexmk -pdf main.tex
+```
+
+If the target venue uses another class file, keep `paper.md` as the editable source draft and adapt `main.tex` accordingly.
