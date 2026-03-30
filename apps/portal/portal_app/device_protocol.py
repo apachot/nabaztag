@@ -140,21 +140,18 @@ def build_nose_or_bottom_packet(target: str, color: str) -> EncodedPacket:
 
 
 def build_choreography_packet(*, states: dict[str, str], filename: str) -> tuple[EncodedPacket, bytes]:
-    # Keep the LED in a steady state for a long time. The rabbit does not expose
-    # a simple "set and forget" primitive for body LEDs, so we emulate persistence
-    # with a long choreography that repeats the same color until a later command
-    # replaces it (typically "off").
-    tempo = 100
+    # Body LED choreographies put the rabbit in a busy state while they run.
+    # Keep them intentionally short so they do not block later commands.
+    tempo = 10
     body = bytearray(4)
     body.extend([0x00, 0x01, tempo])
-    for index in range(120):
-        delta = 0x00 if index == 0 else 0xFF
-        for target in ("left", "center", "right"):
-            color = states.get(target, "#000000")
-            red, green, blue = _hex_to_rgb(color)
-            led_id = LED_NAME_TO_CHOREOGRAPHY[target]
-            body.extend([delta, 0x07, led_id, red, green, blue, 0x00, 0x00])
-            delta = 0x00
+    delta = 0x00
+    for target in ("left", "center", "right"):
+        color = states.get(target, "#000000")
+        red, green, blue = _hex_to_rgb(color)
+        led_id = LED_NAME_TO_CHOREOGRAPHY[target]
+        body.extend([delta, 0x07, led_id, red, green, blue, 0x00, 0x00])
+        delta = 0x00
     body[0:4] = (len(body) - 4).to_bytes(4, byteorder="big")
     body.extend(b"\x00\x00\x00\x00")
     message = f"CH broadcast/ojn_local/chor/{filename}\n"
