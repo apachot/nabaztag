@@ -102,6 +102,56 @@ def _extract_jid_node(stanza: str, attr: str = "from") -> str | None:
     return value.split("@", 1)[0]
 
 
+def _extract_complete_stanzas(buffer: str) -> tuple[list[str], str]:
+    stanzas: list[str] = []
+    remaining = buffer
+
+    while remaining:
+        remaining = remaining.lstrip()
+        if not remaining:
+            break
+
+        if remaining.startswith(" "):
+            stanzas.append(" ")
+            remaining = remaining[1:]
+            continue
+
+        candidates = (
+            ("<?xml", "?>"),
+            ("<stream:stream", ">"),
+            ("<auth", "/>"),
+            ("<response", "</response>"),
+            ("<challenge", "</challenge>"),
+            ("<success", "/>"),
+            ("<iq", "</iq>"),
+            ("<presence", "</presence>"),
+            ("<message", "</message>"),
+        )
+
+        matched = False
+        for prefix, terminator in candidates:
+            if not remaining.startswith(prefix):
+                continue
+            end_index = remaining.find(terminator)
+            if end_index == -1:
+                return stanzas, remaining
+            stanza = remaining[: end_index + len(terminator)]
+            stanzas.append(stanza)
+            remaining = remaining[end_index + len(terminator):]
+            matched = True
+            break
+
+        if matched:
+            continue
+
+        next_start = remaining.find("<", 1)
+        if next_start == -1:
+            return stanzas, remaining
+        remaining = remaining[next_start:]
+
+    return stanzas, remaining
+
+
 def _reply_iq(request: str, iq_type: str, content: str | None = None) -> str:
     iq_id = _extract_attr(request, "id") or "iq-1"
     from_attr = _extract_attr(request, "from")
@@ -301,9 +351,12 @@ async def _handle_connection(reader: asyncio.StreamReader, writer: asyncio.Strea
                 printable_ratio = sum(32 <= byte <= 126 or byte in (9, 10, 13) for byte in data) / len(data)
 
             if text and printable_ratio > 0.8:
-                stripped = text.strip()
-                if stripped:
-                    await session.handle_chunk(stripped)
+                session.buffer += text
+                stanzas, session.buffer = _extract_complete_stanzas(session.buffer)
+                for stanza in stanzas:
+                    stripped = stanza.strip()
+                    if stripped:
+                        await session.handle_chunk(stripped)
             else:
                 hex_preview = binascii.hexlify(data[:64]).decode("ascii")
                 LOG.warning(
