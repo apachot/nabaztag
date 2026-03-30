@@ -71,10 +71,9 @@
           </form>
 
           <form method="post" action="{{ url_for('main.rabbit_device_led', rabbit_id=rabbit.id) }}" class="stack">
-            <strong>LEDs</strong>
+            <strong>LEDs du corps</strong>
             <label>Cible</label>
             <select name="target">
-              <option value="nose">Nez</option>
               <option value="left">Corps gauche</option>
               <option value="center">Corps centre</option>
               <option value="right">Corps droite</option>
@@ -83,14 +82,29 @@
             <label>Couleur prédéfinie</label>
             <select name="color_preset">
               <option value="off">Éteint</option>
-              <option value="warm">Orange</option>
               <option value="red">Rouge</option>
               <option value="green">Vert</option>
               <option value="blue">Bleu</option>
+              <option value="cyan">Cyan</option>
+              <option value="violet">Violet</option>
+              <option value="yellow">Jaune</option>
               <option value="white">Blanc</option>
             </select>
-            <div class="meta">Presets limités aux couleurs validées pour éviter les animations incohérentes.</div>
+            <div class="meta">Corps gauche / centre / droite : couleur persistante. LED du bas : palette matérielle limitée.</div>
             <button class="button primary" type="submit">Changer la LED</button>
+          </form>
+
+          <form method="post" action="{{ url_for('main.rabbit_device_led', rabbit_id=rabbit.id) }}" class="stack">
+            <strong>Signal du nez</strong>
+            <input type="hidden" name="target" value="nose">
+            <label>Action</label>
+            <select name="color_preset">
+              <option value="off">Éteindre</option>
+              <option value="red">Clignoter</option>
+              <option value="blue">Double clignotement</option>
+            </select>
+            <div class="meta">Le nez n'est pas une LED couleur persistante. Le firmware supporte seulement un clignotement simple, un double clignotement ou l'arrêt.</div>
+            <button class="button primary" type="submit">Envoyer le signal</button>
           </form>
 
           <form method="post" action="{{ url_for('main.rabbit_device_audio', rabbit_id=rabbit.id) }}" class="stack">

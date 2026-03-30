@@ -121,22 +121,32 @@ def build_ears_packet(left: int, right: int) -> EncodedPacket:
     return EncodedPacket(payload=payload, description=f"Move ears to left={left} right={right}")
 
 
-def build_nose_or_bottom_packet(target: str, color: str) -> EncodedPacket:
-    red, green, blue = _hex_to_rgb(color)
-    value = 0 if color.lower() == "#000000" else 1
+def build_nose_or_bottom_packet(target: str, color: str, preset: str | None = None) -> EncodedPacket:
+    normalized_preset = (preset or "").lower()
+    color_lower = color.lower()
     if target == "nose":
         service = AmbientService.NOSE
-        if color.lower() == "#000000":
+        if normalized_preset == "off" or color_lower == "#000000":
             value = 0
-        elif blue >= red and blue >= green:
+        elif normalized_preset == "blue":
             value = 2
         else:
             value = 1
     else:
         service = AmbientService.BOTTOM_LED
-        value = red
+        bottom_map = {
+            "off": 0,
+            "blue": 1,
+            "green": 2,
+            "cyan": 3,
+            "red": 4,
+            "violet": 5,
+            "yellow": 6,
+            "white": 7,
+        }
+        value = bottom_map.get(normalized_preset, 0)
     payload = _frame_packet(0x04, bytes([0x7F, 0xFF, 0xFF, 0xFE, service, value]))
-    return EncodedPacket(payload=payload, description=f"Set {target} LED to {color}")
+    return EncodedPacket(payload=payload, description=f"Set {target} LED to {preset or color}")
 
 
 def build_body_led_packet(target: str, color: str) -> EncodedPacket:

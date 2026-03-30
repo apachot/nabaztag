@@ -43,10 +43,12 @@ main_bp = Blueprint("main", __name__)
 
 LED_COLOR_PRESETS = {
     "off": "#000000",
-    "warm": "#ff6600",
     "red": "#ff0000",
     "green": "#00ff00",
     "blue": "#0000ff",
+    "cyan": "#00ffff",
+    "violet": "#ff00ff",
+    "yellow": "#ffff00",
     "white": "#ffffff",
 }
 

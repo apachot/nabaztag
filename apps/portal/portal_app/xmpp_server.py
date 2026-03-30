@@ -351,8 +351,9 @@ def _build_packet_for_command(command: RabbitDeviceCommand) -> EncodedPacket:
     if command.command_type == "led":
         target = payload["target"]
         color = payload["color"]
+        preset = payload.get("preset")
         if target in {"nose", "bottom"}:
-            return build_nose_or_bottom_packet(target, color)
+            return build_nose_or_bottom_packet(target, color, preset)
         if target in {"left", "center", "right"}:
             return build_body_led_packet(target, color)
     raise RuntimeError(f"Unsupported command type: {command.command_type}")
