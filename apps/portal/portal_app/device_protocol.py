@@ -139,6 +139,22 @@ def build_nose_or_bottom_packet(target: str, color: str) -> EncodedPacket:
     return EncodedPacket(payload=payload, description=f"Set {target} LED to {color}")
 
 
+def build_body_led_packet(target: str, color: str) -> EncodedPacket:
+    red, green, blue = _hex_to_rgb(color)
+    rgb_value = (red << 16) | (green << 8) | blue
+    command_map = {
+        "left": "BL",
+        "center": "BM",
+        "right": "BR",
+    }
+    command = command_map[target]
+    message = f"{command} {rgb_value}\n"
+    return EncodedPacket(
+        payload=_frame_packet(0x0A, encode_message_packet(message)),
+        description=f"Set {target} body LED to {color}",
+    )
+
+
 def build_choreography_packet(*, states: dict[str, str], filename: str) -> tuple[EncodedPacket, bytes]:
     # Body LED choreographies put the rabbit in a busy state while they run.
     # Keep them intentionally short so they do not block later commands.

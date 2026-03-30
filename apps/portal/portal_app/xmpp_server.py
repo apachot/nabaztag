@@ -9,13 +9,12 @@ import os
 import re
 from dataclasses import dataclass, field
 from datetime import timedelta
-from pathlib import Path
 
 from . import create_app
 from .device_protocol import (
     EncodedPacket,
     build_audio_packet,
-    build_choreography_packet,
+    build_body_led_packet,
     build_ears_packet,
     build_init_packet,
     build_nose_or_bottom_packet,
@@ -343,13 +342,6 @@ def _record_device_event(serial: str, event_type: str, payload: dict) -> None:
             )
         db.session.commit()
 
-
-def _choreography_root() -> Path:
-    root = Path(APP.instance_path) / "chor"
-    root.mkdir(parents=True, exist_ok=True)
-    return root
-
-
 def _build_packet_for_command(command: RabbitDeviceCommand) -> EncodedPacket:
     payload = json.loads(command.payload or "{}")
     if command.command_type == "audio":
@@ -361,14 +353,8 @@ def _build_packet_for_command(command: RabbitDeviceCommand) -> EncodedPacket:
         color = payload["color"]
         if target in {"nose", "bottom"}:
             return build_nose_or_bottom_packet(target, color)
-        states = {"left": "#000000", "center": "#000000", "right": "#000000"}
-        if target in states:
-            states[target] = color
-        filename = f"rabbit-{command.rabbit_id}-{command.id}-body.chor"
-        packet, choreography = build_choreography_packet(states=states, filename=filename)
-        choreography_path = _choreography_root() / filename
-        choreography_path.write_bytes(choreography)
-        return packet
+        if target in {"left", "center", "right"}:
+            return build_body_led_packet(target, color)
     raise RuntimeError(f"Unsupported command type: {command.command_type}")
 
 

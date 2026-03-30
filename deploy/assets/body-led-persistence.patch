@@ -1,0 +1,104 @@
+diff --git a/bootcode/sources/info.mtl b/bootcode/sources/info.mtl
+--- a/bootcode/sources/info.mtl
++++ b/bootcode/sources/info.mtl
+@@
+ var infotaichi=0;;
++
++// persistent body LED override set by custom server commands
++var infoBodyOverrideEnabled=0;;
++var infoBodyOverrideLeft=0;;
++var infoBodyOverrideMiddle=0;;
++var infoBodyOverrideRight=0;;
++
++fun infoBodyOverrideSet idx rgb=
++	set infoBodyOverrideEnabled=1;
++	if idx==0 then set infoBodyOverrideLeft=rgb
++	else if idx==1 then set infoBodyOverrideMiddle=rgb
++	else if idx==2 then set infoBodyOverrideRight=rgb;
++	0;;
++
++fun infoBodyOverrideFill rgb=
++	set infoBodyOverrideEnabled=1;
++	set infoBodyOverrideLeft=rgb;
++	set infoBodyOverrideMiddle=rgb;
++	set infoBodyOverrideRight=rgb;
++	0;;
++
++fun infoBodyOverrideDisable=
++	set infoBodyOverrideEnabled=0;
++	0;;
++
++fun infoBodyOverrideRun=
++	if infoBodyOverrideEnabled then
++	(
++		led LED_BODY_LEFT infoBodyOverrideLeft;
++		led LED_BODY_MIDDLE infoBodyOverrideMiddle;
++		led LED_BODY_RIGHT infoBodyOverrideRight
++	);
++	0;;
+@@
+ fun infoInit=
+ 	set infosrc=tabnew 0 16;
+ 	set infomessages=0;
+ 	set infotaichi = 0;
++	set infoBodyOverrideEnabled=0;
++	set infoBodyOverrideLeft=0;
++	set infoBodyOverrideMiddle=0;
++	set infoBodyOverrideRight=0;
+@@
+ 		else
+ 		(
+ 			led LED_BODY_LEFT RGB_BLACK; led LED_BODY_MIDDLE RGB_BLACK; led LED_BODY_RIGHT RGB_BLACK
+-		)
++		);
++		infoBodyOverrideRun
+ 	);;
+diff --git a/bootcode/sources/main.mtl b/bootcode/sources/main.mtl
+--- a/bootcode/sources/main.mtl
++++ b/bootcode/sources/main.mtl
+@@
+ 	else if !strcmp key "IE" then
+ 	(
+ 		Secholn "exec IE : ";
+ 		// Ends Interactive mode
+ 		interactiveStop;
+ 		0
+ 	)
++	else if !strcmp key "BL" then
++	(
++		Secho "exec BL : "; Secholn val;
++		infoBodyOverrideSet 0 (atoi val);
++		set run=cmdEvalOne i0+1;
++		0
++	)
++	else if !strcmp key "BM" then
++	(
++		Secho "exec BM : "; Secholn val;
++		infoBodyOverrideSet 1 (atoi val);
++		set run=cmdEvalOne i0+1;
++		0
++	)
++	else if !strcmp key "BR" then
++	(
++		Secho "exec BR : "; Secholn val;
++		infoBodyOverrideSet 2 (atoi val);
++		set run=cmdEvalOne i0+1;
++		0
++	)
++	else if !strcmp key "BO" then
++	(
++		Secholn "exec BO : body leds off";
++		infoBodyOverrideFill 0;
++		set run=cmdEvalOne i0+1;
++		0
++	)
++	else if !strcmp key "BI" then
++	(
++		Secholn "exec BI : body leds info mode";
++		infoBodyOverrideDisable;
++		set run=cmdEvalOne i0+1;
++		0
++	)
+ 	else if !strcmp key "WT" then
+ 	(
+ 		Xw strcatlist "exec WT : " :: val :: nil ;
