@@ -81,6 +81,13 @@ def _extract_tag_value(stanza: str, tag: str) -> str | None:
     return match.group(1) if match else None
 
 
+def _extract_jid_node(stanza: str, attr: str = "from") -> str | None:
+    value = _extract_attr(stanza, attr)
+    if not value or "@" not in value:
+        return None
+    return value.split("@", 1)[0]
+
+
 def _reply_iq(request: str, iq_type: str, content: str | None = None) -> str:
     iq_id = _extract_attr(request, "id") or "iq-1"
     from_attr = _extract_attr(request, "from")
@@ -182,6 +189,8 @@ class XmppSession:
             return
 
         if self.auth_step >= 10 and "<bind" in chunk and "<resource>" in chunk:
+            if not self.username:
+                self.username = _extract_jid_node(chunk, "from") or self.username
             resource = _extract_resource(chunk) or "idle"
             self.resource = resource
             if self.username:
@@ -191,6 +200,10 @@ class XmppSession:
             return
 
         if self.auth_step >= 10 and f"<session xmlns='{SESSION_NS}'/>" in chunk:
+            if not self.username:
+                self.username = _extract_jid_node(chunk, "from") or self.username
+                if self.username and self.resource:
+                    ACTIVE_SESSIONS[self.username.lower()] = self
             await self.write(_reply_iq(chunk, "result", f"<session xmlns='{SESSION_NS}'/>"))
             return
 
