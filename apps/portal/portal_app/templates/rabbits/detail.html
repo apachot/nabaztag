@@ -196,43 +196,6 @@
             </div>
             <div class="meta" style="margin-top: 10px;">Clique sur une vignette pour changer directement sa couleur.</div>
           </div>
-
-          <form method="post" action="{{ url_for('main.rabbit_device_led', rabbit_id=rabbit.id) }}" class="stack" data-live-submit="true" id="body-led-form">
-            <strong>LEDs du corps</strong>
-            <label>Cible</label>
-            <select name="target" id="body-led-target">
-              <option value="left">Corps gauche</option>
-              <option value="center">Corps centre</option>
-              <option value="right">Corps droite</option>
-              <option value="bottom">LED du bas</option>
-            </select>
-            <label>Couleur prédéfinie</label>
-            <select name="color_preset" id="body-led-color">
-              <option value="off">Éteint</option>
-              <option value="red">Rouge</option>
-              <option value="green">Vert</option>
-              <option value="blue">Bleu</option>
-              <option value="cyan">Cyan</option>
-              <option value="violet">Violet</option>
-              <option value="yellow">Jaune</option>
-              <option value="white">Blanc</option>
-            </select>
-            <div class="meta">Corps gauche / centre / droite : couleur persistante. LED du bas : palette matérielle limitée.</div>
-            <button class="button primary" type="submit">Changer la LED</button>
-          </form>
-
-          <form method="post" action="{{ url_for('main.rabbit_device_led', rabbit_id=rabbit.id) }}" class="stack" data-live-submit="true" id="nose-led-form">
-            <strong>Signal du nez</strong>
-            <input type="hidden" name="target" value="nose">
-            <label>Action</label>
-            <select name="color_preset" id="nose-led-color">
-              <option value="off">Éteindre</option>
-              <option value="red">Clignoter</option>
-              <option value="blue">Double clignotement</option>
-            </select>
-            <div class="meta">Le nez n'est pas une LED couleur persistante. Le firmware supporte seulement un clignotement simple, un double clignotement ou l'arrêt.</div>
-            <button class="button primary" type="submit">Envoyer le signal</button>
-          </form>
         </div>
       </article>
 
@@ -284,16 +247,12 @@
       const ledPalette = document.getElementById("led-palette");
       const ledPaletteTitle = document.getElementById("led-palette-title");
       const ledPaletteOptions = document.getElementById("led-palette-options");
-      const bodyLedForm = document.getElementById("body-led-form");
-      const bodyLedTarget = document.getElementById("body-led-target");
-      const bodyLedColor = document.getElementById("body-led-color");
-      const noseLedForm = document.getElementById("nose-led-form");
-      const noseLedColor = document.getElementById("nose-led-color");
       const ztampsContainer = document.getElementById("ztamps-list");
       const toastStack = document.getElementById("toast-stack");
       const endpoint = "{{ url_for('main.rabbit_live_events', rabbit_id=rabbit.id) }}";
       const summaryEndpoint = "{{ url_for('main.rabbit_live_summary', rabbit_id=rabbit.id) }}";
       const ztampsEndpoint = ztampsContainer ? ztampsContainer.dataset.url : null;
+      const ledCommandEndpoint = "{{ url_for('main.rabbit_device_led', rabbit_id=rabbit.id) }}";
       const ledPalettePresets = {
         left: ["off", "red", "green", "blue", "cyan", "violet", "yellow", "white"],
         center: ["off", "red", "green", "blue", "cyan", "violet", "yellow", "white"],
@@ -496,6 +455,31 @@
         ledPaletteOptions.innerHTML = "";
       };
 
+      const submitLedPreset = async (target, preset) => {
+        const formData = new FormData();
+        formData.set("target", target);
+        formData.set("color_preset", preset);
+        try {
+          const response = await fetch(ledCommandEndpoint, {
+            method: "POST",
+            body: formData,
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+            credentials: "same-origin",
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok || data.ok === false) {
+            throw new Error(data.message || "Action impossible.");
+          }
+          showMessageToast(data.message || "Action envoyee.");
+          await refreshSummary();
+          await refreshZtamps();
+          await loadEvents();
+        } catch (error) {
+          console.error("led preset submit failed", error);
+          showMessageToast(error.message || "Action impossible.", "error");
+        }
+      };
+
       const openLedPalette = (button) => {
         if (!ledLayout || !ledPalette || !ledPaletteTitle || !ledPaletteOptions || !button) return;
         const target = button.dataset.ledTarget;
@@ -518,16 +502,7 @@
           option.style.cursor = "pointer";
           option.addEventListener("click", async () => {
             closeLedPalette();
-            if (target === "nose" && noseLedForm && noseLedColor) {
-              noseLedColor.value = preset;
-              await submitLiveForm(noseLedForm);
-              return;
-            }
-            if (bodyLedForm && bodyLedTarget && bodyLedColor) {
-              bodyLedTarget.value = target;
-              bodyLedColor.value = preset;
-              await submitLiveForm(bodyLedForm);
-            }
+            await submitLedPreset(target, preset);
           });
           ledPaletteOptions.appendChild(option);
         }
