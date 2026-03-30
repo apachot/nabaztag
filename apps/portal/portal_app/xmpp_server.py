@@ -35,6 +35,19 @@ APP = create_app()
 ACTIVE_SESSIONS: dict[str, "XmppSession"] = {}
 
 
+def _age_exceeds(value, threshold: timedelta) -> bool:
+    if value is None:
+        return True
+    try:
+        now = utc_now()
+        candidate = value
+        if getattr(candidate, "tzinfo", None) is None:
+            candidate = candidate.replace(tzinfo=now.tzinfo)
+        return now - candidate >= threshold
+    except Exception:
+        return True
+
+
 def _env(name: str, default: str) -> str:
     return os.getenv(name, default)
 
@@ -432,7 +445,6 @@ async def _refresh_sticky_leds() -> None:
         if key not in latest_by_target:
             latest_by_target[key] = command
 
-    now = utc_now()
     for command in latest_by_target.values():
         try:
             payload = json.loads(command.payload or "{}")
@@ -441,7 +453,7 @@ async def _refresh_sticky_leds() -> None:
         color = str(payload.get("color") or "").lower()
         if command.status != "sent" or color == "#000000":
             continue
-        if command.sent_at and now - command.sent_at < LED_REFRESH_INTERVAL:
+        if not _age_exceeds(command.sent_at, LED_REFRESH_INTERVAL):
             continue
 
         session = ACTIVE_SESSIONS.get(command.serial.lower())
