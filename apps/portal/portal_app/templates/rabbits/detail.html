@@ -12,6 +12,33 @@
       transform: scale(1.08);
       box-shadow: 0 0 0 1px rgba(24, 23, 21, 0.14), 0 0 0 8px rgba(255, 255, 255, 0.16);
     }
+
+    .led-indicator {
+      display: block;
+      position: absolute;
+      z-index: 3;
+      width: 32px;
+      height: 32px;
+      padding: 6px;
+      border: 0;
+      border-radius: 999px;
+      background-clip: content-box;
+      transform-origin: center;
+      transition: transform 120ms ease, box-shadow 120ms ease;
+      text-decoration: none;
+      cursor: pointer !important;
+    }
+
+    .led-indicator:hover {
+      transform: scale(1.08);
+      box-shadow: 0 0 0 1px rgba(24, 23, 21, 0.14), 0 0 0 8px rgba(255, 255, 255, 0.16);
+    }
+
+    #led-left-indicator { left: calc(38% - 6px); top: calc(74% - 6px); }
+    #led-center-indicator { left: calc(53% - 6px); top: calc(74% - 6px); }
+    #led-right-indicator { left: calc(68% - 6px); top: calc(74% - 6px); }
+    #led-bottom-indicator { left: calc(47% - 6px); top: calc(87% - 6px); }
+    #led-nose-indicator { left: calc(44% - 6px); top: calc(48% - 6px); }
   </style>
 
   <section class="stack">
@@ -156,11 +183,11 @@
                 alt="Schéma des LEDs du Nabaztag"
                 style="display: block; width: 100%; height: auto; border: 1px solid rgba(24, 23, 21, 0.08);"
               >
-              <a href="#" id="led-left-indicator" data-led-target="left" title="Changer la LED gauche" onclick="window.openLedPaletteFromIndicator && window.openLedPaletteFromIndicator(this); return false;" onmouseenter="this.style.transform='scale(1.08)'; this.style.boxShadow='0 0 0 1px rgba(24, 23, 21, 0.14), 0 0 0 8px rgba(255, 255, 255, 0.16)';" onmouseleave="this.style.transform='scale(1)'; this.style.boxShadow='none';" aria-label="Changer la couleur de la LED gauche" style="display: block; position: absolute; z-index: 3; left: calc(38% - 6px); top: calc(74% - 6px); width: 32px; height: 32px; padding: 6px; border: 0; border-radius: 999px; background-clip: content-box; transform-origin: center; transition: transform 120ms ease, box-shadow 120ms ease; background: {{ remote_rabbit.state.led_left if remote_rabbit and remote_rabbit.state else '#d9d9d9' }}; cursor: pointer; text-decoration: none;"></a>
-              <a href="#" id="led-center-indicator" data-led-target="center" title="Changer la LED centre" onclick="window.openLedPaletteFromIndicator && window.openLedPaletteFromIndicator(this); return false;" onmouseenter="this.style.transform='scale(1.08)'; this.style.boxShadow='0 0 0 1px rgba(24, 23, 21, 0.14), 0 0 0 8px rgba(255, 255, 255, 0.16)';" onmouseleave="this.style.transform='scale(1)'; this.style.boxShadow='none';" aria-label="Changer la couleur de la LED centre" style="display: block; position: absolute; z-index: 3; left: calc(53% - 6px); top: calc(74% - 6px); width: 32px; height: 32px; padding: 6px; border: 0; border-radius: 999px; background-clip: content-box; transform-origin: center; transition: transform 120ms ease, box-shadow 120ms ease; background: {{ remote_rabbit.state.led_center if remote_rabbit and remote_rabbit.state else '#d9d9d9' }}; cursor: pointer; text-decoration: none;"></a>
-              <a href="#" id="led-right-indicator" data-led-target="right" title="Changer la LED droite" onclick="window.openLedPaletteFromIndicator && window.openLedPaletteFromIndicator(this); return false;" onmouseenter="this.style.transform='scale(1.08)'; this.style.boxShadow='0 0 0 1px rgba(24, 23, 21, 0.14), 0 0 0 8px rgba(255, 255, 255, 0.16)';" onmouseleave="this.style.transform='scale(1)'; this.style.boxShadow='none';" aria-label="Changer la couleur de la LED droite" style="display: block; position: absolute; z-index: 3; left: calc(68% - 6px); top: calc(74% - 6px); width: 32px; height: 32px; padding: 6px; border: 0; border-radius: 999px; background-clip: content-box; transform-origin: center; transition: transform 120ms ease, box-shadow 120ms ease; background: {{ remote_rabbit.state.led_right if remote_rabbit and remote_rabbit.state else '#d9d9d9' }}; cursor: pointer; text-decoration: none;"></a>
-              <a href="#" id="led-bottom-indicator" data-led-target="bottom" title="Changer la LED du bas" onclick="window.openLedPaletteFromIndicator && window.openLedPaletteFromIndicator(this); return false;" onmouseenter="this.style.transform='scale(1.08)'; this.style.boxShadow='0 0 0 1px rgba(24, 23, 21, 0.14), 0 0 0 8px rgba(255, 255, 255, 0.16)';" onmouseleave="this.style.transform='scale(1)'; this.style.boxShadow='none';" aria-label="Changer la couleur de la LED du bas" style="display: block; position: absolute; z-index: 3; left: calc(47% - 6px); top: calc(87% - 6px); width: 32px; height: 32px; padding: 6px; border: 0; border-radius: 999px; background-clip: content-box; transform-origin: center; transition: transform 120ms ease, box-shadow 120ms ease; background: {{ remote_rabbit.state.led_bottom if remote_rabbit and remote_rabbit.state else '#d9d9d9' }}; cursor: pointer; text-decoration: none;"></a>
-              <a href="#" id="led-nose-indicator" data-led-target="nose" title="Changer le signal du nez" onclick="window.openLedPaletteFromIndicator && window.openLedPaletteFromIndicator(this); return false;" onmouseenter="this.style.transform='scale(1.08)'; this.style.boxShadow='0 0 0 1px rgba(24, 23, 21, 0.14), 0 0 0 8px rgba(255, 255, 255, 0.16)';" onmouseleave="this.style.transform='scale(1)'; this.style.boxShadow='none';" aria-label="Changer le signal du nez" style="display: block; position: absolute; z-index: 3; left: calc(44% - 6px); top: calc(48% - 6px); width: 32px; height: 32px; padding: 6px; border: 0; border-radius: 999px; background-clip: content-box; transform-origin: center; transition: transform 120ms ease, box-shadow 120ms ease; background: {{ remote_rabbit.state.led_nose if remote_rabbit and remote_rabbit.state else '#d9d9d9' }}; cursor: pointer; text-decoration: none;"></a>
+              <a href="#" class="led-indicator" id="led-left-indicator" data-led-target="left" title="Changer la LED gauche" onclick="window.openLedPaletteFromIndicator && window.openLedPaletteFromIndicator(this); return false;" aria-label="Changer la couleur de la LED gauche" style="background: {{ remote_rabbit.state.led_left if remote_rabbit and remote_rabbit.state else '#d9d9d9' }};"></a>
+              <a href="#" class="led-indicator" id="led-center-indicator" data-led-target="center" title="Changer la LED centre" onclick="window.openLedPaletteFromIndicator && window.openLedPaletteFromIndicator(this); return false;" aria-label="Changer la couleur de la LED centre" style="background: {{ remote_rabbit.state.led_center if remote_rabbit and remote_rabbit.state else '#d9d9d9' }};"></a>
+              <a href="#" class="led-indicator" id="led-right-indicator" data-led-target="right" title="Changer la LED droite" onclick="window.openLedPaletteFromIndicator && window.openLedPaletteFromIndicator(this); return false;" aria-label="Changer la couleur de la LED droite" style="background: {{ remote_rabbit.state.led_right if remote_rabbit and remote_rabbit.state else '#d9d9d9' }};"></a>
+              <a href="#" class="led-indicator" id="led-bottom-indicator" data-led-target="bottom" title="Changer la LED du bas" onclick="window.openLedPaletteFromIndicator && window.openLedPaletteFromIndicator(this); return false;" aria-label="Changer la couleur de la LED du bas" style="background: {{ remote_rabbit.state.led_bottom if remote_rabbit and remote_rabbit.state else '#d9d9d9' }};"></a>
+              <a href="#" class="led-indicator" id="led-nose-indicator" data-led-target="nose" title="Changer le signal du nez" onclick="window.openLedPaletteFromIndicator && window.openLedPaletteFromIndicator(this); return false;" aria-label="Changer le signal du nez" style="background: {{ remote_rabbit.state.led_nose if remote_rabbit and remote_rabbit.state else '#d9d9d9' }};"></a>
               <div id="led-palette" hidden style="position: absolute; z-index: 2; min-width: 160px; padding: 10px; border: 1px solid rgba(24, 23, 21, 0.12); background: rgba(255, 252, 246, 0.98); box-shadow: 0 10px 30px rgba(24, 23, 21, 0.14);">
                 <div id="led-palette-title" class="meta" style="margin-bottom: 8px;">Choisir une couleur</div>
                 <div id="led-palette-options" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
