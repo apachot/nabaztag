@@ -139,31 +139,36 @@
         <div class="stack">
           <div>
             <div class="meta" style="margin-bottom: 12px;">État visuel courant des cinq LEDs du lapin.</div>
-            <div style="position: relative; width: 100%; max-width: 360px;">
+            <div id="led-layout" style="position: relative; width: 100%; max-width: 360px;">
               <img
                 src="{{ url_for('main.rabbit_led_layout_photo') }}"
                 alt="Schéma des LEDs du Nabaztag"
                 style="display: block; width: 100%; height: auto; border: 1px solid rgba(24, 23, 21, 0.08);"
               >
-              <span id="led-left-indicator" style="position: absolute; left: 33%; top: 74%; width: 20px; height: 20px; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_left if remote_rabbit and remote_rabbit.state else '#d9d9d9' }};"></span>
-              <span id="led-center-indicator" style="position: absolute; left: 48%; top: 74%; width: 20px; height: 20px; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_center if remote_rabbit and remote_rabbit.state else '#d9d9d9' }};"></span>
-              <span id="led-right-indicator" style="position: absolute; left: 63%; top: 74%; width: 20px; height: 20px; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_right if remote_rabbit and remote_rabbit.state else '#d9d9d9' }};"></span>
-              <span id="led-bottom-indicator" style="position: absolute; left: 47%; top: 87%; width: 20px; height: 20px; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_bottom if remote_rabbit and remote_rabbit.state else '#d9d9d9' }};"></span>
-              <span id="led-nose-indicator" style="position: absolute; left: 44%; top: 37%; width: 20px; height: 20px; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_nose if remote_rabbit and remote_rabbit.state else '#d9d9d9' }};"></span>
+              <button type="button" id="led-left-indicator" data-led-target="left" aria-label="Changer la couleur de la LED gauche" style="position: absolute; left: 38%; top: 74%; width: 20px; height: 20px; padding: 0; appearance: none; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_left if remote_rabbit and remote_rabbit.state else '#d9d9d9' }}; cursor: pointer;"></button>
+              <button type="button" id="led-center-indicator" data-led-target="center" aria-label="Changer la couleur de la LED centre" style="position: absolute; left: 53%; top: 74%; width: 20px; height: 20px; padding: 0; appearance: none; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_center if remote_rabbit and remote_rabbit.state else '#d9d9d9' }}; cursor: pointer;"></button>
+              <button type="button" id="led-right-indicator" data-led-target="right" aria-label="Changer la couleur de la LED droite" style="position: absolute; left: 68%; top: 74%; width: 20px; height: 20px; padding: 0; appearance: none; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_right if remote_rabbit and remote_rabbit.state else '#d9d9d9' }}; cursor: pointer;"></button>
+              <button type="button" id="led-bottom-indicator" data-led-target="bottom" aria-label="Changer la couleur de la LED du bas" style="position: absolute; left: 47%; top: 87%; width: 20px; height: 20px; padding: 0; appearance: none; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_bottom if remote_rabbit and remote_rabbit.state else '#d9d9d9' }}; cursor: pointer;"></button>
+              <button type="button" id="led-nose-indicator" data-led-target="nose" aria-label="Changer le signal du nez" style="position: absolute; left: 44%; top: 48%; width: 20px; height: 20px; padding: 0; appearance: none; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_nose if remote_rabbit and remote_rabbit.state else '#d9d9d9' }}; cursor: pointer;"></button>
+              <div id="led-palette" hidden style="position: absolute; z-index: 2; min-width: 160px; padding: 10px; border: 1px solid rgba(24, 23, 21, 0.12); background: rgba(255, 252, 246, 0.98); box-shadow: 0 10px 30px rgba(24, 23, 21, 0.14);">
+                <div id="led-palette-title" class="meta" style="margin-bottom: 8px;">Choisir une couleur</div>
+                <div id="led-palette-options" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
+              </div>
             </div>
+            <div class="meta" style="margin-top: 10px;">Clique sur une vignette pour changer directement sa couleur.</div>
           </div>
 
-          <form method="post" action="{{ url_for('main.rabbit_device_led', rabbit_id=rabbit.id) }}" class="stack" data-live-submit="true">
+          <form method="post" action="{{ url_for('main.rabbit_device_led', rabbit_id=rabbit.id) }}" class="stack" data-live-submit="true" id="body-led-form">
             <strong>LEDs du corps</strong>
             <label>Cible</label>
-            <select name="target">
+            <select name="target" id="body-led-target">
               <option value="left">Corps gauche</option>
               <option value="center">Corps centre</option>
               <option value="right">Corps droite</option>
               <option value="bottom">LED du bas</option>
             </select>
             <label>Couleur prédéfinie</label>
-            <select name="color_preset">
+            <select name="color_preset" id="body-led-color">
               <option value="off">Éteint</option>
               <option value="red">Rouge</option>
               <option value="green">Vert</option>
@@ -177,11 +182,11 @@
             <button class="button primary" type="submit">Changer la LED</button>
           </form>
 
-          <form method="post" action="{{ url_for('main.rabbit_device_led', rabbit_id=rabbit.id) }}" class="stack" data-live-submit="true">
+          <form method="post" action="{{ url_for('main.rabbit_device_led', rabbit_id=rabbit.id) }}" class="stack" data-live-submit="true" id="nose-led-form">
             <strong>Signal du nez</strong>
             <input type="hidden" name="target" value="nose">
             <label>Action</label>
-            <select name="color_preset">
+            <select name="color_preset" id="nose-led-color">
               <option value="off">Éteindre</option>
               <option value="red">Clignoter</option>
               <option value="blue">Double clignotement</option>
@@ -236,11 +241,54 @@
       const ledRightIndicator = document.getElementById("led-right-indicator");
       const ledBottomIndicator = document.getElementById("led-bottom-indicator");
       const ledNoseIndicator = document.getElementById("led-nose-indicator");
+      const ledLayout = document.getElementById("led-layout");
+      const ledPalette = document.getElementById("led-palette");
+      const ledPaletteTitle = document.getElementById("led-palette-title");
+      const ledPaletteOptions = document.getElementById("led-palette-options");
+      const bodyLedForm = document.getElementById("body-led-form");
+      const bodyLedTarget = document.getElementById("body-led-target");
+      const bodyLedColor = document.getElementById("body-led-color");
+      const noseLedForm = document.getElementById("nose-led-form");
+      const noseLedColor = document.getElementById("nose-led-color");
       const ztampsContainer = document.getElementById("ztamps-list");
       const toastStack = document.getElementById("toast-stack");
       const endpoint = "{{ url_for('main.rabbit_live_events', rabbit_id=rabbit.id) }}";
       const summaryEndpoint = "{{ url_for('main.rabbit_live_summary', rabbit_id=rabbit.id) }}";
       const ztampsEndpoint = ztampsContainer ? ztampsContainer.dataset.url : null;
+      const ledPalettePresets = {
+        left: ["off", "red", "green", "blue", "cyan", "violet", "yellow", "white"],
+        center: ["off", "red", "green", "blue", "cyan", "violet", "yellow", "white"],
+        right: ["off", "red", "green", "blue", "cyan", "violet", "yellow", "white"],
+        bottom: ["off", "red", "green", "blue", "cyan", "violet", "yellow", "white"],
+        nose: ["off", "red", "blue"],
+      };
+      const ledPresetLabels = {
+        off: "Off",
+        red: "Rouge",
+        green: "Vert",
+        blue: "Bleu",
+        cyan: "Cyan",
+        violet: "Violet",
+        yellow: "Jaune",
+        white: "Blanc",
+      };
+      const ledPresetColors = {
+        off: "#d9d9d9",
+        red: "#ff0000",
+        green: "#00ff00",
+        blue: "#0000ff",
+        cyan: "#00ffff",
+        violet: "#ff00ff",
+        yellow: "#ffff00",
+        white: "#ffffff",
+      };
+      const ledTargetLabels = {
+        left: "LED gauche",
+        center: "LED centre",
+        right: "LED droite",
+        bottom: "LED du bas",
+        nose: "nez",
+      };
       let lastId = 0;
 
       const formatTimestamp = (value) => {
@@ -400,6 +448,57 @@
         node.style.boxShadow = normalized === "#d9d9d9" ? "none" : `0 0 14px ${normalized}`;
       };
 
+      const closeLedPalette = () => {
+        if (!ledPalette) return;
+        ledPalette.hidden = true;
+        ledPaletteOptions.innerHTML = "";
+      };
+
+      const openLedPalette = (button) => {
+        if (!ledLayout || !ledPalette || !ledPaletteTitle || !ledPaletteOptions || !button) return;
+        const target = button.dataset.ledTarget;
+        const presets = ledPalettePresets[target] || [];
+        const title =
+          target === "nose"
+            ? "Choisir le signal du nez"
+            : `Choisir une couleur pour ${ledTargetLabels[target] || "la LED"}`;
+        ledPaletteTitle.textContent = title;
+        ledPaletteOptions.innerHTML = "";
+
+        for (const preset of presets) {
+          const option = document.createElement("button");
+          option.type = "button";
+          option.textContent = ledPresetLabels[preset] || preset;
+          option.style.padding = "6px 10px";
+          option.style.border = "1px solid rgba(24, 23, 21, 0.15)";
+          option.style.background = ledPresetColors[preset] || "#f4f1ea";
+          option.style.color = preset === "blue" || preset === "violet" ? "#ffffff" : "#181715";
+          option.style.cursor = "pointer";
+          option.addEventListener("click", async () => {
+            closeLedPalette();
+            if (target === "nose" && noseLedForm && noseLedColor) {
+              noseLedColor.value = preset;
+              await submitLiveForm(noseLedForm);
+              return;
+            }
+            if (bodyLedForm && bodyLedTarget && bodyLedColor) {
+              bodyLedTarget.value = target;
+              bodyLedColor.value = preset;
+              await submitLiveForm(bodyLedForm);
+            }
+          });
+          ledPaletteOptions.appendChild(option);
+        }
+
+        const layoutRect = ledLayout.getBoundingClientRect();
+        const buttonRect = button.getBoundingClientRect();
+        const left = Math.max(0, buttonRect.left - layoutRect.left - 44);
+        const top = Math.max(0, buttonRect.top - layoutRect.top - 96);
+        ledPalette.style.left = `${left}px`;
+        ledPalette.style.top = `${top}px`;
+        ledPalette.hidden = false;
+      };
+
       const refreshSummary = async () => {
         if (!summaryEndpoint) return;
         try {
@@ -534,6 +633,18 @@
 
       refreshSummary();
       refreshZtamps();
+      for (const indicator of document.querySelectorAll("[data-led-target]")) {
+        indicator.addEventListener("click", (event) => {
+          event.stopPropagation();
+          openLedPalette(indicator);
+        });
+      }
+      document.addEventListener("click", (event) => {
+        if (!ledPalette || ledPalette.hidden) return;
+        if (ledPalette.contains(event.target)) return;
+        if (event.target instanceof Element && event.target.closest("[data-led-target]")) return;
+        closeLedPalette();
+      });
       for (const form of document.querySelectorAll('form[data-live-submit="true"]')) {
         form.addEventListener("submit", (event) => {
           event.preventDefault();
