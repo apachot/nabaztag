@@ -64,12 +64,15 @@ def create_app() -> Flask:
 def _ensure_portal_schema() -> None:
     inspector = db.inspect(db.engine)
     rabbit_columns = {column["name"] for column in inspector.get_columns("rabbit")}
+    user_columns = {column["name"] for column in inspector.get_columns("user")}
     statements: list[str] = []
 
     if "photo_filename" not in rabbit_columns:
         statements.append("ALTER TABLE rabbit ADD COLUMN photo_filename VARCHAR(255)")
     if "photo_original_name" not in rabbit_columns:
         statements.append("ALTER TABLE rabbit ADD COLUMN photo_original_name VARCHAR(255)")
+    if "openai_api_key" not in user_columns:
+        statements.append("ALTER TABLE user ADD COLUMN openai_api_key TEXT")
 
     for statement in statements:
         db.session.execute(text(statement))

@@ -17,6 +17,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(255), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(255), nullable=False)
+    openai_api_key = db.Column(db.Text)
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
 
     rabbits = db.relationship("Rabbit", back_populates="owner", cascade="all, delete-orphan")

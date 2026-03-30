@@ -793,6 +793,29 @@ def dashboard():
     return render_template("dashboard.html", rabbits=rabbits)
 
 
+@main_bp.route("/account", methods=["GET", "POST"])
+@login_required
+def account():
+    if request.method == "POST":
+        action = request.form.get("action", "save").strip().lower()
+        if action == "clear":
+            current_user.openai_api_key = None
+            db.session.commit()
+            flash("Token OpenAI supprimé.", "success")
+            return redirect(url_for("main.account"))
+
+        openai_api_key = request.form.get("openai_api_key", "").strip()
+        if not openai_api_key:
+            flash("Saisis un token OpenAI ou utilise le bouton de suppression.", "error")
+        else:
+            current_user.openai_api_key = openai_api_key
+            db.session.commit()
+            flash("Token OpenAI enregistré.", "success")
+            return redirect(url_for("main.account"))
+
+    return render_template("account.html")
+
+
 @main_bp.get("/rabbits/<int:rabbit_id>")
 @login_required
 def rabbit_detail(rabbit_id: int):
