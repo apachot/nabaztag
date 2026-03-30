@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Alertes {{ rabbit.name }} | Nabaztag Portal{% endblock %}
+
+{% block content %}
+  <section class="stack">
+    <section class="hero">
+      <p class="section-kicker">Événements détectés</p>
+      <h1 class="hero-title">Alertes de {{ rabbit.name }}.</h1>
+      <p class="hero-text">
+        Cette page centralise les événements détectés par le lapin : bouton, enregistrements,
+        tags RFID et mouvements d’oreilles.
+      </p>
+      <div class="actions" style="margin-top: 18px;">
+        <a class="button primary" href="{{ url_for('main.rabbit_detail', rabbit_id=rabbit.id) }}">Retour à la fiche</a>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div id="live-events" class="stack" data-url="{{ url_for('main.rabbit_live_events', rabbit_id=rabbit.id) }}">
+        {% for event in events %}
+          <div class="rabbit-card">
+            <strong>{{ event.event_type }}</strong>
+            <div class="meta">{{ event.created_at }}</div>
+            {% if event.payload %}
+              <div class="mono" style="margin-top: 8px;">{{ event.payload }}</div>
+            {% endif %}
+          </div>
+        {% else %}
+          <div class="rabbit-card meta">En attente d'événements...</div>
+        {% endfor %}
+      </div>
+    </section>
+  </section>
+
+  <script>
+    (() => {
+      const container = document.getElementById("live-events");
+      if (!container) return;
+
+      const endpoint = container.dataset.url;
+      let lastId = {{ events[0].id if events else 0 }};
+
+      const formatTimestamp = (value) => {
+        if (!value) return "";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return date.toLocaleString("fr-FR");
+      };
+
+      const describeEvent = (event) => {
+        const payload = event.payload || {};
+        switch (event.event_type) {
+          case "rabbit.button":
+            if (payload.click === 2) return "Double appui sur le bouton du crâne";
+            return "Appui sur le bouton du crâne";
+          case "rabbit.recording.uploaded":
+            return `Nouvel enregistrement reçu${payload.filename ? " : " + payload.filename : ""}`;
+          case "rabbit.rfid.detected":
+            return `Tag RFID détecté${payload.tag ? " : " + payload.tag : ""}`;
+          case "rabbit.ears.moved":
+            return `Oreilles bougées manuellement (gauche ${payload.left}, droite ${payload.right})`;
+          default:
+            return event.event_type;
+        }
+      };
+
+      const renderEvent = (event) => {
+        const card = document.createElement("div");
+        card.className = "rabbit-card";
+
+        const title = document.createElement("strong");
+        title.textContent = describeEvent(event);
+        card.appendChild(title);
+
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        meta.textContent = formatTimestamp(event.created_at);
+        card.appendChild(meta);
+
+        if (event.payload) {
+          const details = document.createElement("div");
+          details.className = "mono";
+          details.style.marginTop = "8px";
+          details.textContent = JSON.stringify(event.payload);
+          card.appendChild(details);
+        }
+
+        return card;
+      };
+
+      const poll = async () => {
+        try {
+          const response = await fetch(`${endpoint}?after_id=${lastId}`, {
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+          });
+          if (!response.ok) return;
+          const data = await response.json();
+          const events = data.events || [];
+          if (!events.length) return;
+
+          const emptyState = container.querySelector(".rabbit-card.meta");
+          if (emptyState) emptyState.remove();
+
+          for (const event of events) {
+            container.prepend(renderEvent(event));
+            lastId = Math.max(lastId, event.id || 0);
+          }
+        } catch (error) {
+          console.error("alerts poll failed", error);
+        }
+      };
+
+      window.setInterval(poll, 4000);
+    })();
+  </script>
+{% endblock %}

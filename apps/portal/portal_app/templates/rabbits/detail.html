@@ -45,7 +45,10 @@
         <p>{{ rabbit.notes }}</p>
       {% endif %}
       <div class="actions" style="margin-top: 16px;">
-        <a class="pill icon-pill" href="#live-events-panel" title="Voir les alertes" aria-label="Voir les alertes">⌁</a>
+        <a class="pill alert-pill" href="{{ url_for('main.rabbit_alerts', rabbit_id=rabbit.id) }}" title="Voir les alertes" aria-label="Voir les alertes">
+          <span aria-hidden="true">⚑</span>
+          <span>Alertes</span>
+        </a>
         <a class="pill" href="{{ url_for('main.edit_rabbit', rabbit_id=rabbit.id) }}">Modifier</a>
         <a class="pill" href="{{ url_for('main.rabbit_details', rabbit_id=rabbit.id) }}">Détails</a>
       </div>
@@ -165,34 +168,6 @@
         </div>
       </article>
 
-      <article class="panel" id="live-events-panel">
-        <h2>Événements en temps réel</h2>
-        <div class="meta">Affiche les nouveaux appuis bouton, enregistrements, tags RFID et mouvements d’oreilles.</div>
-        <div
-          id="live-events"
-          class="stack"
-          data-url="{{ url_for('main.rabbit_live_events', rabbit_id=rabbit.id) }}"
-          data-rabbit-name="{{ rabbit.name }}"
-          style="margin-top: 16px;"
-        >
-          <div class="rabbit-card meta">En attente d'événements...</div>
-        </div>
-      </article>
-
-      <article class="panel">
-        <h2>Provisioning</h2>
-        {% for session in provisioning_sessions %}
-          <div class="rabbit-card">
-            <div class="meta">Statut: {{ session.status }}</div>
-            <div class="meta">Wi-Fi maison: {{ session.home_wifi_ssid or "n/a" }}</div>
-            <div class="meta">Serveur: {{ session.server_base_url or "n/a" }}</div>
-            <div class="meta">Créé le: {{ session.created_at }}</div>
-          </div>
-        {% else %}
-          <p>Aucune session de provisioning enregistrée.</p>
-        {% endfor %}
-      </article>
-
       <article class="panel">
         <h2>Ztamp's</h2>
         <div class="meta">Tags RFID déjà détectés par ce lapin.</div>
@@ -306,7 +281,6 @@
 
   <script>
     (() => {
-      const container = document.getElementById("live-events");
       const recordingsContainer = document.getElementById("recordings-list");
       const historyContainer = document.getElementById("history-list");
       const deviceStatePanel = document.getElementById("device-state-panel");
@@ -316,9 +290,7 @@
       const linkedDeviceSerial = document.getElementById("linked-device-serial");
       const ztampsContainer = document.getElementById("ztamps-list");
       const toastStack = document.getElementById("toast-stack");
-      if (!container) return;
-
-      const endpoint = container.dataset.url;
+      const endpoint = "{{ url_for('main.rabbit_live_events', rabbit_id=rabbit.id) }}";
       const recordingsEndpoint = recordingsContainer ? recordingsContainer.dataset.url : null;
       const historyEndpoint = historyContainer ? historyContainer.dataset.url : null;
       const summaryEndpoint = deviceStatePanel ? deviceStatePanel.dataset.url : null;
@@ -408,25 +380,15 @@
 
       const appendEvents = (events) => {
         if (!events.length) {
-          if (!started && !container.querySelector(".rabbit-card:not(.meta)")) {
-            container.innerHTML = "<div class=\"rabbit-card meta\">En attente d'événements...</div>";
-          }
           return;
         }
-
         if (!started) {
-          container.innerHTML = "";
           started = true;
         }
 
         for (const event of events) {
           lastId = Math.max(lastId, event.id || 0);
-          container.prepend(renderEvent(event));
           showToast(event);
-        }
-
-        while (container.children.length > 20) {
-          container.removeChild(container.lastElementChild);
         }
       };
 

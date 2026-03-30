@@ -804,6 +804,20 @@ def rabbit_details(rabbit_id: int):
     )
 
 
+@main_bp.get("/rabbits/<int:rabbit_id>/alerts")
+@login_required
+def rabbit_alerts(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    events = (
+        RabbitEventLog.query.filter_by(rabbit_id=rabbit.id)
+        .filter(RabbitEventLog.event_type.in_(LIVE_EVENT_TYPES))
+        .order_by(RabbitEventLog.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    return render_template("rabbits/alerts.html", rabbit=rabbit, events=events)
+
+
 @main_bp.get("/rabbits/<int:rabbit_id>/events/live")
 @login_required
 def rabbit_live_events(rabbit_id: int):
