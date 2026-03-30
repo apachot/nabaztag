@@ -350,6 +350,31 @@ def _choreography_root() -> Path:
     return root
 
 
+def _body_led_states_for_command(command: RabbitDeviceCommand) -> dict[str, str]:
+    payload = json.loads(command.payload or "{}")
+    target = payload.get("target")
+    color = payload.get("color")
+    if target not in {"left", "center", "right"} or not color:
+        return {}
+
+    history = (
+        RabbitDeviceCommand.query.filter_by(rabbit_id=command.rabbit_id, command_type="led")
+        .order_by(RabbitDeviceCommand.created_at.asc(), RabbitDeviceCommand.id.asc())
+        .all()
+    )
+    states = {"left": "#000000", "center": "#000000", "right": "#000000"}
+    for item in history:
+        try:
+            item_payload = json.loads(item.payload or "{}")
+        except json.JSONDecodeError:
+            continue
+        item_target = item_payload.get("target")
+        item_color = item_payload.get("color")
+        if item_target in states and item_color:
+            states[item_target] = item_color
+    return states
+
+
 def _build_packet_for_command(command: RabbitDeviceCommand) -> EncodedPacket:
     payload = json.loads(command.payload or "{}")
     if command.command_type == "audio":
@@ -361,8 +386,9 @@ def _build_packet_for_command(command: RabbitDeviceCommand) -> EncodedPacket:
         color = payload["color"]
         if target in {"nose", "bottom"}:
             return build_nose_or_bottom_packet(target, color)
-        filename = f"rabbit-{command.rabbit_id}-{command.id}-{target}.chor"
-        packet, choreography = build_choreography_packet(target=target, color=color, filename=filename)
+        states = _body_led_states_for_command(command)
+        filename = f"rabbit-{command.rabbit_id}-{command.id}-body.chor"
+        packet, choreography = build_choreography_packet(states=states, filename=filename)
         choreography_path = _choreography_root() / filename
         choreography_path.write_bytes(choreography)
         return packet
@@ -445,17 +471,40 @@ async def _refresh_sticky_leds() -> None:
         if key not in latest_by_target:
             latest_by_target[key] = command
 
+    latest_body_by_rabbit: dict[tuple[int, str], RabbitDeviceCommand] = {}
     for command in latest_by_target.values():
         try:
             payload = json.loads(command.payload or "{}")
         except json.JSONDecodeError:
             continue
+        target = str(payload.get("target") or "")
+        if target in {"left", "center", "right"}:
+            rabbit_key = (command.rabbit_id, command.serial.lower())
+            if rabbit_key not in latest_body_by_rabbit:
+                latest_body_by_rabbit[rabbit_key] = command
+
+    commands_to_refresh: list[RabbitDeviceCommand] = []
+    seen_body_keys: set[tuple[int, str]] = set()
+    for command in latest_by_target.values():
+        try:
+            payload = json.loads(command.payload or "{}")
+        except json.JSONDecodeError:
+            continue
+        target = str(payload.get("target") or "")
+        if target in {"left", "center", "right"}:
+            rabbit_key = (command.rabbit_id, command.serial.lower())
+            if rabbit_key in seen_body_keys:
+                continue
+            seen_body_keys.add(rabbit_key)
+            command = latest_body_by_rabbit[rabbit_key]
         color = str(payload.get("color") or "").lower()
         if command.status != "sent" or color == "#000000":
             continue
         if not _age_exceeds(command.sent_at, LED_REFRESH_INTERVAL):
             continue
+        commands_to_refresh.append(command)
 
+    for command in commands_to_refresh:
         session = ACTIVE_SESSIONS.get(command.serial.lower())
         if session is None or not session.resource:
             continue
