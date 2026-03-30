@@ -165,10 +165,14 @@
 
           <form method="post" action="{{ url_for('main.rabbit_device_say', rabbit_id=rabbit.id) }}" class="stack" data-live-submit="true">
             <strong>Faire parler le lapin</strong>
+            <input type="hidden" name="mode" value="manual" id="say-mode-input">
             <label>Message</label>
             <textarea name="message" rows="4" maxlength="500" placeholder="Bonjour Lapinou, ceci est un test de synthèse vocale."></textarea>
-            <div class="meta">Synthèse vocale simple générée sur le serveur, puis lue par le lapin comme un audio local.</div>
-            <button class="button primary" type="submit">Synthétiser et lire</button>
+            <div class="meta">Tu peux soit écrire un texte, soit demander a GPT-4o-mini d'en inventer un a partir du prompt du lapin.</div>
+            <div class="actions">
+              <button class="button primary" type="submit" onclick="document.getElementById('say-mode-input').value='manual'">Synthétiser et lire</button>
+              <button class="pill" type="submit" onclick="document.getElementById('say-mode-input').value='generate'">Générer puis lire</button>
+            </div>
           </form>
         </div>
       </article>

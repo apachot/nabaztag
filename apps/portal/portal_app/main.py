@@ -6,6 +6,8 @@ import subprocess
 import time
 from mimetypes import guess_type
 from pathlib import Path
+from urllib import error as urllib_error
+from urllib import request as urllib_request
 
 from flask import Blueprint, Response, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
@@ -366,6 +368,82 @@ def _synthesize_tts_asset(*, rabbit_slug: str, text: str) -> tuple[Path, str]:
         (ffmpeg_result.stderr or ffmpeg_result.stdout)[-1000:],
     )
     return wav_path, wav_name
+
+
+def _extract_openai_text(payload: dict) -> str:
+    output_text = payload.get("output_text")
+    if isinstance(output_text, str) and output_text.strip():
+        return output_text.strip()
+
+    fragments: list[str] = []
+    for item in payload.get("output", []):
+        if not isinstance(item, dict):
+            continue
+        for content in item.get("content", []):
+            if not isinstance(content, dict):
+                continue
+            if content.get("type") in {"output_text", "text"}:
+                text_value = content.get("text")
+                if isinstance(text_value, str) and text_value.strip():
+                    fragments.append(text_value.strip())
+    return "\n".join(fragments).strip()
+
+
+def _generate_openai_rabbit_message(*, api_key: str, rabbit_name: str, personality_prompt: str) -> str:
+    system_prompt = (
+        f"{personality_prompt}\n\n"
+        "Tu reponds en francais. Ecris un texte tres court que le lapin pourra dire a voix haute. "
+        "Le texte doit etre original, amusant, attachant, familial et facile a comprendre oralement. "
+        "Pas de liste, pas de markdown, pas d'explication meta."
+    )
+    user_prompt = (
+        f"Genere une petite phrase originale pour divertir, comme si {rabbit_name} prenait la parole "
+        "maintenant dans la maison. Vise 1 a 3 phrases maximum."
+    )
+    request_payload = json.dumps(
+        {
+            "model": "gpt-4o-mini",
+            "input": [
+                {
+                    "role": "system",
+                    "content": [{"type": "input_text", "text": system_prompt}],
+                },
+                {
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": user_prompt}],
+                },
+            ],
+            "max_output_tokens": 120,
+        }
+    ).encode("utf-8")
+    request = urllib_request.Request(
+        "https://api.openai.com/v1/responses",
+        data=request_payload,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+    )
+
+    try:
+        with urllib_request.urlopen(request, timeout=30) as response:
+            response_payload = json.loads(response.read().decode("utf-8"))
+    except urllib_error.HTTPError as exc:
+        details = exc.read().decode("utf-8", errors="replace")
+        try:
+            error_payload = json.loads(details)
+            message = error_payload.get("error", {}).get("message") or details
+        except json.JSONDecodeError:
+            message = details or str(exc)
+        raise RuntimeError(f"OpenAI a renvoye une erreur: {message}") from exc
+    except urllib_error.URLError as exc:
+        raise RuntimeError(f"Connexion OpenAI impossible: {exc.reason}") from exc
+
+    message = _extract_openai_text(response_payload)
+    if not message:
+        raise RuntimeError("OpenAI n'a renvoye aucun texte exploitable.")
+    return message
 
 
 def _maybe_transcode_recording_to_mp3(source_path: Path) -> Path:
@@ -1499,19 +1577,41 @@ def rabbit_device_audio_upload(rabbit_id: int):
 @login_required
 def rabbit_device_say(rabbit_id: int):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    mode = request.form.get("mode", "manual").strip().lower()
     message = request.form.get("message", "").strip()
-    if not message:
-        error_message = "Message obligatoire."
-        flash(error_message, "error")
-        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            return jsonify({"ok": False, "message": error_message}), 400
-        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
-    if len(message) > 500:
-        error_message = "Message trop long. Limite: 500 caractères."
-        flash(error_message, "error")
-        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            return jsonify({"ok": False, "message": error_message}), 400
-        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    if mode == "generate":
+        if not current_user.openai_api_key:
+            error_message = "Ajoute d'abord ton token OpenAI dans Mon compte."
+            flash(error_message, "error")
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({"ok": False, "message": error_message}), 400
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+        try:
+            message = _generate_openai_rabbit_message(
+                api_key=current_user.openai_api_key,
+                rabbit_name=rabbit.name,
+                personality_prompt=rabbit.personality_prompt or DEFAULT_RABBIT_PERSONALITY_PROMPT,
+            )
+        except RuntimeError as exc:
+            error_message = str(exc)
+            flash(error_message, "error")
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({"ok": False, "message": error_message}), 400
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+    else:
+        if not message:
+            error_message = "Message obligatoire."
+            flash(error_message, "error")
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({"ok": False, "message": error_message}), 400
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+        if len(message) > 500:
+            error_message = "Message trop long. Limite: 500 caractères."
+            flash(error_message, "error")
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({"ok": False, "message": error_message}), 400
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     try:
         asset_path, asset_name = _synthesize_tts_asset(rabbit_slug=rabbit.slug, text=message)
@@ -1531,12 +1631,17 @@ def rabbit_device_say(rabbit_id: int):
             "source": "tts",
             "filename": asset_path.name,
             "text": message,
+            "mode": mode,
         },
     )
-    success_message = "Message synthétisé et lecture mise en file."
+    success_message = (
+        "Texte genere puis lecture mise en file."
+        if mode == "generate"
+        else "Message synthetise et lecture mise en file."
+    )
     flash(success_message, "success")
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-        return jsonify({"ok": True, "message": success_message})
+        return jsonify({"ok": True, "message": success_message, "generated_text": message if mode == "generate" else None})
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
 
