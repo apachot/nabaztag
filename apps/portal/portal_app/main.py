@@ -1073,48 +1073,8 @@ def _generate_mistral_rabbit_performance(
 
 
 def _maybe_transcode_recording_to_mp3(source_path: Path) -> Path:
-    target_path = source_path.with_suffix(".mp3")
-    try:
-        result = subprocess.run(
-            [
-                "ffmpeg",
-                "-y",
-                "-i",
-                str(source_path),
-                "-af",
-                "highpass=f=280,"
-                "lowpass=f=2600,"
-                "afftdn=nf=-40,"
-                "anlmdn=s=0.0003,"
-                "acompressor=threshold=-20dB:ratio=3:attack=5:release=50,"
-                "dynaudnorm=f=150:g=11",
-                "-codec:a",
-                "libmp3lame",
-                "-q:a",
-                "4",
-                str(target_path),
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except FileNotFoundError:
-        current_app.logger.info("ffmpeg not available, keeping raw recording %s", source_path)
-        return source_path
-
-    if result.returncode != 0 or not target_path.exists():
-        current_app.logger.warning(
-            "ffmpeg conversion failed for %s: %s",
-            source_path,
-            (result.stderr or result.stdout)[-1000:],
-        )
-        return source_path
-
-    try:
-        source_path.unlink()
-    except OSError:
-        current_app.logger.warning("unable to delete raw recording after mp3 conversion: %s", source_path)
-    return target_path
+    current_app.logger.info("recording post-processing disabled, keeping raw recording %s", source_path)
+    return source_path
 
 
 def _record_device_observation(
