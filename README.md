@@ -31,17 +31,6 @@ AI stack:
 - Mistral Voxtral TTS for speech synthesis
 - structured JSON generation so the rabbit can express itself through speech, ears, and LEDs
 
-## Important Limitation
-
-Remote `start recording` / `stop recording` is not currently supported by the Nabaztag protocol gateway.
-
-The API exposes those endpoints, but the protocol gateway explicitly raises an error because raw remote recording control with audio retrieval is not documented in the current `nabd` protocol implementation. The working input path today is the Violet-style recording upload flow handled by the portal.
-
-See:
-
-- `apps/api/app/gateway.py`
-- `docs/protocol-notes.md`
-
 ## Run
 
 ### Portal
