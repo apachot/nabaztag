@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import secrets
 import subprocess
 import time
@@ -98,6 +99,20 @@ MISTRAL_TTS_LIST_VOICES_URL = "https://api.mistral.ai/v1/audio/voices"
 MISTRAL_TTS_SPEECH_URL = "https://api.mistral.ai/v1/audio/speech"
 DEFAULT_RABBIT_LLM_MODEL = "mistral-small-2603"
 MISTRAL_MODELS_URL = "https://api.mistral.ai/v1/models"
+BODY_LED_TARGETS = ("left", "center", "right")
+LED_TARGETS = ("left", "center", "right", "bottom", "nose")
+LED_MODE_TO_PRESET = {
+    "off": "off",
+    "steady": None,
+    "blink": "red",
+    "double_blink": "blue",
+}
+LED_COLOR_NAMES = tuple(LED_COLOR_PRESETS.keys())
+EAR_ACTION_TO_POSITION = {
+    "forward": 0,
+    "center": 8,
+    "backward": 16,
+}
 
 
 def _mistral_json_request(*, api_key: str, url: str, payload: dict | None = None) -> dict:
@@ -188,10 +203,107 @@ def _normalize_rabbit_llm_model(rabbit: Rabbit, model_options: list[tuple[str, s
     allowed_values = {model_value for model_value, _model_label in model_options}
     if current_model in allowed_values:
         return current_model
+    if current_model and current_model not in allowed_values:
+        return current_model
     if rabbit.llm_model != DEFAULT_RABBIT_LLM_MODEL:
         rabbit.llm_model = DEFAULT_RABBIT_LLM_MODEL
         db.session.commit()
     return DEFAULT_RABBIT_LLM_MODEL
+
+
+def _extract_json_object(raw_text: str) -> dict:
+    text = raw_text.strip()
+    if not text:
+        raise RuntimeError("Le modele n'a renvoye aucun JSON.")
+    direct_payload = None
+    try:
+        direct_payload = json.loads(text)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if not match:
+            raise RuntimeError("Le modele n'a pas renvoye un JSON valide.") from None
+        try:
+            direct_payload = json.loads(match.group(0))
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("Le modele a renvoye un JSON invalide.") from exc
+    if not isinstance(direct_payload, dict):
+        raise RuntimeError("Le modele a renvoye un JSON invalide.")
+    return direct_payload
+
+
+def _normalize_generated_ear_instruction(instruction: object) -> int | None:
+    if not isinstance(instruction, dict):
+        return None
+    action = str(instruction.get("action") or "keep").strip().lower()
+    if action == "keep":
+        return None
+    if action == "position":
+        raw_position = instruction.get("position")
+        if isinstance(raw_position, (int, float)):
+            return max(0, min(16, int(raw_position)))
+        return None
+    return EAR_ACTION_TO_POSITION.get(action)
+
+
+def _normalize_generated_led_instruction(target: str, instruction: object) -> dict | None:
+    if not isinstance(instruction, dict):
+        return None
+    mode = str(instruction.get("mode") or "off").strip().lower()
+    if target in BODY_LED_TARGETS:
+        if mode == "off":
+            return {"target": target, "color": LED_COLOR_PRESETS["off"], "preset": "off"}
+        if mode != "steady":
+            return None
+        color_name = str(instruction.get("color") or "").strip().lower()
+        if color_name not in LED_COLOR_PRESETS or color_name == "off":
+            return None
+        return {"target": target, "color": LED_COLOR_PRESETS[color_name], "preset": color_name}
+
+    if target == "bottom":
+        color_name = str(instruction.get("color") or "").strip().lower()
+        if mode == "off":
+            return {"target": target, "color": LED_COLOR_PRESETS["off"], "preset": "off"}
+        if mode != "steady" or color_name not in {"blue", "green", "cyan", "red", "violet", "yellow", "white"}:
+            return None
+        return {"target": target, "color": LED_COLOR_PRESETS[color_name], "preset": color_name}
+
+    if target == "nose":
+        if mode not in {"off", "blink", "double_blink"}:
+            return None
+        preset = LED_MODE_TO_PRESET[mode]
+        preset = preset or "off"
+        return {"target": target, "color": LED_COLOR_PRESETS[preset], "preset": preset}
+    return None
+
+
+def _normalize_generated_performance(payload: dict) -> dict:
+    text = " ".join(str(payload.get("text") or "").split()).strip()
+    if not text:
+        raise RuntimeError("Le modele n'a pas fourni de texte a lire.")
+
+    ears_payload = payload.get("ears")
+    left_position = None
+    right_position = None
+    if isinstance(ears_payload, dict):
+        left_position = _normalize_generated_ear_instruction(ears_payload.get("left"))
+        right_position = _normalize_generated_ear_instruction(ears_payload.get("right"))
+
+    led_commands: list[dict] = []
+    leds_payload = payload.get("leds")
+    if isinstance(leds_payload, dict):
+        for target in LED_TARGETS:
+            led_command = _normalize_generated_led_instruction(target, leds_payload.get(target))
+            if led_command is not None:
+                led_commands.append(led_command)
+
+    return {
+        "text": text,
+        "ears": {
+            "left": left_position,
+            "right": right_position,
+        },
+        "led_commands": led_commands,
+    }
 
 
 def _build_rabbit_tts_voice_options(saved_voices: list[dict] | None = None) -> list[tuple[str, str]]:
@@ -510,22 +622,37 @@ def _extract_mistral_chat_text(payload: dict) -> str:
     return ""
 
 
-def _generate_mistral_rabbit_message(
+def _generate_mistral_rabbit_performance(
     *,
     api_key: str,
     model: str,
     rabbit_name: str,
     personality_prompt: str,
-) -> str:
+) -> dict:
     system_prompt = (
         f"{personality_prompt}\n\n"
-        "Tu reponds en francais. Ecris un texte tres court que le lapin pourra dire a voix haute. "
-        "Le texte doit etre original, amusant, attachant, familial et facile a comprendre oralement. "
-        "Pas de liste, pas de markdown, pas d'explication meta."
+        "Tu pilotes un lapin Nabaztag qui s'exprime avec la voix, les oreilles et les LEDs. "
+        "Tu dois repondre uniquement avec un objet JSON valide, sans markdown ni commentaire. "
+        "Le JSON doit avoir exactement cette structure generale: "
+        '{"text":"...",'
+        '"ears":{"left":{"action":"keep|forward|center|backward|position","position":8},'
+        '"right":{"action":"keep|forward|center|backward|position","position":8}},'
+        '"leds":{"left":{"mode":"off|steady","color":"red|green|blue|cyan|violet|yellow|white"},'
+        '"center":{"mode":"off|steady","color":"red|green|blue|cyan|violet|yellow|white"},'
+        '"right":{"mode":"off|steady","color":"red|green|blue|cyan|violet|yellow|white"},'
+        '"bottom":{"mode":"off|steady","color":"blue|green|cyan|red|violet|yellow|white"},'
+        '"nose":{"mode":"off|blink|double_blink"}}}. '
+        "Contraintes: "
+        "1. `text` est obligatoire, en francais, 1 a 3 phrases courtes, droles et naturelles a lire a voix haute. "
+        "2. Pour les oreilles, utilise `keep` si tu ne veux rien changer. "
+        "3. Pour les LEDs du corps `left/center/right`, seul `steady` ou `off` est autorise. "
+        "4. Pour `bottom`, seul `steady` ou `off` est autorise. "
+        "5. Pour `nose`, seuls `off`, `blink` et `double_blink` sont autorises. "
+        "6. Ne mets jamais de texte hors JSON."
     )
     user_prompt = (
-        f"Genere une petite phrase originale pour divertir, comme si {rabbit_name} prenait la parole "
-        "maintenant dans la maison. Vise 1 a 3 phrases maximum."
+        f"Genere maintenant une petite performance originale pour {rabbit_name}. "
+        "Le lapin doit divertir avec sa voix et, si utile, avec un petit langage corporel expressif."
     )
     response_payload = _mistral_json_request(
         api_key=api_key,
@@ -536,14 +663,13 @@ def _generate_mistral_rabbit_message(
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            "max_tokens": 120,
+            "max_tokens": 300,
             "temperature": 0.9,
+            "response_format": {"type": "json_object"},
         },
     )
     message = _extract_mistral_chat_text(response_payload)
-    if not message:
-        raise RuntimeError("Mistral n'a renvoye aucun texte exploitable.")
-    return " ".join(message.split())
+    return _normalize_generated_performance(_extract_json_object(message))
 
 
 def _maybe_transcode_recording_to_mp3(source_path: Path) -> Path:
@@ -1735,6 +1861,7 @@ def rabbit_device_say(rabbit_id: int):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
     mode = request.form.get("mode", "manual").strip().lower()
     message = request.form.get("message", "").strip()
+    generated_performance = None
 
     if not current_user.mistral_api_key:
         error_message = "Ajoute d'abord ton token Mistral dans Mon compte."
@@ -1746,12 +1873,13 @@ def rabbit_device_say(rabbit_id: int):
     if mode == "generate":
         try:
             llm_model = _normalize_rabbit_llm_model(rabbit, _build_rabbit_llm_model_options())
-            message = _generate_mistral_rabbit_message(
+            generated_performance = _generate_mistral_rabbit_performance(
                 api_key=current_user.mistral_api_key,
                 model=llm_model,
                 rabbit_name=rabbit.name,
                 personality_prompt=rabbit.personality_prompt or DEFAULT_RABBIT_PERSONALITY_PROMPT,
             )
+            message = generated_performance["text"]
         except RuntimeError as exc:
             error_message = str(exc)
             flash(error_message, "error")
@@ -1786,6 +1914,35 @@ def rabbit_device_say(rabbit_id: int):
             return jsonify({"ok": False, "message": error_message}), 400
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
+    if generated_performance is not None:
+        left_position = generated_performance["ears"]["left"]
+        right_position = generated_performance["ears"]["right"]
+        if left_position is not None or right_position is not None:
+            current_left = 8
+            current_right = 8
+            if rabbit.remote_rabbit_id:
+                try:
+                    remote_rabbit = fetch_remote_rabbit(rabbit.remote_rabbit_id)
+                    remote_state = (remote_rabbit or {}).get("state") or {}
+                    current_left = int(remote_state.get("left_ear", current_left))
+                    current_right = int(remote_state.get("right_ear", current_right))
+                except (NabaztagApiError, TypeError, ValueError):
+                    pass
+            _enqueue_device_command(
+                rabbit,
+                command_type="ears",
+                payload={
+                    "left": left_position if left_position is not None else current_left,
+                    "right": right_position if right_position is not None else current_right,
+                },
+            )
+        for led_command in generated_performance["led_commands"]:
+            _enqueue_device_command(
+                rabbit,
+                command_type="led",
+                payload=led_command,
+            )
+
     asset_url = f"broadcast/ojn_local/audio/{asset_name}"
     _enqueue_device_command(
         rabbit,
@@ -1805,7 +1962,14 @@ def rabbit_device_say(rabbit_id: int):
     )
     flash(success_message, "success")
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-        return jsonify({"ok": True, "message": success_message, "generated_text": message if mode == "generate" else None})
+        return jsonify(
+            {
+                "ok": True,
+                "message": success_message,
+                "generated_text": message if mode == "generate" else None,
+                "generated_performance": generated_performance if mode == "generate" else None,
+            }
+        )
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
 
