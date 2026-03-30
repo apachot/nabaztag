@@ -357,11 +357,12 @@ def _body_led_states_for_command(command: RabbitDeviceCommand) -> dict[str, str]
     if target not in {"left", "center", "right"} or not color:
         return {}
 
-    history = (
-        RabbitDeviceCommand.query.filter_by(rabbit_id=command.rabbit_id, command_type="led")
-        .order_by(RabbitDeviceCommand.created_at.asc(), RabbitDeviceCommand.id.asc())
-        .all()
-    )
+    with APP.app_context():
+        history = (
+            RabbitDeviceCommand.query.filter_by(rabbit_id=command.rabbit_id, command_type="led")
+            .order_by(RabbitDeviceCommand.created_at.asc(), RabbitDeviceCommand.id.asc())
+            .all()
+        )
     states = {"left": "#000000", "center": "#000000", "right": "#000000"}
     for item in history:
         try:
