@@ -214,7 +214,6 @@
       const summaryEndpoint = "{{ url_for('main.rabbit_live_summary', rabbit_id=rabbit.id) }}";
       const ztampsEndpoint = ztampsContainer ? ztampsContainer.dataset.url : null;
       let lastId = 0;
-      let started = false;
 
       const formatTimestamp = (value) => {
         if (!value) return "";
@@ -297,13 +296,7 @@
       };
 
       const appendEvents = (events) => {
-        if (!events.length) {
-          return;
-        }
-        if (!started) {
-          started = true;
-        }
-
+        if (!events.length) return;
         for (const event of events) {
           lastId = Math.max(lastId, event.id || 0);
           showToast(event);
@@ -413,10 +406,27 @@
         }
       };
 
+      const primeEventsCursor = async () => {
+        try {
+          const response = await fetch(endpoint, {
+            headers: { "X-Requested-With": "fetch" },
+            cache: "no-store",
+          });
+          if (!response.ok) return;
+          const data = await response.json();
+          for (const event of data.events || []) {
+            lastId = Math.max(lastId, event.id || 0);
+          }
+        } catch (error) {
+          console.error("events cursor init failed", error);
+        }
+      };
+
       refreshSummary();
       refreshZtamps();
-      loadEvents();
-      window.setInterval(loadEvents, 2000);
+      primeEventsCursor().then(() => {
+        window.setInterval(loadEvents, 2000);
+      });
     })();
   </script>
 {% endblock %}
