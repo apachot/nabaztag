@@ -31,11 +31,13 @@ class AmbientService:
 
 
 class ChoreographyLed:
-    BOTTOM = 0
-    LEFT = 1
+    # In .chor files, the firmware applies `4 - led_id` before targeting a LED.
+    # These values are therefore the inverse of the physical LED constants.
+    TOP = 0
+    RIGHT = 1
     MIDDLE = 2
-    RIGHT = 3
-    TOP = 4
+    LEFT = 3
+    BOTTOM = 4
 
 
 LED_NAME_TO_CHOREOGRAPHY = {
