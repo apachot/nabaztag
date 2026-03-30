@@ -476,32 +476,17 @@ async def _refresh_sticky_leds() -> None:
         if key not in latest_by_target:
             latest_by_target[key] = command
 
-    latest_body_by_rabbit: dict[tuple[int, str], RabbitDeviceCommand] = {}
-    for command in latest_by_target.values():
-        try:
-            payload = json.loads(command.payload or "{}")
-        except json.JSONDecodeError:
-            continue
-        target = str(payload.get("target") or "")
-        if target in {"left", "center", "right"}:
-            rabbit_key = (command.rabbit_id, command.serial.lower())
-            if rabbit_key not in latest_body_by_rabbit:
-                latest_body_by_rabbit[rabbit_key] = command
-
     commands_to_refresh: list[RabbitDeviceCommand] = []
-    seen_body_keys: set[tuple[int, str]] = set()
     for command in latest_by_target.values():
         try:
             payload = json.loads(command.payload or "{}")
         except json.JSONDecodeError:
             continue
         target = str(payload.get("target") or "")
+        # Body LED choreographies force the rabbit into a busy state. Do not
+        # refresh them periodically or they block later commands.
         if target in {"left", "center", "right"}:
-            rabbit_key = (command.rabbit_id, command.serial.lower())
-            if rabbit_key in seen_body_keys:
-                continue
-            seen_body_keys.add(rabbit_key)
-            command = latest_body_by_rabbit[rabbit_key]
+            continue
         color = str(payload.get("color") or "").lower()
         if command.status != "sent" or color == "#000000":
             continue
