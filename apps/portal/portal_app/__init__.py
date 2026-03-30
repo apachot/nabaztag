@@ -77,6 +77,8 @@ def _ensure_portal_schema() -> None:
         statements.append("ALTER TABLE rabbit ADD COLUMN tts_voice VARCHAR(64)")
     if "openai_api_key" not in user_columns:
         statements.append("ALTER TABLE user ADD COLUMN openai_api_key TEXT")
+    if "mistral_api_key" not in user_columns:
+        statements.append("ALTER TABLE user ADD COLUMN mistral_api_key TEXT")
 
     for statement in statements:
         db.session.execute(text(statement))

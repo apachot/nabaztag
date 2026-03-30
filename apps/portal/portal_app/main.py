@@ -896,20 +896,33 @@ def dashboard():
 @login_required
 def account():
     if request.method == "POST":
+        provider = request.form.get("provider", "openai").strip().lower()
         action = request.form.get("action", "save").strip().lower()
-        if action == "clear":
-            current_user.openai_api_key = None
-            db.session.commit()
-            flash("Token OpenAI supprimé.", "success")
+
+        if provider not in {"openai", "mistral"}:
+            flash("Provider invalide.", "error")
             return redirect(url_for("main.account"))
 
-        openai_api_key = request.form.get("openai_api_key", "").strip()
-        if not openai_api_key:
-            flash("Saisis un token OpenAI ou utilise le bouton de suppression.", "error")
+        if provider == "openai":
+            field_name = "openai_api_key"
+            provider_label = "OpenAI"
         else:
-            current_user.openai_api_key = openai_api_key
+            field_name = "mistral_api_key"
+            provider_label = "Mistral"
+
+        if action == "clear":
+            setattr(current_user, field_name, None)
             db.session.commit()
-            flash("Token OpenAI enregistré.", "success")
+            flash(f"Token {provider_label} supprimé.", "success")
+            return redirect(url_for("main.account"))
+
+        api_key = request.form.get(field_name, "").strip()
+        if not api_key:
+            flash(f"Saisis un token {provider_label} ou utilise le bouton de suppression.", "error")
+        else:
+            setattr(current_user, field_name, api_key)
+            db.session.commit()
+            flash(f"Token {provider_label} enregistré.", "success")
             return redirect(url_for("main.account"))
 
     return render_template("account.html")
