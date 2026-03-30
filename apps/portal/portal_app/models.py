@@ -33,6 +33,7 @@ class Rabbit(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     slug = db.Column(db.String(64), nullable=False)
+    personality_prompt = db.Column(db.Text)
     connection_status = db.Column(db.String(32), default="offline", nullable=False)
     remote_rabbit_id = db.Column(db.String(64), unique=True, index=True)
     target_host = db.Column(db.String(255))

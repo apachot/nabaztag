@@ -71,6 +71,8 @@ def _ensure_portal_schema() -> None:
         statements.append("ALTER TABLE rabbit ADD COLUMN photo_filename VARCHAR(255)")
     if "photo_original_name" not in rabbit_columns:
         statements.append("ALTER TABLE rabbit ADD COLUMN photo_original_name VARCHAR(255)")
+    if "personality_prompt" not in rabbit_columns:
+        statements.append("ALTER TABLE rabbit ADD COLUMN personality_prompt TEXT")
     if "openai_api_key" not in user_columns:
         statements.append("ALTER TABLE user ADD COLUMN openai_api_key TEXT")
 

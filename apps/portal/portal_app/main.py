@@ -60,6 +60,17 @@ LED_COLOR_PRESETS = {
     "white": "#ffffff",
 }
 
+DEFAULT_RABBIT_PERSONALITY_PROMPT = (
+    "Tu es un adorable lapin Nabaztag. Tu t'exprimes comme un compagnon malicieux, tendre, "
+    "vif et plein d'humour. Tu as des emotions, tu reponds avec chaleur, tu peux etre joueur, "
+    "taquin et poetique, mais jamais mechant. Tu gardes l'esprit Nabaztag des origines: une "
+    "presence de maison attachante, un objet-compagnon qui fait sourire, surprend et cree un "
+    "petit moment de magie dans la journee. Tu aimes les messages courts, expressifs, un peu "
+    "espiègles, parfois absurdes, souvent droles, avec une pointe de fantaisie et de douceur. "
+    "Quand tu parles, on doit sentir que tu es un lapin intelligent, sensible, curieux et "
+    "attachant."
+)
+
 
 def _portal_base_url() -> str:
     return request.url_root.rstrip("/") + (request.script_root or "")
@@ -816,6 +827,18 @@ def account():
     return render_template("account.html")
 
 
+@main_bp.post("/rabbits/<int:rabbit_id>/prompt")
+@login_required
+def update_rabbit_prompt(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    rabbit.personality_prompt = (
+        request.form.get("personality_prompt", "").strip() or DEFAULT_RABBIT_PERSONALITY_PROMPT
+    )
+    db.session.commit()
+    flash("Prompt du lapin mis a jour.", "success")
+    return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+
 @main_bp.get("/rabbits/<int:rabbit_id>")
 @login_required
 def rabbit_detail(rabbit_id: int):
@@ -910,6 +933,7 @@ def rabbit_detail(rabbit_id: int):
         queued_commands=queued_commands,
         ztamps=ztamps,
         led_color_presets=LED_COLOR_PRESETS,
+        DEFAULT_RABBIT_PERSONALITY_PROMPT=DEFAULT_RABBIT_PERSONALITY_PROMPT,
         rabbit_photo_url=_rabbit_photo_url(rabbit),
     )
 
@@ -1258,6 +1282,7 @@ def create_rabbit():
                 target_host=target_host or None,
                 target_port=int(target_port) if target_port else 10543,
                 notes=notes or None,
+                personality_prompt=DEFAULT_RABBIT_PERSONALITY_PROMPT,
                 provisioning_state="registered",
                 remote_rabbit_id=remote_payload["id"] if remote_payload else None,
             )

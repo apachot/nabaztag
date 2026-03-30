@@ -200,6 +200,23 @@
       </article>
 
       <article class="panel">
+        <h2>Prompt du lapin</h2>
+        <form method="post" action="{{ url_for('main.update_rabbit_prompt', rabbit_id=rabbit.id) }}" class="stack">
+          <div class="meta">
+            Ce texte servira de base de personnalite pour ce Nabaztag quand on branchera OpenAI.
+          </div>
+          <textarea
+            name="personality_prompt"
+            rows="10"
+            placeholder="Decris la personnalite de ce lapin..."
+          >{{ rabbit.personality_prompt or DEFAULT_RABBIT_PERSONALITY_PROMPT }}</textarea>
+          <div class="actions">
+            <button class="button primary" type="submit">Enregistrer le prompt</button>
+          </div>
+        </form>
+      </article>
+
+      <article class="panel">
         <h2>Ztamp's</h2>
         <div class="meta">Tags RFID déjà détectés par ce lapin.</div>
         <div class="stack" id="ztamps-list" data-url="{{ url_for('main.rabbit_live_ztamps', rabbit_id=rabbit.id) }}" style="margin-top: 16px;">
