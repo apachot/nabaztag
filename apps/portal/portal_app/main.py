@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import base64
 import json
+import random
 import re
 import secrets
 import subprocess
+import threading
 import time
 from datetime import datetime, timedelta
 from mimetypes import guess_type
 from pathlib import Path
 from urllib import error as urllib_error
 from urllib import request as urllib_request
+from zoneinfo import ZoneInfo
 
 from flask import Blueprint, Response, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
@@ -56,6 +59,7 @@ LIVE_EVENT_TYPES = {
     "rabbit.rfid.detected",
     "rabbit.ears.moved",
     "rabbit.conversation.reply.generated",
+    "rabbit.auto_performance.generated",
 }
 
 LED_COLOR_PRESETS = {
@@ -122,6 +126,238 @@ CONVERSATION_MAX_EXCHANGES = 4
 CONVERSATION_MAX_TURNS = CONVERSATION_MAX_EXCHANGES * 2
 CONVERSATION_RECENT_TURNS_LIMIT = CONVERSATION_MAX_TURNS
 CONVERSATION_MAX_AGE_MINUTES = 15
+AUTO_PERFORMANCE_DEFAULT_FREQUENCY_MINUTES = 180
+AUTO_PERFORMANCE_MIN_FREQUENCY_MINUTES = 5
+AUTO_PERFORMANCE_MAX_FREQUENCY_MINUTES = 24 * 60
+AUTO_PERFORMANCE_DEFAULT_WINDOW_START = "09:00"
+AUTO_PERFORMANCE_DEFAULT_WINDOW_END = "21:00"
+AUTO_PERFORMANCE_LOOP_SECONDS = 45
+AUTO_PERFORMANCE_CLAIM_MINUTES = 10
+AUTO_PERFORMANCE_MAX_BATCH = 3
+AUTO_PERFORMANCE_TIMEZONE = ZoneInfo("Europe/Paris")
+
+_auto_intervention_worker_lock = threading.Lock()
+_auto_intervention_worker_started = False
+
+
+def _parse_clock_value(value: str | None, *, fallback: str) -> tuple[int, int]:
+    raw_value = (value or fallback).strip()
+    match = re.fullmatch(r"(\d{2}):(\d{2})", raw_value)
+    if not match:
+        match = re.fullmatch(r"(\d{1,2}):(\d{2})", fallback)
+    hour = int(match.group(1))
+    minute = int(match.group(2))
+    hour = max(0, min(23, hour))
+    minute = max(0, min(59, minute))
+    return hour, minute
+
+
+def _normalize_auto_performance_frequency(raw_value: object) -> int:
+    try:
+        frequency = int(raw_value)
+    except (TypeError, ValueError):
+        frequency = AUTO_PERFORMANCE_DEFAULT_FREQUENCY_MINUTES
+    return max(AUTO_PERFORMANCE_MIN_FREQUENCY_MINUTES, min(AUTO_PERFORMANCE_MAX_FREQUENCY_MINUTES, frequency))
+
+
+def _normalize_auto_performance_window(value: str | None, *, fallback: str) -> str:
+    hour, minute = _parse_clock_value(value, fallback=fallback)
+    return f"{hour:02d}:{minute:02d}"
+
+
+def _localize_utc_datetime(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=ZoneInfo("UTC"))
+    return value.astimezone(AUTO_PERFORMANCE_TIMEZONE)
+
+
+def _format_auto_performance_next_at(value: datetime | None) -> str | None:
+    localized = _localize_utc_datetime(value)
+    if localized is None:
+        return None
+    return localized.strftime("%d/%m à %H:%M")
+
+
+def _is_within_daily_window(current_minutes: int, *, start_minutes: int, end_minutes: int) -> bool:
+    if start_minutes == end_minutes:
+        return True
+    if start_minutes < end_minutes:
+        return start_minutes <= current_minutes < end_minutes
+    return current_minutes >= start_minutes or current_minutes < end_minutes
+
+
+def _next_window_start_local(reference_local: datetime, *, start_minutes: int, end_minutes: int) -> datetime:
+    current_minutes = reference_local.hour * 60 + reference_local.minute
+    start_local = reference_local.replace(
+        hour=start_minutes // 60,
+        minute=start_minutes % 60,
+        second=0,
+        microsecond=0,
+    )
+    if start_minutes == end_minutes:
+        return reference_local
+    if start_minutes < end_minutes:
+        if current_minutes < start_minutes:
+            return start_local
+        return start_local + timedelta(days=1)
+    if current_minutes < end_minutes:
+        return start_local
+    if current_minutes >= start_minutes:
+        return start_local + timedelta(days=1)
+    return start_local
+
+
+def _compute_next_auto_performance_at(
+    rabbit: Rabbit,
+    *,
+    after_utc: datetime | None = None,
+    initial: bool = False,
+) -> datetime:
+    base_utc = after_utc or datetime.utcnow()
+    base_local = base_utc.replace(tzinfo=ZoneInfo("UTC")).astimezone(AUTO_PERFORMANCE_TIMEZONE)
+    start_minutes = _parse_clock_value(
+        rabbit.auto_performance_window_start,
+        fallback=AUTO_PERFORMANCE_DEFAULT_WINDOW_START,
+    )
+    end_minutes = _parse_clock_value(
+        rabbit.auto_performance_window_end,
+        fallback=AUTO_PERFORMANCE_DEFAULT_WINDOW_END,
+    )
+    start_total = start_minutes[0] * 60 + start_minutes[1]
+    end_total = end_minutes[0] * 60 + end_minutes[1]
+    frequency = _normalize_auto_performance_frequency(rabbit.auto_performance_frequency_minutes)
+    current_total = base_local.hour * 60 + base_local.minute
+
+    if initial and not _is_within_daily_window(current_total, start_minutes=start_total, end_minutes=end_total):
+        next_local = _next_window_start_local(base_local, start_minutes=start_total, end_minutes=end_total)
+        offset_minutes = random.randint(0, max(1, frequency))
+        return (next_local + timedelta(minutes=offset_minutes)).astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+
+    random_delay = random.randint(max(1, frequency // 2), max(2, frequency + max(1, frequency // 2)))
+    candidate_local = base_local + timedelta(minutes=random_delay)
+    candidate_total = candidate_local.hour * 60 + candidate_local.minute
+    if _is_within_daily_window(candidate_total, start_minutes=start_total, end_minutes=end_total):
+        return candidate_local.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+
+    next_local = _next_window_start_local(candidate_local, start_minutes=start_total, end_minutes=end_total)
+    offset_minutes = random.randint(0, max(1, frequency))
+    return (next_local + timedelta(minutes=offset_minutes)).astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+
+
+def _claim_due_auto_performance(rabbit: Rabbit) -> bool:
+    expected_next_at = rabbit.auto_performance_next_at
+    claim_until = datetime.utcnow() + timedelta(minutes=AUTO_PERFORMANCE_CLAIM_MINUTES)
+    query = Rabbit.query.filter_by(id=rabbit.id, auto_performance_enabled=True)
+    if expected_next_at is None:
+        query = query.filter(Rabbit.auto_performance_next_at.is_(None))
+    else:
+        query = query.filter(Rabbit.auto_performance_next_at == expected_next_at)
+    updated = query.update({"auto_performance_next_at": claim_until}, synchronize_session=False)
+    db.session.commit()
+    return updated == 1
+
+
+def _run_auto_performance_for_rabbit(rabbit_id: int) -> None:
+    rabbit = db.session.get(Rabbit, rabbit_id)
+    if rabbit is None or not rabbit.auto_performance_enabled:
+        return
+
+    owner = rabbit.owner
+    if owner is None or not owner.mistral_api_key:
+        rabbit.auto_performance_next_at = _compute_next_auto_performance_at(rabbit, after_utc=datetime.utcnow())
+        db.session.commit()
+        return
+
+    try:
+        llm_model = _normalize_rabbit_llm_model(rabbit, _build_rabbit_llm_model_options())
+        performance = _generate_mistral_rabbit_performance(
+            api_key=owner.mistral_api_key,
+            model=llm_model,
+            rabbit_name=rabbit.name,
+            personality_prompt=rabbit.personality_prompt or DEFAULT_RABBIT_PERSONALITY_PROMPT,
+            conversation_messages=_conversation_messages_for_generation(rabbit),
+            user_prompt_override=(
+                f"Sans intervention humaine, genere maintenant pour {rabbit.name} une petite performance originale, "
+                "spontanee et divertissante. Le lapin peut faire un mini commentaire de vie quotidienne, une blague, "
+                "une observation absurde, une humeur du moment ou une fantaisie poetique. "
+                "Utilise la voix, et si utile, un langage corporel expressif avec oreilles et LEDs."
+            ),
+        )
+        _queue_generated_performance(
+            rabbit,
+            api_key=owner.mistral_api_key,
+            performance=performance,
+            source="auto",
+            mode="generate",
+        )
+        _append_conversation_turn(
+            rabbit,
+            role="assistant",
+            text=performance["text"],
+            source="auto",
+            payload=performance,
+        )
+        _append_rabbit_event(
+            rabbit,
+            source="portal",
+            event_type="rabbit.auto_performance.generated",
+            payload={"text": performance["text"]},
+        )
+        rabbit.auto_performance_next_at = _compute_next_auto_performance_at(rabbit, after_utc=datetime.utcnow())
+        db.session.commit()
+    except Exception as exc:
+        current_app.logger.exception("auto performance generation failed for rabbit %s", rabbit.id)
+        _append_rabbit_event(
+            rabbit,
+            source="portal",
+            event_type="rabbit.auto_performance.failed",
+            payload={"error": str(exc)},
+            level="error",
+        )
+        rabbit.auto_performance_next_at = _compute_next_auto_performance_at(rabbit, after_utc=datetime.utcnow())
+        db.session.commit()
+
+
+def _process_due_auto_performances() -> None:
+    now = datetime.utcnow()
+    candidates = (
+        Rabbit.query.filter_by(auto_performance_enabled=True)
+        .filter(Rabbit.auto_performance_next_at.isnot(None))
+        .filter(Rabbit.auto_performance_next_at <= now)
+        .order_by(Rabbit.auto_performance_next_at.asc())
+        .limit(AUTO_PERFORMANCE_MAX_BATCH)
+        .all()
+    )
+    for candidate in candidates:
+        if _claim_due_auto_performance(candidate):
+            _run_auto_performance_for_rabbit(candidate.id)
+
+
+def _auto_intervention_worker(app) -> None:
+    while True:
+        try:
+            with app.app_context():
+                _process_due_auto_performances()
+        except Exception:
+            app.logger.exception("rabbit auto intervention worker failed")
+        time.sleep(AUTO_PERFORMANCE_LOOP_SECONDS)
+
+
+def ensure_auto_intervention_worker_started(app) -> None:
+    global _auto_intervention_worker_started
+    with _auto_intervention_worker_lock:
+        if _auto_intervention_worker_started:
+            return
+        worker = threading.Thread(
+            target=_auto_intervention_worker,
+            args=(app,),
+            name="rabbit-auto-interventions",
+            daemon=True,
+        )
+        worker.start()
+        _auto_intervention_worker_started = True
 
 
 def _mistral_json_request(*, api_key: str, url: str, payload: dict | None = None) -> dict:
@@ -1408,11 +1644,44 @@ def update_rabbit_llm_model(rabbit_id: int):
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
 
+@main_bp.post("/rabbits/<int:rabbit_id>/auto-performance")
+@login_required
+def update_rabbit_auto_performance(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    rabbit.auto_performance_enabled = request.form.get("auto_performance_enabled") == "on"
+    rabbit.auto_performance_frequency_minutes = _normalize_auto_performance_frequency(
+        request.form.get("auto_performance_frequency_minutes")
+    )
+    rabbit.auto_performance_window_start = _normalize_auto_performance_window(
+        request.form.get("auto_performance_window_start"),
+        fallback=AUTO_PERFORMANCE_DEFAULT_WINDOW_START,
+    )
+    rabbit.auto_performance_window_end = _normalize_auto_performance_window(
+        request.form.get("auto_performance_window_end"),
+        fallback=AUTO_PERFORMANCE_DEFAULT_WINDOW_END,
+    )
+    rabbit.auto_performance_next_at = (
+        _compute_next_auto_performance_at(rabbit, after_utc=datetime.utcnow(), initial=True)
+        if rabbit.auto_performance_enabled
+        else None
+    )
+    db.session.commit()
+    flash("Interventions aleatoires du lapin mises a jour.", "success")
+    return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+
 @main_bp.get("/rabbits/<int:rabbit_id>")
 @login_required
 def rabbit_detail(rabbit_id: int):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
     _prune_rabbit_conversation(rabbit)
+    if rabbit.auto_performance_enabled and rabbit.auto_performance_next_at is None:
+        rabbit.auto_performance_next_at = _compute_next_auto_performance_at(
+            rabbit,
+            after_utc=datetime.utcnow(),
+            initial=True,
+        )
+        db.session.commit()
     remote_rabbit = None
     remote_events: list[dict] = []
     remote_error = None
@@ -1533,6 +1802,10 @@ def rabbit_detail(rabbit_id: int):
         rabbit_llm_model=rabbit_llm_model,
         RABBIT_TTS_VOICE_OPTIONS=rabbit_tts_voice_options,
         rabbit_tts_voice=rabbit_tts_voice,
+        AUTO_PERFORMANCE_DEFAULT_FREQUENCY_MINUTES=AUTO_PERFORMANCE_DEFAULT_FREQUENCY_MINUTES,
+        AUTO_PERFORMANCE_DEFAULT_WINDOW_START=AUTO_PERFORMANCE_DEFAULT_WINDOW_START,
+        AUTO_PERFORMANCE_DEFAULT_WINDOW_END=AUTO_PERFORMANCE_DEFAULT_WINDOW_END,
+        rabbit_auto_performance_next_at=_format_auto_performance_next_at(rabbit.auto_performance_next_at),
         rabbit_photo_url=_rabbit_photo_url(rabbit),
     )
 

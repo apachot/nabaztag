@@ -48,6 +48,12 @@ def create_app() -> Flask:
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp)
 
+    @app.before_request
+    def ensure_background_workers() -> None:
+        from .main import ensure_auto_intervention_worker_started
+
+        ensure_auto_intervention_worker_started(app)
+
     with app.app_context():
         from . import models
 
@@ -77,6 +83,16 @@ def _ensure_portal_schema() -> None:
         statements.append("ALTER TABLE rabbit ADD COLUMN llm_model VARCHAR(64)")
     if "tts_voice" not in rabbit_columns:
         statements.append("ALTER TABLE rabbit ADD COLUMN tts_voice VARCHAR(64)")
+    if "auto_performance_enabled" not in rabbit_columns:
+        statements.append("ALTER TABLE rabbit ADD COLUMN auto_performance_enabled BOOLEAN DEFAULT 0")
+    if "auto_performance_frequency_minutes" not in rabbit_columns:
+        statements.append("ALTER TABLE rabbit ADD COLUMN auto_performance_frequency_minutes INTEGER DEFAULT 180")
+    if "auto_performance_window_start" not in rabbit_columns:
+        statements.append("ALTER TABLE rabbit ADD COLUMN auto_performance_window_start VARCHAR(5) DEFAULT '09:00'")
+    if "auto_performance_window_end" not in rabbit_columns:
+        statements.append("ALTER TABLE rabbit ADD COLUMN auto_performance_window_end VARCHAR(5) DEFAULT '21:00'")
+    if "auto_performance_next_at" not in rabbit_columns:
+        statements.append("ALTER TABLE rabbit ADD COLUMN auto_performance_next_at DATETIME")
     if "conversation_summary" not in rabbit_columns:
         statements.append("ALTER TABLE rabbit ADD COLUMN conversation_summary TEXT")
     if "conversation_summary_turn_id" not in rabbit_columns:

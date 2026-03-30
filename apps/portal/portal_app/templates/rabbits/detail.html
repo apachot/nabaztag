@@ -283,6 +283,52 @@
       </article>
 
       <article class="panel">
+        <h2>Interventions Aleatoires</h2>
+        <form method="post" action="{{ url_for('main.update_rabbit_auto_performance', rabbit_id=rabbit.id) }}" class="stack">
+          <div class="meta">
+            Le lapin peut prendre l'initiative et lancer tout seul une petite performance Mistral avec voix,
+            oreilles et LEDs, selon un rythme moyen et dans une plage horaire donnée.
+          </div>
+          <label style="display: flex; align-items: center; gap: 10px;">
+            <input type="checkbox" name="auto_performance_enabled" {% if rabbit.auto_performance_enabled %}checked{% endif %}>
+            <span>Activer les interventions aleatoires</span>
+          </label>
+          <label>Frequence moyenne (minutes)</label>
+          <input
+            type="number"
+            name="auto_performance_frequency_minutes"
+            min="5"
+            max="1440"
+            value="{{ rabbit.auto_performance_frequency_minutes or AUTO_PERFORMANCE_DEFAULT_FREQUENCY_MINUTES }}"
+          >
+          <label>Debut de plage horaire</label>
+          <input
+            type="time"
+            name="auto_performance_window_start"
+            value="{{ rabbit.auto_performance_window_start or AUTO_PERFORMANCE_DEFAULT_WINDOW_START }}"
+          >
+          <label>Fin de plage horaire</label>
+          <input
+            type="time"
+            name="auto_performance_window_end"
+            value="{{ rabbit.auto_performance_window_end or AUTO_PERFORMANCE_DEFAULT_WINDOW_END }}"
+          >
+          <div class="meta">
+            {% if rabbit.auto_performance_enabled and rabbit_auto_performance_next_at %}
+              Prochaine intervention estimée : <span class="mono">{{ rabbit_auto_performance_next_at }}</span>
+            {% elif rabbit.auto_performance_enabled %}
+              Une prochaine intervention sera planifiee automatiquement.
+            {% else %}
+              Desactive : le lapin n'interviendra pas de lui-meme.
+            {% endif %}
+          </div>
+          <div class="actions">
+            <button class="button primary" type="submit">Enregistrer les interventions</button>
+          </div>
+        </form>
+      </article>
+
+      <article class="panel">
         <h2>Voix TTS</h2>
         <form method="post" action="{{ url_for('main.update_rabbit_tts_voice', rabbit_id=rabbit.id) }}" class="stack">
           <div class="meta">
@@ -425,6 +471,8 @@
             return `Oreilles bougées manuellement (gauche ${payload.left}, droite ${payload.right})`;
           case "rabbit.conversation.reply.generated":
             return "Réponse conversationnelle générée";
+          case "rabbit.auto_performance.generated":
+            return "Intervention aléatoire générée";
           default:
             return event.event_type;
         }
