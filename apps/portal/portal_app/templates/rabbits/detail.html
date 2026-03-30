@@ -27,6 +27,7 @@
       transition: transform 120ms ease, box-shadow 120ms ease;
       text-decoration: none;
       cursor: pointer !important;
+      box-shadow: inset 0 0 0 1px rgba(24, 23, 21, 0.18);
     }
 
     .led-indicator:hover {
@@ -183,11 +184,11 @@
                 alt="Schéma des LEDs du Nabaztag"
                 style="display: block; width: 100%; height: auto; border: 1px solid rgba(24, 23, 21, 0.08);"
               >
-              <a href="#" class="led-indicator" id="led-left-indicator" data-led-target="left" title="Changer la LED gauche" onclick="window.openLedPaletteFromIndicator && window.openLedPaletteFromIndicator(this); return false;" aria-label="Changer la couleur de la LED gauche" style="background: {{ remote_rabbit.state.led_left if remote_rabbit and remote_rabbit.state else '#d9d9d9' }};"></a>
-              <a href="#" class="led-indicator" id="led-center-indicator" data-led-target="center" title="Changer la LED centre" onclick="window.openLedPaletteFromIndicator && window.openLedPaletteFromIndicator(this); return false;" aria-label="Changer la couleur de la LED centre" style="background: {{ remote_rabbit.state.led_center if remote_rabbit and remote_rabbit.state else '#d9d9d9' }};"></a>
-              <a href="#" class="led-indicator" id="led-right-indicator" data-led-target="right" title="Changer la LED droite" onclick="window.openLedPaletteFromIndicator && window.openLedPaletteFromIndicator(this); return false;" aria-label="Changer la couleur de la LED droite" style="background: {{ remote_rabbit.state.led_right if remote_rabbit and remote_rabbit.state else '#d9d9d9' }};"></a>
-              <a href="#" class="led-indicator" id="led-bottom-indicator" data-led-target="bottom" title="Changer la LED du bas" onclick="window.openLedPaletteFromIndicator && window.openLedPaletteFromIndicator(this); return false;" aria-label="Changer la couleur de la LED du bas" style="background: {{ remote_rabbit.state.led_bottom if remote_rabbit and remote_rabbit.state else '#d9d9d9' }};"></a>
-              <a href="#" class="led-indicator" id="led-nose-indicator" data-led-target="nose" title="Changer le signal du nez" onclick="window.openLedPaletteFromIndicator && window.openLedPaletteFromIndicator(this); return false;" aria-label="Changer le signal du nez" style="background: {{ remote_rabbit.state.led_nose if remote_rabbit and remote_rabbit.state else '#d9d9d9' }};"></a>
+              <a href="#" class="led-indicator" id="led-left-indicator" data-led-target="left" title="Changer la LED gauche" onclick="window.openLedPaletteFromIndicator && window.openLedPaletteFromIndicator(this); return false;" aria-label="Changer la couleur de la LED gauche" style="background: {{ remote_rabbit.state.led_left if remote_rabbit and remote_rabbit.state and remote_rabbit.state.led_left != '#000000' else 'transparent' }};"></a>
+              <a href="#" class="led-indicator" id="led-center-indicator" data-led-target="center" title="Changer la LED centre" onclick="window.openLedPaletteFromIndicator && window.openLedPaletteFromIndicator(this); return false;" aria-label="Changer la couleur de la LED centre" style="background: {{ remote_rabbit.state.led_center if remote_rabbit and remote_rabbit.state and remote_rabbit.state.led_center != '#000000' else 'transparent' }};"></a>
+              <a href="#" class="led-indicator" id="led-right-indicator" data-led-target="right" title="Changer la LED droite" onclick="window.openLedPaletteFromIndicator && window.openLedPaletteFromIndicator(this); return false;" aria-label="Changer la couleur de la LED droite" style="background: {{ remote_rabbit.state.led_right if remote_rabbit and remote_rabbit.state and remote_rabbit.state.led_right != '#000000' else 'transparent' }};"></a>
+              <a href="#" class="led-indicator" id="led-bottom-indicator" data-led-target="bottom" title="Changer la LED du bas" onclick="window.openLedPaletteFromIndicator && window.openLedPaletteFromIndicator(this); return false;" aria-label="Changer la couleur de la LED du bas" style="background: {{ remote_rabbit.state.led_bottom if remote_rabbit and remote_rabbit.state and remote_rabbit.state.led_bottom != '#000000' else 'transparent' }};"></a>
+              <a href="#" class="led-indicator" id="led-nose-indicator" data-led-target="nose" title="Changer le signal du nez" onclick="window.openLedPaletteFromIndicator && window.openLedPaletteFromIndicator(this); return false;" aria-label="Changer le signal du nez" style="background: {{ remote_rabbit.state.led_nose if remote_rabbit and remote_rabbit.state and remote_rabbit.state.led_nose != '#000000' else 'transparent' }};"></a>
               <div id="led-palette" hidden style="position: absolute; z-index: 2; min-width: 160px; padding: 10px; border: 1px solid rgba(24, 23, 21, 0.12); background: rgba(255, 252, 246, 0.98); box-shadow: 0 10px 30px rgba(24, 23, 21, 0.14);">
                 <div id="led-palette-title" class="meta" style="margin-bottom: 8px;">Choisir une couleur</div>
                 <div id="led-palette-options" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
@@ -481,9 +482,12 @@
 
       const setLedIndicator = (node, color) => {
         if (!node) return;
-        const normalized = !color || color.toLowerCase() === "#000000" ? "#d9d9d9" : color;
+        const normalized = !color || color.toLowerCase() === "#000000" ? "transparent" : color;
         node.style.background = normalized;
-        node.style.boxShadow = normalized === "#d9d9d9" ? "none" : `0 0 14px ${normalized}`;
+        node.style.boxShadow =
+          normalized === "transparent"
+            ? "inset 0 0 0 1px rgba(24, 23, 21, 0.18)"
+            : `0 0 14px ${normalized}`;
       };
 
       const closeLedPalette = () => {
