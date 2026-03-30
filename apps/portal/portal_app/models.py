@@ -35,7 +35,7 @@ class Rabbit(db.Model):
     name = db.Column(db.String(120), nullable=False)
     slug = db.Column(db.String(64), nullable=False)
     personality_prompt = db.Column(db.Text)
-    tts_voice = db.Column(db.String(64), default="Curious")
+    tts_voice = db.Column(db.String(64), default="e0580ce5-e63c-4cbe-88c8-a983b80c5f1f")
     connection_status = db.Column(db.String(32), default="offline", nullable=False)
     remote_rabbit_id = db.Column(db.String(64), unique=True, index=True)
     target_host = db.Column(db.String(255))

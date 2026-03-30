@@ -74,11 +74,17 @@ DEFAULT_RABBIT_PERSONALITY_PROMPT = (
     "attachant."
 )
 
-DEFAULT_RABBIT_TTS_VOICE = "Curious"
+DEFAULT_RABBIT_TTS_VOICE = "e0580ce5-e63c-4cbe-88c8-a983b80c5f1f"
 RABBIT_TTS_VOICE_PRESETS = [
-    ("Curious", "Curious"),
+    ("e0580ce5-e63c-4cbe-88c8-a983b80c5f1f", "Marie - Curious"),
+    ("2f62b1af-aea3-4079-9d10-7ca665ee7243", "Marie - Excited"),
+    ("49d024dd-981b-4462-bb17-74d381eb8fd7", "Marie - Happy"),
+    ("5a271406-039d-46fe-835b-fbbb00eaf08d", "Marie - Neutral"),
+    ("4adeb2c6-25a3-44bc-8100-5234dfc1193b", "Marie - Sad"),
+    ("a7c07cdc-1c35-4d87-a938-c610a654f600", "Marie - Angry"),
 ]
 LEGACY_RABBIT_TTS_VOICES = {
+    "Curious",
     "fr",
     "fr+f3",
     "fr+f4",
