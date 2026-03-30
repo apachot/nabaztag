@@ -986,19 +986,14 @@ def dashboard():
 @login_required
 def account():
     if request.method == "POST":
-        provider = request.form.get("provider", "openai").strip().lower()
+        provider = request.form.get("provider", "mistral").strip().lower()
         action = request.form.get("action", "save").strip().lower()
 
-        if provider not in {"openai", "mistral"}:
+        if provider != "mistral":
             flash("Provider invalide.", "error")
             return redirect(url_for("main.account"))
-
-        if provider == "openai":
-            field_name = "openai_api_key"
-            provider_label = "OpenAI"
-        else:
-            field_name = "mistral_api_key"
-            provider_label = "Mistral"
+        field_name = "mistral_api_key"
+        provider_label = "Mistral"
 
         if action == "clear":
             setattr(current_user, field_name, None)

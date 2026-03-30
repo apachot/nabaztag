@@ -7,40 +7,9 @@
     <section class="hero">
       <h1>Mon compte</h1>
       <p class="meta">
-        Configure ici tes tokens d'API pour les futures fonctions du portail.
+        Configure ici le token Mistral utilise par le portail.
       </p>
     </section>
-
-    <article class="panel">
-      <form method="post" class="stack">
-        <input type="hidden" name="provider" value="openai">
-        <div class="field">
-          <label for="openai_api_key">Token OpenAI</label>
-          <input
-            id="openai_api_key"
-            name="openai_api_key"
-            type="password"
-            spellcheck="false"
-            autocapitalize="off"
-            autocomplete="off"
-            placeholder="{% if current_user.openai_api_key %}Token déjà enregistré{% else %}sk-...{% endif %}"
-          >
-        </div>
-        <div class="meta">
-          {% if current_user.openai_api_key %}
-            Un token OpenAI est actuellement enregistré pour ce compte.
-          {% else %}
-            Aucun token OpenAI n'est encore enregistré pour ce compte.
-          {% endif %}
-        </div>
-        <div class="actions">
-          <button class="button primary" type="submit" name="action" value="save">Enregistrer le token</button>
-          {% if current_user.openai_api_key %}
-            <button class="pill" type="submit" name="action" value="clear">Supprimer le token</button>
-          {% endif %}
-        </div>
-      </form>
-    </article>
 
     <article class="panel">
       <form method="post" class="stack">
