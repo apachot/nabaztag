@@ -36,6 +36,7 @@ from .models import (
     RabbitDeviceCommand,
     RabbitEventLog,
     RabbitRecording,
+    Ztamp,
     utc_now,
 )
 
@@ -237,30 +238,52 @@ def _serialize_live_event(event: RabbitEventLog, *, rabbit_id: int) -> dict:
 
 
 def _latest_ztamps_for_rabbit(rabbit_id: int, *, limit: int = 20) -> list[dict]:
-    events = (
-        RabbitEventLog.query.filter_by(rabbit_id=rabbit_id, event_type="rabbit.rfid.detected")
-        .order_by(RabbitEventLog.created_at.desc())
+    if not Ztamp.query.filter_by(rabbit_id=rabbit_id).first():
+        historical_events = (
+            RabbitEventLog.query.filter_by(rabbit_id=rabbit_id, event_type="rabbit.rfid.detected")
+            .order_by(RabbitEventLog.created_at.asc())
+            .all()
+        )
+        seen_tags: set[str] = set()
+        for event in historical_events:
+            serialized = _serialize_event_log(event)
+            event_payload = serialized.get("payload") or {}
+            tag = event_payload.get("tag")
+            if not tag or tag in seen_tags:
+                continue
+            seen_tags.add(tag)
+            created_at = event.created_at or utc_now()
+            db.session.add(
+                Ztamp(
+                    rabbit_id=rabbit_id,
+                    tag=tag,
+                    created_at=created_at,
+                    updated_at=created_at,
+                    last_seen_at=created_at,
+                )
+            )
+        if seen_tags:
+            db.session.commit()
+
+    ztamps = (
+        Ztamp.query.filter_by(rabbit_id=rabbit_id)
+        .order_by(Ztamp.last_seen_at.desc(), Ztamp.updated_at.desc())
+        .limit(limit)
         .all()
     )
-    seen_tags: set[str] = set()
-    ztamps: list[dict] = []
-    for event in events:
-        serialized = _serialize_event_log(event)
-        payload = serialized.get("payload") or {}
-        tag = payload.get("tag")
-        if not tag or tag in seen_tags:
-            continue
-        seen_tags.add(tag)
-        ztamps.append(
+    payload: list[dict] = []
+    for ztamp in ztamps:
+        payload.append(
             {
-                "tag": tag,
-                "created_at": serialized.get("created_at"),
-                "serial": payload.get("serial"),
+                "id": ztamp.id,
+                "tag": ztamp.tag,
+                "name": ztamp.name,
+                "notes": ztamp.notes,
+                "created_at": ztamp.last_seen_at.isoformat() if ztamp.last_seen_at else None,
+                "edit_url": url_for("main.edit_ztamp", rabbit_id=rabbit_id, ztamp_id=ztamp.id),
             }
         )
-        if len(ztamps) >= limit:
-            break
-    return ztamps
+    return payload
 
 
 def _synthesize_tts_asset(*, rabbit_slug: str, text: str) -> tuple[Path, str]:
@@ -633,6 +656,13 @@ def violet_rfid():
     serial_number = (request.args.get("sn") or "").replace(":", "").lower()
     tag_id = request.args.get("t") or ""
     rabbit = _rabbit_for_serial(serial_number)
+    if rabbit is not None and tag_id:
+        ztamp = Ztamp.query.filter_by(rabbit_id=rabbit.id, tag=tag_id).first()
+        if ztamp is None:
+            ztamp = Ztamp(rabbit_id=rabbit.id, tag=tag_id, last_seen_at=utc_now())
+            db.session.add(ztamp)
+        else:
+            ztamp.last_seen_at = utc_now()
     _append_rabbit_event(
         rabbit,
         source="device",
@@ -999,6 +1029,22 @@ def edit_rabbit(rabbit_id: int):
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     return render_template("rabbits/edit.html", rabbit=rabbit)
+
+
+@main_bp.route("/rabbits/<int:rabbit_id>/ztamps/<int:ztamp_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_ztamp(rabbit_id: int, ztamp_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    ztamp = Ztamp.query.filter_by(id=ztamp_id, rabbit_id=rabbit.id).first_or_404()
+
+    if request.method == "POST":
+        ztamp.name = request.form.get("name", "").strip() or None
+        ztamp.notes = request.form.get("notes", "").strip() or None
+        db.session.commit()
+        flash("Ztamp mis à jour.", "success")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    return render_template("rabbits/edit_ztamp.html", rabbit=rabbit, ztamp=ztamp)
 
 
 @main_bp.route("/rabbits/<int:rabbit_id>/provisioning", methods=["GET", "POST"])

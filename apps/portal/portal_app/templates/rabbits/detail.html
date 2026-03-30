@@ -117,6 +117,26 @@
             <button class="button primary" type="submit">Bouger les oreilles</button>
           </form>
 
+          <form method="post" action="{{ url_for('main.rabbit_device_audio_upload', rabbit_id=rabbit.id) }}" enctype="multipart/form-data" class="stack">
+            <strong>Audio depuis votre ordinateur</strong>
+            <label>Fichier MP3 / WAV / OGG</label>
+            <input type="file" name="audio_file" accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg">
+            <button class="button primary" type="submit">Téléverser et lire</button>
+          </form>
+
+          <form method="post" action="{{ url_for('main.rabbit_device_say', rabbit_id=rabbit.id) }}" class="stack">
+            <strong>Faire parler le lapin</strong>
+            <label>Message</label>
+            <textarea name="message" rows="4" maxlength="500" placeholder="Bonjour Lapinou, ceci est un test de synthèse vocale."></textarea>
+            <div class="meta">Synthèse vocale simple générée sur le serveur, puis lue par le lapin comme un audio local.</div>
+            <button class="button primary" type="submit">Synthétiser et lire</button>
+          </form>
+        </div>
+      </article>
+
+      <article class="panel">
+        <h2>LEDs du Nabaztag</h2>
+        <div class="stack">
           <form method="post" action="{{ url_for('main.rabbit_device_led', rabbit_id=rabbit.id) }}" class="stack">
             <strong>LEDs du corps</strong>
             <label>Cible</label>
@@ -153,21 +173,6 @@
             <div class="meta">Le nez n'est pas une LED couleur persistante. Le firmware supporte seulement un clignotement simple, un double clignotement ou l'arrêt.</div>
             <button class="button primary" type="submit">Envoyer le signal</button>
           </form>
-
-          <form method="post" action="{{ url_for('main.rabbit_device_audio_upload', rabbit_id=rabbit.id) }}" enctype="multipart/form-data" class="stack">
-            <strong>Audio depuis votre ordinateur</strong>
-            <label>Fichier MP3 / WAV / OGG</label>
-            <input type="file" name="audio_file" accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg">
-            <button class="button primary" type="submit">Téléverser et lire</button>
-          </form>
-
-          <form method="post" action="{{ url_for('main.rabbit_device_say', rabbit_id=rabbit.id) }}" class="stack">
-            <strong>Faire parler le lapin</strong>
-            <label>Message</label>
-            <textarea name="message" rows="4" maxlength="500" placeholder="Bonjour Lapinou, ceci est un test de synthèse vocale."></textarea>
-            <div class="meta">Synthèse vocale simple générée sur le serveur, puis lue par le lapin comme un audio local.</div>
-            <button class="button primary" type="submit">Synthétiser et lire</button>
-          </form>
         </div>
       </article>
 
@@ -177,10 +182,19 @@
         <div class="stack" id="ztamps-list" data-url="{{ url_for('main.rabbit_live_ztamps', rabbit_id=rabbit.id) }}" style="margin-top: 16px;">
           {% for ztamp in ztamps %}
             <div class="rabbit-card">
-              <strong><span class="mono">{{ ztamp.tag }}</span></strong>
+              <strong>
+                <a href="{{ ztamp.edit_url }}" style="text-decoration: none;">
+                  {% if ztamp.name %}
+                    {{ ztamp.name }}
+                  {% else %}
+                    <span class="mono">{{ ztamp.tag }}</span>
+                  {% endif %}
+                </a>
+              </strong>
               <div class="meta">Dernière détection: {{ ztamp.created_at }}</div>
-              {% if ztamp.serial %}
-                <div class="meta">Lapin: <span class="mono">{{ ztamp.serial }}</span></div>
+              <div class="meta">Tag: <span class="mono">{{ ztamp.tag }}</span></div>
+              {% if ztamp.notes %}
+                <div class="meta">{{ ztamp.notes }}</div>
               {% endif %}
             </div>
           {% else %}
@@ -301,10 +315,18 @@
         card.className = "rabbit-card";
 
         const title = document.createElement("strong");
-        const code = document.createElement("span");
-        code.className = "mono";
-        code.textContent = ztamp.tag;
-        title.appendChild(code);
+        const link = document.createElement("a");
+        link.href = ztamp.edit_url;
+        link.style.textDecoration = "none";
+        if (ztamp.name) {
+          link.textContent = ztamp.name;
+        } else {
+          const code = document.createElement("span");
+          code.className = "mono";
+          code.textContent = ztamp.tag;
+          link.appendChild(code);
+        }
+        title.appendChild(link);
         card.appendChild(title);
 
         const seen = document.createElement("div");
@@ -312,11 +334,16 @@
         seen.textContent = `Dernière détection: ${formatTimestamp(ztamp.created_at)}`;
         card.appendChild(seen);
 
-        if (ztamp.serial) {
-          const serial = document.createElement("div");
-          serial.className = "meta";
-          serial.innerHTML = `Lapin: <span class="mono">${ztamp.serial}</span>`;
-          card.appendChild(serial);
+        const tag = document.createElement("div");
+        tag.className = "meta";
+        tag.innerHTML = `Tag: <span class="mono">${ztamp.tag}</span>`;
+        card.appendChild(tag);
+
+        if (ztamp.notes) {
+          const notes = document.createElement("div");
+          notes.className = "meta";
+          notes.textContent = ztamp.notes;
+          card.appendChild(notes);
         }
 
         return card;

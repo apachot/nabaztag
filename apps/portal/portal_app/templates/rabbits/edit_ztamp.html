@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Modifier un Ztamp | Nabaztag Portal{% endblock %}
+
+{% block content %}
+  <section class="panel" style="max-width: 760px; margin: 0 auto;">
+    <h1>Modifier un Ztamp</h1>
+    <div class="meta" style="margin-bottom: 18px;">
+      Lapin : <a href="{{ url_for('main.rabbit_detail', rabbit_id=rabbit.id) }}">{{ rabbit.name }}</a><br>
+      Identifiant : <span class="mono">{{ ztamp.tag }}</span>
+    </div>
+
+    <form method="post" class="stack">
+      <div class="field">
+        <label for="name">Nom</label>
+        <input id="name" name="name" value="{{ ztamp.name or '' }}" placeholder="Ztamp cuisine, réveil, météo...">
+      </div>
+      <div class="field">
+        <label for="notes">Notes</label>
+        <textarea id="notes" name="notes" rows="5" placeholder="Informations libres sur ce Ztamp.">{{ ztamp.notes or '' }}</textarea>
+      </div>
+      <div class="actions">
+        <button class="button primary" type="submit">Enregistrer</button>
+        <a class="pill" href="{{ url_for('main.rabbit_detail', rabbit_id=rabbit.id) }}">Retour à la fiche</a>
+      </div>
+    </form>
+  </section>
+{% endblock %}

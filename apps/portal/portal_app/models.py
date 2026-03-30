@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from flask_login import UserMixin
+from sqlalchemy import UniqueConstraint
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from .extensions import db, login_manager
@@ -65,6 +66,12 @@ class Rabbit(db.Model):
         cascade="all, delete-orphan",
         order_by="desc(RabbitEventLog.created_at)",
     )
+    ztamps = db.relationship(
+        "Ztamp",
+        back_populates="rabbit",
+        cascade="all, delete-orphan",
+        order_by="desc(Ztamp.updated_at)",
+    )
 
 
 class DeviceObservation(db.Model):
@@ -126,6 +133,26 @@ class RabbitRecording(db.Model):
     source_path = db.Column(db.String(255), nullable=False)
     mode = db.Column(db.String(32))
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class Ztamp(db.Model):
+    __table_args__ = (UniqueConstraint("rabbit_id", "tag", name="uq_ztamp_rabbit_tag"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    rabbit_id = db.Column(db.Integer, db.ForeignKey("rabbit.id"), nullable=False, index=True)
+    tag = db.Column(db.String(255), nullable=False, index=True)
+    name = db.Column(db.String(255))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = db.Column(
+        db.DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+    last_seen_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+
+    rabbit = db.relationship("Rabbit", back_populates="ztamps")
 
 
 @login_manager.user_loader
