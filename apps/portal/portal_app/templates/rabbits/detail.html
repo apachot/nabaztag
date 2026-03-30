@@ -168,7 +168,7 @@
             <input type="hidden" name="mode" value="manual" id="say-mode-input">
             <label>Message</label>
             <textarea name="message" rows="4" maxlength="500" placeholder="Bonjour Lapinou, ceci est un test de synthèse vocale."></textarea>
-            <div class="meta">Tu peux soit écrire un texte, soit demander a GPT-4o-mini d'en inventer un a partir du prompt du lapin.</div>
+            <div class="meta">Tu peux soit écrire un texte, soit demander au modele Mistral du lapin d'en inventer un a partir de son prompt.</div>
             <div class="actions">
               <button class="button primary" type="submit" onclick="document.getElementById('say-mode-input').value='manual'">Synthétiser et lire</button>
               <button class="pill" type="submit" onclick="document.getElementById('say-mode-input').value='generate'">Générer puis lire</button>
@@ -207,7 +207,7 @@
         <h2>Prompt du lapin</h2>
         <form method="post" action="{{ url_for('main.update_rabbit_prompt', rabbit_id=rabbit.id) }}" class="stack">
           <div class="meta">
-            Ce texte servira de base de personnalite pour ce Nabaztag quand on branchera OpenAI.
+            Ce texte sert de base de personnalite pour les generations Mistral de ce Nabaztag.
           </div>
           <textarea
             name="personality_prompt"
@@ -216,6 +216,34 @@
           >{{ rabbit.personality_prompt or DEFAULT_RABBIT_PERSONALITY_PROMPT }}</textarea>
           <div class="actions">
             <button class="button primary" type="submit">Enregistrer le prompt</button>
+          </div>
+        </form>
+      </article>
+
+      <article class="panel">
+        <h2>Modele LLM</h2>
+        <form method="post" action="{{ url_for('main.update_rabbit_llm_model', rabbit_id=rabbit.id) }}" class="stack">
+          <div class="meta">
+            Modele Mistral utilise quand le lapin doit generer lui-meme une petite phrase. Par defaut:
+            <span class="mono">{{ DEFAULT_RABBIT_LLM_MODEL }}</span>.
+          </div>
+          <select name="llm_model">
+            {% for model_value, model_label in RABBIT_LLM_MODEL_OPTIONS %}
+              <option value="{{ model_value }}" {% if rabbit_llm_model == model_value %}selected{% endif %}>
+                {{ model_label }}
+              </option>
+            {% endfor %}
+          </select>
+          <input
+            type="text"
+            name="llm_model_custom"
+            placeholder="Autre modele Mistral"
+            spellcheck="false"
+            autocapitalize="off"
+            autocomplete="off"
+          >
+          <div class="actions">
+            <button class="button primary" type="submit">Enregistrer le modele</button>
           </div>
         </form>
       </article>

@@ -96,6 +96,8 @@ MISTRAL_TTS_MODEL = "voxtral-mini-tts-2603"
 MISTRAL_TTS_RESPONSE_FORMAT = "mp3"
 MISTRAL_TTS_LIST_VOICES_URL = "https://api.mistral.ai/v1/audio/voices"
 MISTRAL_TTS_SPEECH_URL = "https://api.mistral.ai/v1/audio/speech"
+DEFAULT_RABBIT_LLM_MODEL = "mistral-small-2603"
+MISTRAL_MODELS_URL = "https://api.mistral.ai/v1/models"
 
 
 def _mistral_json_request(*, api_key: str, url: str, payload: dict | None = None) -> dict:
@@ -134,6 +136,62 @@ def _list_mistral_saved_voices(api_key: str) -> list[dict]:
     if not isinstance(voices, list):
         return []
     return [voice for voice in voices if isinstance(voice, dict) and voice.get("id")]
+
+
+def _list_mistral_models(api_key: str) -> list[dict]:
+    payload = _mistral_json_request(api_key=api_key, url=MISTRAL_MODELS_URL)
+    models = payload.get("data")
+    if not isinstance(models, list):
+        return []
+    return [model for model in models if isinstance(model, dict) and model.get("id")]
+
+
+def _build_rabbit_llm_model_options(models: list[dict] | None = None) -> list[tuple[str, str]]:
+    if not models:
+        return [(DEFAULT_RABBIT_LLM_MODEL, DEFAULT_RABBIT_LLM_MODEL)]
+
+    preferred_order = [
+        "mistral-small-2603",
+        "mistral-small-latest",
+        "ministral-8b-latest",
+        "ministral-8b-2512",
+        "open-mistral-nemo",
+        "mistral-tiny-latest",
+    ]
+    by_id = {str(model.get("id")).strip(): model for model in models if model.get("capabilities", {}).get("completion_chat")}
+    ordered_ids: list[str] = []
+    for model_id in preferred_order:
+        if model_id in by_id and model_id not in ordered_ids:
+            ordered_ids.append(model_id)
+    for model_id in sorted(by_id):
+        model = by_id[model_id]
+        if model.get("capabilities", {}).get("audio") or model.get("capabilities", {}).get("audio_speech"):
+            continue
+        if model.get("capabilities", {}).get("completion_fim"):
+            continue
+        if model_id not in ordered_ids:
+            ordered_ids.append(model_id)
+
+    options: list[tuple[str, str]] = []
+    for model_id in ordered_ids:
+        model = by_id[model_id]
+        label = model_id
+        description = str(model.get("description") or "").strip()
+        if description:
+            label = f"{model_id} - {description}"
+        options.append((model_id, label))
+    return options or [(DEFAULT_RABBIT_LLM_MODEL, DEFAULT_RABBIT_LLM_MODEL)]
+
+
+def _normalize_rabbit_llm_model(rabbit: Rabbit, model_options: list[tuple[str, str]]) -> str:
+    current_model = (rabbit.llm_model or "").strip()
+    allowed_values = {model_value for model_value, _model_label in model_options}
+    if current_model in allowed_values:
+        return current_model
+    if rabbit.llm_model != DEFAULT_RABBIT_LLM_MODEL:
+        rabbit.llm_model = DEFAULT_RABBIT_LLM_MODEL
+        db.session.commit()
+    return DEFAULT_RABBIT_LLM_MODEL
 
 
 def _build_rabbit_tts_voice_options(saved_voices: list[dict] | None = None) -> list[tuple[str, str]]:
@@ -426,26 +484,39 @@ def _synthesize_tts_asset(*, rabbit_slug: str, text: str, voice: str) -> tuple[P
     return asset_path, asset_name
 
 
-def _extract_openai_text(payload: dict) -> str:
-    output_text = payload.get("output_text")
-    if isinstance(output_text, str) and output_text.strip():
-        return output_text.strip()
-
-    fragments: list[str] = []
-    for item in payload.get("output", []):
-        if not isinstance(item, dict):
+def _extract_mistral_chat_text(payload: dict) -> str:
+    choices = payload.get("choices")
+    if not isinstance(choices, list):
+        return ""
+    for choice in choices:
+        if not isinstance(choice, dict):
             continue
-        for content in item.get("content", []):
-            if not isinstance(content, dict):
-                continue
-            if content.get("type") in {"output_text", "text"}:
-                text_value = content.get("text")
+        message = choice.get("message")
+        if not isinstance(message, dict):
+            continue
+        content = message.get("content")
+        if isinstance(content, str) and content.strip():
+            return content.strip()
+        if isinstance(content, list):
+            fragments: list[str] = []
+            for item in content:
+                if not isinstance(item, dict):
+                    continue
+                text_value = item.get("text")
                 if isinstance(text_value, str) and text_value.strip():
                     fragments.append(text_value.strip())
-    return "\n".join(fragments).strip()
+            if fragments:
+                return "\n".join(fragments).strip()
+    return ""
 
 
-def _generate_openai_rabbit_message(*, api_key: str, rabbit_name: str, personality_prompt: str) -> str:
+def _generate_mistral_rabbit_message(
+    *,
+    api_key: str,
+    model: str,
+    rabbit_name: str,
+    personality_prompt: str,
+) -> str:
     system_prompt = (
         f"{personality_prompt}\n\n"
         "Tu reponds en francais. Ecris un texte tres court que le lapin pourra dire a voix haute. "
@@ -456,50 +527,23 @@ def _generate_openai_rabbit_message(*, api_key: str, rabbit_name: str, personali
         f"Genere une petite phrase originale pour divertir, comme si {rabbit_name} prenait la parole "
         "maintenant dans la maison. Vise 1 a 3 phrases maximum."
     )
-    request_payload = json.dumps(
-        {
-            "model": "gpt-4o-mini",
-            "input": [
-                {
-                    "role": "system",
-                    "content": [{"type": "input_text", "text": system_prompt}],
-                },
-                {
-                    "role": "user",
-                    "content": [{"type": "input_text", "text": user_prompt}],
-                },
+    response_payload = _mistral_json_request(
+        api_key=api_key,
+        url="https://api.mistral.ai/v1/chat/completions",
+        payload={
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
             ],
-            "max_output_tokens": 120,
-        }
-    ).encode("utf-8")
-    request = urllib_request.Request(
-        "https://api.openai.com/v1/responses",
-        data=request_payload,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
+            "max_tokens": 120,
+            "temperature": 0.9,
         },
     )
-
-    try:
-        with urllib_request.urlopen(request, timeout=30) as response:
-            response_payload = json.loads(response.read().decode("utf-8"))
-    except urllib_error.HTTPError as exc:
-        details = exc.read().decode("utf-8", errors="replace")
-        try:
-            error_payload = json.loads(details)
-            message = error_payload.get("error", {}).get("message") or details
-        except json.JSONDecodeError:
-            message = details or str(exc)
-        raise RuntimeError(f"OpenAI a renvoye une erreur: {message}") from exc
-    except urllib_error.URLError as exc:
-        raise RuntimeError(f"Connexion OpenAI impossible: {exc.reason}") from exc
-
-    message = _extract_openai_text(response_payload)
+    message = _extract_mistral_chat_text(response_payload)
     if not message:
-        raise RuntimeError("OpenAI n'a renvoye aucun texte exploitable.")
-    return message
+        raise RuntimeError("Mistral n'a renvoye aucun texte exploitable.")
+    return " ".join(message.split())
 
 
 def _maybe_transcode_recording_to_mp3(source_path: Path) -> Path:
@@ -998,6 +1042,18 @@ def update_rabbit_tts_voice(rabbit_id: int):
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
 
+@main_bp.post("/rabbits/<int:rabbit_id>/llm-model")
+@login_required
+def update_rabbit_llm_model(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    custom_model = request.form.get("llm_model_custom", "").strip()
+    preset_model = request.form.get("llm_model", "").strip()
+    rabbit.llm_model = custom_model or preset_model or DEFAULT_RABBIT_LLM_MODEL
+    db.session.commit()
+    flash("Modele LLM du lapin mis a jour.", "success")
+    return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+
 @main_bp.get("/rabbits/<int:rabbit_id>")
 @login_required
 def rabbit_detail(rabbit_id: int):
@@ -1006,6 +1062,7 @@ def rabbit_detail(rabbit_id: int):
     remote_events: list[dict] = []
     remote_error = None
     saved_mistral_voices: list[dict] = []
+    available_mistral_models: list[dict] = []
 
     linked_device = (
         DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
@@ -1045,8 +1102,14 @@ def rabbit_detail(rabbit_id: int):
             saved_mistral_voices = _list_mistral_saved_voices(current_user.mistral_api_key)
         except RuntimeError as exc:
             current_app.logger.warning("unable to list Mistral voices for user %s: %s", current_user.id, exc)
+        try:
+            available_mistral_models = _list_mistral_models(current_user.mistral_api_key)
+        except RuntimeError as exc:
+            current_app.logger.warning("unable to list Mistral models for user %s: %s", current_user.id, exc)
     rabbit_tts_voice_options = _build_rabbit_tts_voice_options(saved_mistral_voices)
     rabbit_tts_voice = _normalize_rabbit_tts_voice(rabbit, rabbit_tts_voice_options)
+    rabbit_llm_model_options = _build_rabbit_llm_model_options(available_mistral_models)
+    rabbit_llm_model = _normalize_rabbit_llm_model(rabbit, rabbit_llm_model_options)
 
     remote_rabbit = _apply_local_device_state(
         rabbit,
@@ -1102,7 +1165,10 @@ def rabbit_detail(rabbit_id: int):
         ztamps=ztamps,
         led_color_presets=LED_COLOR_PRESETS,
         DEFAULT_RABBIT_PERSONALITY_PROMPT=DEFAULT_RABBIT_PERSONALITY_PROMPT,
+        DEFAULT_RABBIT_LLM_MODEL=DEFAULT_RABBIT_LLM_MODEL,
         DEFAULT_RABBIT_TTS_VOICE=DEFAULT_RABBIT_TTS_VOICE,
+        RABBIT_LLM_MODEL_OPTIONS=rabbit_llm_model_options,
+        rabbit_llm_model=rabbit_llm_model,
         RABBIT_TTS_VOICE_OPTIONS=rabbit_tts_voice_options,
         rabbit_tts_voice=rabbit_tts_voice,
         rabbit_photo_url=_rabbit_photo_url(rabbit),
@@ -1454,6 +1520,7 @@ def create_rabbit():
                 target_port=int(target_port) if target_port else 10543,
                 notes=notes or None,
                 personality_prompt=DEFAULT_RABBIT_PERSONALITY_PROMPT,
+                llm_model=DEFAULT_RABBIT_LLM_MODEL,
                 tts_voice=DEFAULT_RABBIT_TTS_VOICE,
                 provisioning_state="registered",
                 remote_rabbit_id=remote_payload["id"] if remote_payload else None,
@@ -1682,15 +1749,11 @@ def rabbit_device_say(rabbit_id: int):
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     if mode == "generate":
-        if not current_user.openai_api_key:
-            error_message = "Ajoute d'abord ton token OpenAI dans Mon compte."
-            flash(error_message, "error")
-            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-                return jsonify({"ok": False, "message": error_message}), 400
-            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
         try:
-            message = _generate_openai_rabbit_message(
-                api_key=current_user.openai_api_key,
+            llm_model = _normalize_rabbit_llm_model(rabbit, _build_rabbit_llm_model_options())
+            message = _generate_mistral_rabbit_message(
+                api_key=current_user.mistral_api_key,
+                model=llm_model,
                 rabbit_name=rabbit.name,
                 personality_prompt=rabbit.personality_prompt or DEFAULT_RABBIT_PERSONALITY_PROMPT,
             )
