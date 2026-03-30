@@ -79,6 +79,8 @@ Le but est d'arriver a des lapins qui ne sont pas des copies les uns des autres,
 
 Le projet est encore en construction et il est volontairement ouvert a la contribution. Si vous aimez les interfaces tangibles, les objets connectes atypiques, l'IA embarquee dans des experiences physiques, ou simplement le reemploi creatif d'objets anciens, vous etes au bon endroit.
 
+Pour un guide plus operationnel, voir aussi [CONTRIBUTING.md](/Users/apachot/Documents/GitHub/nabaztag/CONTRIBUTING.md).
+
 Les contributions utiles ne se limitent pas au code. Le projet a besoin de regards et de competences tres varies:
 
 - backend Python
