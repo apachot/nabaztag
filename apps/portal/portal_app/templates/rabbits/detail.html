@@ -477,6 +477,7 @@
 
       refreshSummary();
       refreshZtamps();
+      window.setInterval(refreshSummary, 2000);
       primeEventsCursor().then(() => {
         window.setInterval(loadEvents, 2000);
       });
