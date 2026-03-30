@@ -30,6 +30,8 @@ def create_app() -> Flask:
         NABAZTAG_VL_XMPP_TIMEOUT=int(os.getenv("NABAZTAG_VL_XMPP_TIMEOUT", "8")),
         NABAZTAG_XMPP_BIND_HOST=os.getenv("NABAZTAG_XMPP_BIND_HOST", "0.0.0.0"),
         NABAZTAG_XMPP_BIND_PORT=int(os.getenv("NABAZTAG_XMPP_BIND_PORT", "5222")),
+        NABAZTAG_STT_MODEL=os.getenv("NABAZTAG_STT_MODEL", "small"),
+        NABAZTAG_STT_LANGUAGE=os.getenv("NABAZTAG_STT_LANGUAGE", "fr"),
         SQLALCHEMY_DATABASE_URI=os.getenv(
             "NABAZTAG_PORTAL_DATABASE_URL",
             f"sqlite:///{instance_path / 'portal.db'}",

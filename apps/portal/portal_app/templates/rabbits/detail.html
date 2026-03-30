@@ -236,6 +236,20 @@
               <audio controls preload="none" style="width: 100%;">
                 <source src="{{ url_for('main.download_recording', filename=recording.filename) }}">
               </audio>
+              {% if recording.transcript %}
+                <div class="meta">Transcription: {{ recording.transcript.status }}</div>
+                {% if recording.transcript.text %}
+                  <div style="margin-top: 8px;">
+                    <strong>Texte détecté</strong>
+                    <div>{{ recording.transcript.text }}</div>
+                  </div>
+                {% endif %}
+                {% if recording.transcript.error %}
+                  <div class="meta">Erreur STT: {{ recording.transcript.error }}</div>
+                {% endif %}
+              {% else %}
+                <div class="meta">Transcription: non disponible</div>
+              {% endif %}
             </div>
           {% else %}
             <p>Aucun enregistrement reçu.</p>

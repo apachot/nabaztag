@@ -85,6 +85,10 @@ def _recordings_dir() -> Path:
     return recordings_dir
 
 
+def _recording_transcript_path(recording_path: Path) -> Path:
+    return recording_path.with_suffix(recording_path.suffix + ".transcript.json")
+
+
 def _choreographies_dir() -> Path:
     chor_dir = Path(current_app.instance_path) / "chor"
     chor_dir.mkdir(parents=True, exist_ok=True)
@@ -103,6 +107,65 @@ def _bootcode_path() -> Path:
 
 def _normalize_serial(value: str | None) -> str:
     return "".join(character for character in (value or "").lower() if character in "0123456789abcdef")
+
+
+def _transcribe_recording_asset(recording_path: Path) -> dict:
+    transcript_path = _recording_transcript_path(recording_path)
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError:
+        result = {
+            "status": "unavailable",
+            "text": "",
+            "error": "faster-whisper is not installed on the server",
+            "model": None,
+        }
+        transcript_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+        return result
+
+    model_name = current_app.config.get("NABAZTAG_STT_MODEL", "small")
+    language = current_app.config.get("NABAZTAG_STT_LANGUAGE", "fr")
+    try:
+        model = WhisperModel(model_name, device="cpu", compute_type="int8")
+        segments, info = model.transcribe(
+            str(recording_path),
+            language=language,
+            task="transcribe",
+            vad_filter=True,
+            condition_on_previous_text=False,
+            temperature=0.0,
+        )
+        text = " ".join(segment.text.strip() for segment in segments if segment.text.strip()).strip()
+        result = {
+            "status": "ok",
+            "text": text,
+            "error": None,
+            "model": model_name,
+            "language": getattr(info, "language", language),
+            "duration": getattr(info, "duration", None),
+        }
+    except Exception as exc:
+        current_app.logger.exception("recording transcription failed for %s", recording_path)
+        result = {
+            "status": "error",
+            "text": "",
+            "error": str(exc),
+            "model": model_name,
+        }
+
+    transcript_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    return result
+
+
+def _read_recording_transcript(recording_path: Path) -> dict | None:
+    transcript_path = _recording_transcript_path(recording_path)
+    if not transcript_path.exists():
+        return None
+    try:
+        return json.loads(transcript_path.read_text(encoding="utf-8"))
+    except Exception:
+        current_app.logger.warning("unable to read transcript sidecar for %s", recording_path)
+        return {"status": "error", "text": "", "error": "invalid transcript sidecar", "model": None}
 
 
 def _synthesize_tts_asset(*, rabbit_slug: str, text: str) -> tuple[Path, str]:
@@ -436,6 +499,7 @@ def violet_record():
     raw_filepath.write_bytes(payload)
     stored_path = _maybe_transcode_recording_to_mp3(raw_filepath)
     filename = stored_path.name
+    transcript = _transcribe_recording_asset(stored_path)
     rabbit = _rabbit_for_serial(serial_number)
     if rabbit is not None:
         db.session.add(
@@ -456,6 +520,7 @@ def violet_record():
             "filename": filename,
             "size": len(payload),
             "mode": request.args.get("m"),
+            "transcript_status": transcript.get("status"),
         },
     )
     db.session.commit()
@@ -589,6 +654,8 @@ def rabbit_detail(rabbit_id: int):
         .limit(20)
         .all()
     )
+    for recording in recordings:
+        recording.transcript = _read_recording_transcript(Path(recording.source_path))
     queued_commands = (
         RabbitDeviceCommand.query.filter_by(rabbit_id=rabbit.id)
         .order_by(RabbitDeviceCommand.created_at.desc())
