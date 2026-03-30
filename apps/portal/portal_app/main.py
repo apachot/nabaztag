@@ -2201,11 +2201,10 @@ def rabbit_action(rabbit_id: int):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
     action = request.form.get("action", "").strip().lower()
 
-    if action not in {"connect", "disconnect", "sync"}:
+    if action not in {"connect", "disconnect", "sync", "reset-connection"}:
         flash("Action invalide.", "error")
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
-    payload = {"mode": "device"} if action == "connect" else {}
     try:
         linked_device = (
             DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
@@ -2219,6 +2218,29 @@ def rabbit_action(rabbit_id: int):
         if not remote_id:
             flash("Ce lapin n'est pas encore enregistré dans l'API device.", "error")
             return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+        if action == "reset-connection":
+            disconnect_result = send_remote_action(remote_id, "disconnect", {})
+            time.sleep(1.2)
+            result = send_remote_action(remote_id, "connect", {"mode": "device"})
+            rabbit.connection_status = result.get("rabbit", {}).get("connection_status", rabbit.connection_status)
+            db.session.add(
+                RabbitEventLog(
+                    rabbit_id=rabbit.id,
+                    source="api",
+                    event_type="rabbit.connection.reset",
+                    payload=json.dumps(
+                        {
+                            "disconnect": disconnect_result,
+                            "connect": result,
+                        }
+                    ),
+                )
+            )
+            db.session.commit()
+            flash("Réinitialisation de connexion envoyée.", "success")
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+        payload = {"mode": "device"} if action == "connect" else {}
         result = send_remote_action(remote_id, action, payload)
         rabbit.connection_status = result.get("rabbit", {}).get("connection_status", rabbit.connection_status)
         db.session.add(

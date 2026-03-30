@@ -157,6 +157,17 @@
       <article class="panel">
         <h2>Pilotage réel</h2>
         <div class="stack">
+          <form method="post" action="{{ url_for('main.rabbit_action', rabbit_id=rabbit.id) }}" class="stack">
+            <strong>Connexion</strong>
+            <div class="meta">
+              Force une déconnexion puis une reconnexion du lapin pour repartir sur une session propre.
+            </div>
+            <input type="hidden" name="action" value="reset-connection">
+            <div class="actions">
+              <button class="pill" type="submit">Réinitialiser la connexion</button>
+            </div>
+          </form>
+
           <form method="post" action="{{ url_for('main.rabbit_device_ears', rabbit_id=rabbit.id) }}" class="stack" data-live-submit="true">
             <strong>Oreilles</strong>
             <label>Oreille gauche</label>
