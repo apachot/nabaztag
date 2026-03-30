@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import secrets
+import subprocess
 import time
 from mimetypes import guess_type
 from pathlib import Path
@@ -100,6 +101,44 @@ def _bootcode_path() -> Path:
 
 def _normalize_serial(value: str | None) -> str:
     return "".join(character for character in (value or "").lower() if character in "0123456789abcdef")
+
+
+def _maybe_transcode_recording_to_mp3(source_path: Path) -> Path:
+    target_path = source_path.with_suffix(".mp3")
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-i",
+                str(source_path),
+                "-codec:a",
+                "libmp3lame",
+                "-q:a",
+                "4",
+                str(target_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        current_app.logger.info("ffmpeg not available, keeping raw recording %s", source_path)
+        return source_path
+
+    if result.returncode != 0 or not target_path.exists():
+        current_app.logger.warning(
+            "ffmpeg conversion failed for %s: %s",
+            source_path,
+            (result.stderr or result.stdout)[-1000:],
+        )
+        return source_path
+
+    try:
+        source_path.unlink()
+    except OSError:
+        current_app.logger.warning("unable to delete raw recording after mp3 conversion: %s", source_path)
+    return target_path
 
 
 def _record_device_observation(
@@ -316,9 +355,11 @@ def violet_bootcode():
 def violet_record():
     serial_number = (request.args.get("sn") or "").replace(":", "").lower() or "unknown"
     payload = request.get_data(cache=False)
-    filename = f"record_{serial_number}_{int(time.time())}.wav"
-    filepath = _recordings_dir() / filename
-    filepath.write_bytes(payload)
+    raw_filename = f"record_{serial_number}_{int(time.time())}.wav"
+    raw_filepath = _recordings_dir() / raw_filename
+    raw_filepath.write_bytes(payload)
+    stored_path = _maybe_transcode_recording_to_mp3(raw_filepath)
+    filename = stored_path.name
     rabbit = _rabbit_for_serial(serial_number)
     if rabbit is not None:
         db.session.add(
@@ -326,7 +367,7 @@ def violet_record():
                 rabbit_id=rabbit.id,
                 serial=serial_number,
                 filename=filename,
-                source_path=str(filepath),
+                source_path=str(stored_path),
                 mode=request.args.get("m"),
             )
         )
@@ -346,7 +387,7 @@ def violet_record():
         "nabaztag.record sn=%s size=%s file=%s",
         serial_number,
         len(payload),
-        str(filepath),
+        str(stored_path),
     )
     return Response("", mimetype="text/plain")
 
@@ -820,7 +861,8 @@ def rabbit_device_audio_upload(rabbit_id: int):
 def download_recording(filename: str):
     recording = RabbitRecording.query.filter_by(filename=filename).first_or_404()
     rabbit = Rabbit.query.filter_by(id=recording.rabbit_id, owner_id=current_user.id).first_or_404()
-    return send_file(recording.source_path, mimetype="audio/wav", as_attachment=False, download_name=Path(recording.source_path).name)
+    mimetype = guess_type(recording.source_path)[0] or "application/octet-stream"
+    return send_file(recording.source_path, mimetype=mimetype, as_attachment=False, download_name=Path(recording.source_path).name)
 
 
 @main_bp.post("/rabbits/<int:rabbit_id>/claim-device")
