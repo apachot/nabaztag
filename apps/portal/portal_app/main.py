@@ -1256,14 +1256,20 @@ def rabbit_device_ears(rabbit_id: int):
     left = request.form.get("left", "").strip()
     right = request.form.get("right", "").strip()
     if not left.isdigit() or not right.isdigit():
-        flash("Positions d'oreilles invalides.", "error")
+        message = "Positions d'oreilles invalides."
+        flash(message, "error")
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"ok": False, "message": message}), 400
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
     _enqueue_device_command(
         rabbit,
         command_type="ears",
         payload={"left": int(left), "right": int(right)},
     )
-    flash("Commande oreilles mise en file.", "success")
+    message = "Commande oreilles mise en file."
+    flash(message, "success")
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"ok": True, "message": message})
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
 
@@ -1275,14 +1281,20 @@ def rabbit_device_led(rabbit_id: int):
     color_preset = request.form.get("color_preset", "").strip().lower()
     color = LED_COLOR_PRESETS.get(color_preset)
     if target not in {"nose", "left", "center", "right", "bottom"} or color is None:
-        flash("Commande LED invalide.", "error")
+        message = "Commande LED invalide."
+        flash(message, "error")
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"ok": False, "message": message}), 400
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
     _enqueue_device_command(
         rabbit,
         command_type="led",
         payload={"target": target, "color": color, "preset": color_preset},
     )
-    flash("Commande LED mise en file.", "success")
+    message = "Commande LED mise en file."
+    flash(message, "success")
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"ok": True, "message": message})
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
 
@@ -1309,17 +1321,26 @@ def rabbit_device_audio_upload(rabbit_id: int):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
     uploaded = request.files.get("audio_file")
     if uploaded is None or not uploaded.filename:
-        flash("Fichier audio obligatoire.", "error")
+        message = "Fichier audio obligatoire."
+        flash(message, "error")
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"ok": False, "message": message}), 400
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     original_name = secure_filename(uploaded.filename)
     if not original_name:
-        flash("Nom de fichier invalide.", "error")
+        message = "Nom de fichier invalide."
+        flash(message, "error")
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"ok": False, "message": message}), 400
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     extension = Path(original_name).suffix.lower()
     if extension not in {".mp3", ".wav", ".ogg"}:
-        flash("Formats acceptés: MP3, WAV, OGG.", "error")
+        message = "Formats acceptés: MP3, WAV, OGG."
+        flash(message, "error")
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"ok": False, "message": message}), 400
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     stored_name = f"{rabbit.slug}-{secrets.token_hex(6)}{extension}"
@@ -1332,7 +1353,10 @@ def rabbit_device_audio_upload(rabbit_id: int):
         command_type="audio",
         payload={"url": asset_url, "source": "upload", "filename": original_name},
     )
-    flash("Audio téléversé et lecture mise en file.", "success")
+    message = "Audio téléversé et lecture mise en file."
+    flash(message, "success")
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"ok": True, "message": message})
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
 
@@ -1342,16 +1366,25 @@ def rabbit_device_say(rabbit_id: int):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
     message = request.form.get("message", "").strip()
     if not message:
-        flash("Message obligatoire.", "error")
+        error_message = "Message obligatoire."
+        flash(error_message, "error")
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"ok": False, "message": error_message}), 400
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
     if len(message) > 500:
-        flash("Message trop long. Limite: 500 caractères.", "error")
+        error_message = "Message trop long. Limite: 500 caractères."
+        flash(error_message, "error")
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"ok": False, "message": error_message}), 400
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     try:
         asset_path, asset_name = _synthesize_tts_asset(rabbit_slug=rabbit.slug, text=message)
     except (ValueError, RuntimeError) as exc:
-        flash(f"Synthèse vocale impossible: {exc}", "error")
+        error_message = f"Synthèse vocale impossible: {exc}"
+        flash(error_message, "error")
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"ok": False, "message": error_message}), 400
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     asset_url = f"broadcast/ojn_local/audio/{asset_name}"
@@ -1365,7 +1398,10 @@ def rabbit_device_say(rabbit_id: int):
             "text": message,
         },
     )
-    flash("Message synthétisé et lecture mise en file.", "success")
+    success_message = "Message synthétisé et lecture mise en file."
+    flash(success_message, "success")
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"ok": True, "message": success_message})
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
 

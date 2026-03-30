@@ -108,7 +108,7 @@
       <article class="panel">
         <h2>Pilotage réel</h2>
         <div class="stack">
-          <form method="post" action="{{ url_for('main.rabbit_device_ears', rabbit_id=rabbit.id) }}" class="stack">
+          <form method="post" action="{{ url_for('main.rabbit_device_ears', rabbit_id=rabbit.id) }}" class="stack" data-live-submit="true">
             <strong>Oreilles</strong>
             <label>Oreille gauche</label>
             <input type="number" name="left" min="0" max="16" value="{{ remote_rabbit.state.left_ear if remote_rabbit else 8 }}">
@@ -117,14 +117,14 @@
             <button class="button primary" type="submit">Bouger les oreilles</button>
           </form>
 
-          <form method="post" action="{{ url_for('main.rabbit_device_audio_upload', rabbit_id=rabbit.id) }}" enctype="multipart/form-data" class="stack">
+          <form method="post" action="{{ url_for('main.rabbit_device_audio_upload', rabbit_id=rabbit.id) }}" enctype="multipart/form-data" class="stack" data-live-submit="true">
             <strong>Audio depuis votre ordinateur</strong>
             <label>Fichier MP3 / WAV / OGG</label>
             <input type="file" name="audio_file" accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg">
             <button class="button primary" type="submit">Téléverser et lire</button>
           </form>
 
-          <form method="post" action="{{ url_for('main.rabbit_device_say', rabbit_id=rabbit.id) }}" class="stack">
+          <form method="post" action="{{ url_for('main.rabbit_device_say', rabbit_id=rabbit.id) }}" class="stack" data-live-submit="true">
             <strong>Faire parler le lapin</strong>
             <label>Message</label>
             <textarea name="message" rows="4" maxlength="500" placeholder="Bonjour Lapinou, ceci est un test de synthèse vocale."></textarea>
@@ -153,7 +153,7 @@
             </div>
           </div>
 
-          <form method="post" action="{{ url_for('main.rabbit_device_led', rabbit_id=rabbit.id) }}" class="stack">
+          <form method="post" action="{{ url_for('main.rabbit_device_led', rabbit_id=rabbit.id) }}" class="stack" data-live-submit="true">
             <strong>LEDs du corps</strong>
             <label>Cible</label>
             <select name="target">
@@ -177,7 +177,7 @@
             <button class="button primary" type="submit">Changer la LED</button>
           </form>
 
-          <form method="post" action="{{ url_for('main.rabbit_device_led', rabbit_id=rabbit.id) }}" class="stack">
+          <form method="post" action="{{ url_for('main.rabbit_device_led', rabbit_id=rabbit.id) }}" class="stack" data-live-submit="true">
             <strong>Signal du nez</strong>
             <input type="hidden" name="target" value="nose">
             <label>Action</label>
@@ -321,6 +321,29 @@
         while (toastStack.children.length > 4) {
           toastStack.removeChild(toastStack.lastElementChild);
         }
+      };
+
+      const showMessageToast = (message, kind = "success") => {
+        if (!toastStack || !message) return;
+
+        const toast = document.createElement("div");
+        toast.className = `toast ${kind === "error" ? "error" : "success"}`;
+
+        const title = document.createElement("strong");
+        title.textContent = message;
+        toast.appendChild(title);
+
+        toastStack.prepend(toast);
+        requestAnimationFrame(() => {
+          toast.classList.add("visible");
+        });
+
+        window.setTimeout(() => {
+          toast.classList.remove("visible");
+          window.setTimeout(() => {
+            toast.remove();
+          }, 220);
+        }, 3200);
       };
 
       const appendEvents = (events) => {
@@ -475,8 +498,48 @@
         }
       };
 
+      const submitLiveForm = async (form) => {
+        const submitButton = form.querySelector('button[type="submit"]');
+        const previousLabel = submitButton ? submitButton.textContent : "";
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.textContent = "Envoi...";
+        }
+
+        try {
+          const response = await fetch(form.action, {
+            method: "POST",
+            body: new FormData(form),
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+            credentials: "same-origin",
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok || data.ok === false) {
+            throw new Error(data.message || "Action impossible.");
+          }
+          showMessageToast(data.message || "Action envoyée.");
+          await refreshSummary();
+          await refreshZtamps();
+          await loadEvents();
+        } catch (error) {
+          console.error("live form submit failed", error);
+          showMessageToast(error.message || "Action impossible.", "error");
+        } finally {
+          if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = previousLabel;
+          }
+        }
+      };
+
       refreshSummary();
       refreshZtamps();
+      for (const form of document.querySelectorAll('form[data-live-submit="true"]')) {
+        form.addEventListener("submit", (event) => {
+          event.preventDefault();
+          submitLiveForm(form);
+        });
+      }
       window.setInterval(refreshSummary, 2000);
       primeEventsCursor().then(() => {
         window.setInterval(loadEvents, 2000);
