@@ -96,26 +96,6 @@
             alt="Photo de {{ rabbit.name }}"
             style="display: block; width: 100%; max-width: 360px; height: auto; border: 1px solid rgba(24, 23, 21, 0.08);"
           >
-          <form
-            method="post"
-            action="{{ url_for('main.upload_rabbit_photo', rabbit_id=rabbit.id) }}"
-            enctype="multipart/form-data"
-            class="stack"
-            style="margin-top: 18px; max-width: 360px;"
-          >
-            <strong>Photo du Nabaztag</strong>
-            <label>Téléverser une image</label>
-            <input type="file" name="photo_file" accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif">
-            <div class="meta">
-              Cette image remplace la photo par défaut du lapin dans le portail.
-            </div>
-            <div class="actions">
-              <button class="button primary" type="submit">Téléverser la photo</button>
-            </div>
-            {% if rabbit.photo_original_name %}
-              <div class="meta">Fichier actuel : {{ rabbit.photo_original_name }}</div>
-            {% endif %}
-          </form>
         </div>
       </div>
     </section>
@@ -217,45 +197,10 @@
       </article>
     </section>
 
-    <section class="grid">
-      <article class="panel">
-        <h2>Enregistrements</h2>
-        <div class="stack" id="recordings-list" data-url="{{ url_for('main.rabbit_live_recordings', rabbit_id=rabbit.id) }}">
-          {% for recording in recordings %}
-            <div class="rabbit-card">
-              <strong>{{ recording.filename }}</strong>
-              <div class="meta">Créé le: {{ recording.created_at }}</div>
-              <div class="meta">Mode: {{ recording.mode or "n/a" }}</div>
-              <audio controls preload="none" style="width: 100%;">
-                <source src="{{ url_for('main.download_recording', filename=recording.filename) }}">
-              </audio>
-              {% if recording.transcript %}
-                <div class="meta">Transcription: {{ recording.transcript.status }}</div>
-                {% if recording.transcript.text %}
-                  <div style="margin-top: 8px;">
-                    <strong>Texte détecté</strong>
-                    <div>{{ recording.transcript.text }}</div>
-                  </div>
-                {% endif %}
-                {% if recording.transcript.error %}
-                  <div class="meta">Erreur STT: {{ recording.transcript.error }}</div>
-                {% endif %}
-              {% else %}
-                <div class="meta">Transcription: non disponible</div>
-              {% endif %}
-            </div>
-          {% else %}
-            <p>Aucun enregistrement reçu.</p>
-          {% endfor %}
-        </div>
-      </article>
-
-    </section>
   </section>
 
   <script>
     (() => {
-      const recordingsContainer = document.getElementById("recordings-list");
       const rabbitStatus = document.getElementById("rabbit-status");
       const rabbitRemoteConnection = document.getElementById("rabbit-remote-connection");
       const rabbitRemoteSerial = document.getElementById("rabbit-remote-serial");
@@ -266,7 +211,6 @@
       const ztampsContainer = document.getElementById("ztamps-list");
       const toastStack = document.getElementById("toast-stack");
       const endpoint = "{{ url_for('main.rabbit_live_events', rabbit_id=rabbit.id) }}";
-      const recordingsEndpoint = recordingsContainer ? recordingsContainer.dataset.url : null;
       const summaryEndpoint = "{{ url_for('main.rabbit_live_summary', rabbit_id=rabbit.id) }}";
       const ztampsEndpoint = ztampsContainer ? ztampsContainer.dataset.url : null;
       let lastId = 0;
@@ -366,67 +310,6 @@
         }
       };
 
-      const renderRecording = (recording) => {
-        const card = document.createElement("div");
-        card.className = "rabbit-card";
-
-        const title = document.createElement("strong");
-        title.textContent = recording.filename;
-        card.appendChild(title);
-
-        const created = document.createElement("div");
-        created.className = "meta";
-        created.textContent = `Créé le: ${formatTimestamp(recording.created_at)}`;
-        card.appendChild(created);
-
-        const mode = document.createElement("div");
-        mode.className = "meta";
-        mode.textContent = `Mode: ${recording.mode || "n/a"}`;
-        card.appendChild(mode);
-
-        const audio = document.createElement("audio");
-        audio.controls = true;
-        audio.preload = "none";
-        audio.style.width = "100%";
-        const source = document.createElement("source");
-        source.src = recording.url;
-        audio.appendChild(source);
-        card.appendChild(audio);
-
-        if (recording.transcript) {
-          const status = document.createElement("div");
-          status.className = "meta";
-          status.textContent = `Transcription: ${recording.transcript.status}`;
-          card.appendChild(status);
-
-          if (recording.transcript.text) {
-            const textWrap = document.createElement("div");
-            textWrap.style.marginTop = "8px";
-            const textTitle = document.createElement("strong");
-            textTitle.textContent = "Texte détecté";
-            const textBody = document.createElement("div");
-            textBody.textContent = recording.transcript.text;
-            textWrap.appendChild(textTitle);
-            textWrap.appendChild(textBody);
-            card.appendChild(textWrap);
-          }
-
-          if (recording.transcript.error) {
-            const error = document.createElement("div");
-            error.className = "meta";
-            error.textContent = `Erreur STT: ${recording.transcript.error}`;
-            card.appendChild(error);
-          }
-        } else {
-          const none = document.createElement("div");
-          none.className = "meta";
-          none.textContent = "Transcription: non disponible";
-          card.appendChild(none);
-        }
-
-        return card;
-      };
-
       const renderZtamp = (ztamp) => {
         const card = document.createElement("div");
         card.className = "rabbit-card";
@@ -451,26 +334,6 @@
         }
 
         return card;
-      };
-
-      const refreshRecordings = async () => {
-        if (!recordingsContainer || !recordingsEndpoint) return;
-        try {
-          const response = await fetch(recordingsEndpoint, {
-            headers: { "X-Requested-With": "fetch" },
-            cache: "no-store",
-          });
-          if (!response.ok) return;
-          const data = await response.json();
-          const recordings = data.recordings || [];
-          if (!recordings.length) return;
-          recordingsContainer.innerHTML = "";
-          for (const recording of recordings) {
-            recordingsContainer.appendChild(renderRecording(recording));
-          }
-        } catch (error) {
-          console.error("recordings refresh failed", error);
-        }
       };
 
       const refreshSummary = async () => {
@@ -545,15 +408,11 @@
           if ((data.events || []).some((event) => event.event_type === "rabbit.rfid.detected")) {
             await refreshZtamps();
           }
-          if ((data.events || []).some((event) => event.event_type === "rabbit.recording.uploaded")) {
-            await refreshRecordings();
-          }
         } catch (error) {
           console.error("live events fetch failed", error);
         }
       };
 
-      refreshRecordings();
       refreshSummary();
       refreshZtamps();
       loadEvents();
