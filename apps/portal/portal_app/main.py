@@ -37,6 +37,7 @@ from .models import (
     DeviceObservation,
     ProvisioningSession,
     Rabbit,
+    RabbitConversationTurn,
     RabbitDeviceCommand,
     RabbitEventLog,
     RabbitRecording,
@@ -51,6 +52,7 @@ LIVE_EVENT_TYPES = {
     "rabbit.recording.uploaded",
     "rabbit.rfid.detected",
     "rabbit.ears.moved",
+    "rabbit.conversation.reply.generated",
 }
 
 LED_COLOR_PRESETS = {
@@ -113,6 +115,9 @@ EAR_ACTION_TO_POSITION = {
     "center": 8,
     "backward": 16,
 }
+CONVERSATION_RECENT_TURNS_LIMIT = 10
+CONVERSATION_SUMMARY_TRIGGER_TURNS = 14
+CONVERSATION_SUMMARY_TARGET_KEEP = 6
 
 
 def _mistral_json_request(*, api_key: str, url: str, payload: dict | None = None) -> dict:
@@ -304,6 +309,203 @@ def _normalize_generated_performance(payload: dict) -> dict:
         },
         "led_commands": led_commands,
     }
+
+
+def _serialize_conversation_turn(turn: RabbitConversationTurn) -> dict:
+    payload = None
+    if turn.payload:
+        try:
+            payload = json.loads(turn.payload)
+        except json.JSONDecodeError:
+            payload = {"raw": turn.payload}
+    return {
+        "id": turn.id,
+        "role": turn.role,
+        "text": turn.text,
+        "source": turn.source,
+        "recording_id": turn.recording_id,
+        "payload": payload,
+        "created_at": turn.created_at.isoformat() if turn.created_at else None,
+    }
+
+
+def _append_conversation_turn(
+    rabbit: Rabbit,
+    *,
+    role: str,
+    text: str,
+    source: str,
+    recording_id: int | None = None,
+    payload: dict | None = None,
+) -> RabbitConversationTurn:
+    turn = RabbitConversationTurn(
+        rabbit_id=rabbit.id,
+        role=role,
+        text=" ".join(text.split()).strip(),
+        source=source,
+        recording_id=recording_id,
+        payload=json.dumps(payload) if payload is not None else None,
+    )
+    db.session.add(turn)
+    db.session.commit()
+    return turn
+
+
+def _summarize_conversation_turns(
+    *,
+    api_key: str,
+    model: str,
+    existing_summary: str,
+    turns: list[RabbitConversationTurn],
+) -> str:
+    transcript_lines = []
+    for turn in turns:
+        label = "Utilisateur" if turn.role == "user" else "Lapin"
+        transcript_lines.append(f"{label}: {turn.text}")
+    response_payload = _mistral_json_request(
+        api_key=api_key,
+        url="https://api.mistral.ai/v1/chat/completions",
+        payload={
+            "model": model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "Tu compresses un historique de conversation entre un humain et un lapin Nabaztag. "
+                        "Ecris un resume compact en francais, utile pour poursuivre la conversation. "
+                        "Garde les informations durables, les sujets ouverts, les preferences, l'humeur, "
+                        "les promesses faites et les running gags. Oublie les details sans importance."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Resume existant:\n{existing_summary or '(aucun)'}\n\n"
+                        f"Nouveaux tours a compresser:\n" + "\n".join(transcript_lines)
+                    ),
+                },
+            ],
+            "max_tokens": 220,
+            "temperature": 0.3,
+        },
+    )
+    summary = _extract_mistral_chat_text(response_payload)
+    if not summary:
+        raise RuntimeError("Mistral n'a pas renvoye de resume de conversation.")
+    return " ".join(summary.split())
+
+
+def _maybe_compact_rabbit_conversation(rabbit: Rabbit, *, api_key: str, model: str) -> None:
+    cutoff_id = rabbit.conversation_summary_turn_id or 0
+    unsummarized_turns = (
+        RabbitConversationTurn.query.filter_by(rabbit_id=rabbit.id)
+        .filter(RabbitConversationTurn.id > cutoff_id)
+        .order_by(RabbitConversationTurn.id.asc())
+        .all()
+    )
+    if len(unsummarized_turns) < CONVERSATION_SUMMARY_TRIGGER_TURNS:
+        return
+
+    turns_to_summarize = unsummarized_turns[:-CONVERSATION_SUMMARY_TARGET_KEEP]
+    if not turns_to_summarize:
+        return
+
+    summary = _summarize_conversation_turns(
+        api_key=api_key,
+        model=model,
+        existing_summary=rabbit.conversation_summary or "",
+        turns=turns_to_summarize,
+    )
+    rabbit.conversation_summary = summary
+    rabbit.conversation_summary_turn_id = turns_to_summarize[-1].id
+    db.session.commit()
+
+
+def _conversation_messages_for_generation(rabbit: Rabbit) -> list[dict[str, str]]:
+    messages: list[dict[str, str]] = []
+    if rabbit.conversation_summary:
+        messages.append(
+            {
+                "role": "system",
+                "content": f"Memoire de conversation compressee:\n{rabbit.conversation_summary}",
+            }
+        )
+
+    cutoff_id = rabbit.conversation_summary_turn_id or 0
+    recent_turns = (
+        RabbitConversationTurn.query.filter_by(rabbit_id=rabbit.id)
+        .filter(RabbitConversationTurn.id > cutoff_id)
+        .order_by(RabbitConversationTurn.id.asc())
+        .limit(CONVERSATION_RECENT_TURNS_LIMIT)
+        .all()
+    )
+    for turn in recent_turns:
+        if turn.role not in {"user", "assistant"}:
+            continue
+        role = "assistant" if turn.role == "assistant" else "user"
+        messages.append({"role": role, "content": turn.text})
+    return messages
+
+
+def _queue_generated_performance(
+    rabbit: Rabbit,
+    *,
+    api_key: str,
+    performance: dict,
+    source: str,
+    mode: str,
+) -> tuple[Path, str]:
+    text = performance["text"]
+    voice = _normalize_rabbit_tts_voice(rabbit, _build_rabbit_tts_voice_options())
+    asset_path, asset_name = _synthesize_tts_asset(
+        api_key=api_key,
+        rabbit_slug=rabbit.slug,
+        text=text,
+        voice=voice,
+    )
+
+    left_position = performance["ears"]["left"]
+    right_position = performance["ears"]["right"]
+    if left_position is not None or right_position is not None:
+        current_left = 8
+        current_right = 8
+        if rabbit.remote_rabbit_id:
+            try:
+                remote_rabbit = fetch_remote_rabbit(rabbit.remote_rabbit_id)
+                remote_state = (remote_rabbit or {}).get("state") or {}
+                current_left = int(remote_state.get("left_ear", current_left))
+                current_right = int(remote_state.get("right_ear", current_right))
+            except (NabaztagApiError, TypeError, ValueError):
+                pass
+        _enqueue_device_command(
+            rabbit,
+            command_type="ears",
+            payload={
+                "left": left_position if left_position is not None else current_left,
+                "right": right_position if right_position is not None else current_right,
+            },
+        )
+
+    for led_command in performance["led_commands"]:
+        _enqueue_device_command(
+            rabbit,
+            command_type="led",
+            payload=led_command,
+        )
+
+    asset_url = f"broadcast/ojn_local/audio/{asset_name}"
+    _enqueue_device_command(
+        rabbit,
+        command_type="audio",
+        payload={
+            "url": asset_url,
+            "source": source,
+            "filename": asset_path.name,
+            "text": text,
+            "mode": mode,
+        },
+    )
+    return asset_path, asset_name
 
 
 def _build_rabbit_tts_voice_options(saved_voices: list[dict] | None = None) -> list[tuple[str, str]]:
@@ -564,11 +766,11 @@ def _latest_ztamps_for_rabbit(rabbit_id: int, *, limit: int = 20) -> list[dict]:
     return payload
 
 
-def _synthesize_tts_asset(*, rabbit_slug: str, text: str, voice: str) -> tuple[Path, str]:
+def _synthesize_tts_asset(*, api_key: str, rabbit_slug: str, text: str, voice: str) -> tuple[Path, str]:
     normalized_text = " ".join(text.split())
     if not normalized_text:
         raise ValueError("empty text")
-    if not current_user.mistral_api_key:
+    if not api_key:
         raise RuntimeError("Ajoute d'abord ton token Mistral dans Mon compte.")
 
     token = secrets.token_hex(6)
@@ -581,7 +783,7 @@ def _synthesize_tts_asset(*, rabbit_slug: str, text: str, voice: str) -> tuple[P
         "response_format": MISTRAL_TTS_RESPONSE_FORMAT,
     }
     response_payload = _mistral_json_request(
-        api_key=current_user.mistral_api_key,
+        api_key=api_key,
         url=MISTRAL_TTS_SPEECH_URL,
         payload=payload,
     )
@@ -628,6 +830,8 @@ def _generate_mistral_rabbit_performance(
     model: str,
     rabbit_name: str,
     personality_prompt: str,
+    conversation_messages: list[dict[str, str]] | None = None,
+    user_prompt_override: str | None = None,
 ) -> dict:
     system_prompt = (
         f"{personality_prompt}\n\n"
@@ -650,19 +854,20 @@ def _generate_mistral_rabbit_performance(
         "5. Pour `nose`, seuls `off`, `blink` et `double_blink` sont autorises. "
         "6. Ne mets jamais de texte hors JSON."
     )
-    user_prompt = (
+    user_prompt = user_prompt_override or (
         f"Genere maintenant une petite performance originale pour {rabbit_name}. "
         "Le lapin doit divertir avec sa voix et, si utile, avec un petit langage corporel expressif."
     )
+    messages = [{"role": "system", "content": system_prompt}]
+    if conversation_messages:
+        messages.extend(conversation_messages)
+    messages.append({"role": "user", "content": user_prompt})
     response_payload = _mistral_json_request(
         api_key=api_key,
         url="https://api.mistral.ai/v1/chat/completions",
         payload={
             "model": model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
+            "messages": messages,
             "max_tokens": 300,
             "temperature": 0.9,
             "response_format": {"type": "json_object"},
@@ -1013,16 +1218,17 @@ def violet_record():
     filename = stored_path.name
     transcript = _transcribe_recording_asset(stored_path)
     rabbit = _rabbit_for_serial(serial_number)
+    recording = None
     if rabbit is not None:
-        db.session.add(
-            RabbitRecording(
-                rabbit_id=rabbit.id,
-                serial=serial_number,
-                filename=filename,
-                source_path=str(stored_path),
-                mode=request.args.get("m"),
-            )
+        recording = RabbitRecording(
+            rabbit_id=rabbit.id,
+            serial=serial_number,
+            filename=filename,
+            source_path=str(stored_path),
+            mode=request.args.get("m"),
         )
+        db.session.add(recording)
+        db.session.flush()
     _append_rabbit_event(
         rabbit,
         source="device",
@@ -1036,6 +1242,74 @@ def violet_record():
         },
     )
     db.session.commit()
+
+    transcript_text = " ".join(str(transcript.get("text") or "").split()).strip()
+    if rabbit is not None and transcript.get("status") == "ok" and transcript_text and recording is not None:
+        try:
+            _append_conversation_turn(
+                rabbit,
+                role="user",
+                text=transcript_text,
+                source="recording",
+                recording_id=recording.id,
+                payload={"filename": filename},
+            )
+            owner = rabbit.owner
+            if owner and owner.mistral_api_key:
+                llm_model = _normalize_rabbit_llm_model(rabbit, _build_rabbit_llm_model_options())
+                _maybe_compact_rabbit_conversation(
+                    rabbit,
+                    api_key=owner.mistral_api_key,
+                    model=llm_model,
+                )
+                performance = _generate_mistral_rabbit_performance(
+                    api_key=owner.mistral_api_key,
+                    model=llm_model,
+                    rabbit_name=rabbit.name,
+                    personality_prompt=rabbit.personality_prompt or DEFAULT_RABBIT_PERSONALITY_PROMPT,
+                    conversation_messages=_conversation_messages_for_generation(rabbit),
+                    user_prompt_override="Reponds maintenant au dernier message de l'utilisateur dans cette conversation.",
+                )
+                _queue_generated_performance(
+                    rabbit,
+                    api_key=owner.mistral_api_key,
+                    performance=performance,
+                    source="conversation",
+                    mode="conversation",
+                )
+                _append_conversation_turn(
+                    rabbit,
+                    role="assistant",
+                    text=performance["text"],
+                    source="conversation",
+                    payload=performance,
+                )
+                _append_rabbit_event(
+                    rabbit,
+                    source="portal",
+                    event_type="rabbit.conversation.reply.generated",
+                    payload={
+                        "recording_id": recording.id,
+                        "filename": filename,
+                        "text": performance["text"],
+                    },
+                )
+                db.session.commit()
+        except RuntimeError as exc:
+            current_app.logger.warning("rabbit conversation reply failed for %s: %s", rabbit.id, exc)
+            _append_rabbit_event(
+                rabbit,
+                source="portal",
+                event_type="rabbit.conversation.reply.failed",
+                payload={
+                    "recording_id": recording.id,
+                    "filename": filename,
+                    "error": str(exc),
+                },
+                level="error",
+            )
+            db.session.commit()
+
     current_app.logger.info(
         "nabaztag.record sn=%s size=%s file=%s",
         serial_number,
@@ -1262,6 +1536,12 @@ def rabbit_detail(rabbit_id: int):
         .limit(20)
         .all()
     )
+    conversation_turns = (
+        RabbitConversationTurn.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(RabbitConversationTurn.created_at.desc())
+        .limit(20)
+        .all()
+    )
     for recording in recordings:
         recording.transcript = _read_recording_transcript(Path(recording.source_path))
     queued_commands = (
@@ -1282,6 +1562,7 @@ def rabbit_detail(rabbit_id: int):
         linked_device=linked_device,
         available_devices=available_devices,
         recordings=recordings,
+        conversation_turns=list(reversed(conversation_turns)),
         queued_commands=queued_commands,
         ztamps=ztamps,
         led_color_presets=LED_COLOR_PRESETS,
@@ -1413,6 +1694,24 @@ def rabbit_live_recordings(rabbit_id: int):
         .all()
     )
     return jsonify({"recordings": [_serialize_recording(recording) for recording in recordings]})
+
+
+@main_bp.get("/rabbits/<int:rabbit_id>/conversation/live")
+@login_required
+def rabbit_live_conversation(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    turns = (
+        RabbitConversationTurn.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(RabbitConversationTurn.created_at.desc())
+        .limit(30)
+        .all()
+    )
+    return jsonify(
+        {
+            "summary": rabbit.conversation_summary or "",
+            "turns": [_serialize_conversation_turn(turn) for turn in reversed(turns)],
+        }
+    )
 
 
 @main_bp.get("/rabbits/<int:rabbit_id>/ztamps/live")
@@ -1901,11 +2200,17 @@ def rabbit_device_say(rabbit_id: int):
             return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     try:
-        voice = _normalize_rabbit_tts_voice(rabbit, _build_rabbit_tts_voice_options())
-        asset_path, asset_name = _synthesize_tts_asset(
-            rabbit_slug=rabbit.slug,
-            text=message,
-            voice=voice,
+        performance = generated_performance or {
+            "text": message,
+            "ears": {"left": None, "right": None},
+            "led_commands": [],
+        }
+        _asset_path, _asset_name = _queue_generated_performance(
+            rabbit,
+            api_key=current_user.mistral_api_key,
+            performance=performance,
+            source="tts",
+            mode=mode,
         )
     except (ValueError, RuntimeError) as exc:
         error_message = f"Synthèse vocale impossible: {exc}"
@@ -1913,48 +2218,6 @@ def rabbit_device_say(rabbit_id: int):
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return jsonify({"ok": False, "message": error_message}), 400
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
-
-    if generated_performance is not None:
-        left_position = generated_performance["ears"]["left"]
-        right_position = generated_performance["ears"]["right"]
-        if left_position is not None or right_position is not None:
-            current_left = 8
-            current_right = 8
-            if rabbit.remote_rabbit_id:
-                try:
-                    remote_rabbit = fetch_remote_rabbit(rabbit.remote_rabbit_id)
-                    remote_state = (remote_rabbit or {}).get("state") or {}
-                    current_left = int(remote_state.get("left_ear", current_left))
-                    current_right = int(remote_state.get("right_ear", current_right))
-                except (NabaztagApiError, TypeError, ValueError):
-                    pass
-            _enqueue_device_command(
-                rabbit,
-                command_type="ears",
-                payload={
-                    "left": left_position if left_position is not None else current_left,
-                    "right": right_position if right_position is not None else current_right,
-                },
-            )
-        for led_command in generated_performance["led_commands"]:
-            _enqueue_device_command(
-                rabbit,
-                command_type="led",
-                payload=led_command,
-            )
-
-    asset_url = f"broadcast/ojn_local/audio/{asset_name}"
-    _enqueue_device_command(
-        rabbit,
-        command_type="audio",
-        payload={
-            "url": asset_url,
-            "source": "tts",
-            "filename": asset_path.name,
-            "text": message,
-            "mode": mode,
-        },
-    )
     success_message = (
         "Texte genere puis lecture mise en file."
         if mode == "generate"

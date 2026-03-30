@@ -221,6 +221,39 @@
       </article>
 
       <article class="panel">
+        <h2>Conversation</h2>
+        <div class="stack">
+          <div class="meta">
+            Parle au lapin en enregistrant un message depuis le Nabaztag. Si une transcription exploitable est detectee,
+            le lapin repondra avec le contexte de la conversation, ses oreilles et ses LEDs.
+          </div>
+          <div id="conversation-summary-block" {% if not rabbit.conversation_summary %}hidden{% endif %}>
+            <strong>Mémoire compacte</strong>
+            <div class="meta" id="conversation-summary-text" style="margin-top: 8px;">
+              {{ rabbit.conversation_summary or "" }}
+            </div>
+          </div>
+          <div class="stack" id="conversation-turns" data-url="{{ url_for('main.rabbit_live_conversation', rabbit_id=rabbit.id) }}">
+            {% for turn in conversation_turns %}
+              <div class="rabbit-card">
+                <strong>
+                  {% if turn.role == "assistant" %}
+                    {{ rabbit.name }}
+                  {% else %}
+                    Vous
+                  {% endif %}
+                </strong>
+                <div class="meta">{{ turn.created_at }}</div>
+                <div style="margin-top: 8px;">{{ turn.text }}</div>
+              </div>
+            {% else %}
+              <div class="meta">Aucun échange pour l'instant.</div>
+            {% endfor %}
+          </div>
+        </div>
+      </article>
+
+      <article class="panel">
         <h2>Modele LLM</h2>
         <form method="post" action="{{ url_for('main.update_rabbit_llm_model', rabbit_id=rabbit.id) }}" class="stack">
           <div class="meta">
@@ -325,10 +358,14 @@
       const ledPaletteTitle = document.getElementById("led-palette-title");
       const ledPaletteOptions = document.getElementById("led-palette-options");
       const ztampsContainer = document.getElementById("ztamps-list");
+      const conversationTurns = document.getElementById("conversation-turns");
+      const conversationSummaryBlock = document.getElementById("conversation-summary-block");
+      const conversationSummaryText = document.getElementById("conversation-summary-text");
       const toastStack = document.getElementById("toast-stack");
       const endpoint = "{{ url_for('main.rabbit_live_events', rabbit_id=rabbit.id) }}";
       const summaryEndpoint = "{{ url_for('main.rabbit_live_summary', rabbit_id=rabbit.id) }}";
       const ztampsEndpoint = ztampsContainer ? ztampsContainer.dataset.url : null;
+      const conversationEndpoint = conversationTurns ? conversationTurns.dataset.url : null;
       const ledCommandEndpoint = "{{ url_for('main.rabbit_device_led', rabbit_id=rabbit.id) }}";
       const ledPalettePresets = {
         left: ["off", "red", "green", "blue", "cyan", "violet", "yellow", "white"],
@@ -385,6 +422,8 @@
             return `Tag RFID détecté${payload.tag ? " : " + payload.tag : ""}`;
           case "rabbit.ears.moved":
             return `Oreilles bougées manuellement (gauche ${payload.left}, droite ${payload.right})`;
+          case "rabbit.conversation.reply.generated":
+            return "Réponse conversationnelle générée";
           default:
             return event.event_type;
         }
@@ -512,6 +551,27 @@
           notes.textContent = ztamp.notes;
           card.appendChild(notes);
         }
+
+        return card;
+      };
+
+      const renderConversationTurn = (turn) => {
+        const card = document.createElement("div");
+        card.className = "rabbit-card";
+
+        const title = document.createElement("strong");
+        title.textContent = turn.role === "assistant" ? "{{ rabbit.name }}" : "Vous";
+        card.appendChild(title);
+
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        meta.textContent = formatTimestamp(turn.created_at);
+        card.appendChild(meta);
+
+        const body = document.createElement("div");
+        body.style.marginTop = "8px";
+        body.textContent = turn.text || "";
+        card.appendChild(body);
 
         return card;
       };
@@ -656,6 +716,39 @@
         }
       };
 
+      const refreshConversation = async () => {
+        if (!conversationEndpoint || !conversationTurns) return;
+        try {
+          const response = await fetch(conversationEndpoint, {
+            headers: { "X-Requested-With": "fetch" },
+            cache: "no-store",
+          });
+          if (!response.ok) return;
+          const data = await response.json();
+          const turns = Array.isArray(data.turns) ? data.turns : [];
+          conversationTurns.innerHTML = "";
+          if (!turns.length) {
+            conversationTurns.innerHTML = '<div class="meta">Aucun échange pour l\'instant.</div>';
+          } else {
+            for (const turn of turns) {
+              conversationTurns.appendChild(renderConversationTurn(turn));
+            }
+          }
+          const summary = (data.summary || "").trim();
+          if (conversationSummaryBlock && conversationSummaryText) {
+            if (summary) {
+              conversationSummaryBlock.hidden = false;
+              conversationSummaryText.textContent = summary;
+            } else {
+              conversationSummaryBlock.hidden = true;
+              conversationSummaryText.textContent = "";
+            }
+          }
+        } catch (error) {
+          console.error("conversation refresh failed", error);
+        }
+      };
+
       const loadEvents = async () => {
         try {
           const response = await fetch(`${endpoint}?after_id=${lastId}`, {
@@ -728,6 +821,7 @@
 
       refreshSummary();
       refreshZtamps();
+      refreshConversation();
       for (const indicator of document.querySelectorAll("[data-led-target]")) {
         indicator.addEventListener("click", (event) => {
           event.stopPropagation();
@@ -750,6 +844,7 @@
         });
       }
       window.setInterval(refreshSummary, 2000);
+      window.setInterval(refreshConversation, 3000);
       primeEventsCursor().then(() => {
         window.setInterval(loadEvents, 2000);
       });

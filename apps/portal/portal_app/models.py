@@ -37,6 +37,8 @@ class Rabbit(db.Model):
     personality_prompt = db.Column(db.Text)
     llm_model = db.Column(db.String(64), default="mistral-small-2603")
     tts_voice = db.Column(db.String(64), default="e0580ce5-e63c-4cbe-88c8-a983b80c5f1f")
+    conversation_summary = db.Column(db.Text)
+    conversation_summary_turn_id = db.Column(db.Integer)
     connection_status = db.Column(db.String(32), default="offline", nullable=False)
     remote_rabbit_id = db.Column(db.String(64), unique=True, index=True)
     target_host = db.Column(db.String(255))
@@ -76,6 +78,12 @@ class Rabbit(db.Model):
         back_populates="rabbit",
         cascade="all, delete-orphan",
         order_by="desc(Ztamp.updated_at)",
+    )
+    conversation_turns = db.relationship(
+        "RabbitConversationTurn",
+        back_populates="rabbit",
+        cascade="all, delete-orphan",
+        order_by="RabbitConversationTurn.created_at.asc()",
     )
 
 
@@ -138,6 +146,19 @@ class RabbitRecording(db.Model):
     source_path = db.Column(db.String(255), nullable=False)
     mode = db.Column(db.String(32))
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class RabbitConversationTurn(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    rabbit_id = db.Column(db.Integer, db.ForeignKey("rabbit.id"), nullable=False, index=True)
+    role = db.Column(db.String(16), nullable=False, index=True)
+    text = db.Column(db.Text, nullable=False)
+    source = db.Column(db.String(32), nullable=False, default="portal")
+    recording_id = db.Column(db.Integer, db.ForeignKey("rabbit_recording.id"), index=True)
+    payload = db.Column(db.Text)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+
+    rabbit = db.relationship("Rabbit", back_populates="conversation_turns")
 
 
 class Ztamp(db.Model):
