@@ -264,34 +264,6 @@
       </article>
 
       <article class="panel">
-        <h2>Modele LLM</h2>
-        <form method="post" action="{{ url_for('main.update_rabbit_llm_model', rabbit_id=rabbit.id) }}" class="stack">
-          <div class="meta">
-            Modele Mistral utilise quand le lapin doit generer lui-meme une petite phrase. Par defaut:
-            <span class="mono">{{ DEFAULT_RABBIT_LLM_MODEL }}</span>.
-          </div>
-          <select name="llm_model">
-            {% for model_value, model_label in RABBIT_LLM_MODEL_OPTIONS %}
-              <option value="{{ model_value }}" {% if rabbit_llm_model == model_value %}selected{% endif %}>
-                {{ model_label }}
-              </option>
-            {% endfor %}
-          </select>
-          <input
-            type="text"
-            name="llm_model_custom"
-            placeholder="Autre modele Mistral"
-            spellcheck="false"
-            autocapitalize="off"
-            autocomplete="off"
-          >
-          <div class="actions">
-            <button class="button primary" type="submit">Enregistrer le modele</button>
-          </div>
-        </form>
-      </article>
-
-      <article class="panel">
         <h2>Interventions Aleatoires</h2>
         <form method="post" action="{{ url_for('main.update_rabbit_auto_performance', rabbit_id=rabbit.id) }}" class="stack">
           <div class="meta">
@@ -338,12 +310,30 @@
       </article>
 
       <article class="panel">
-        <h2>Voix TTS</h2>
+        <h2>Configuration IA</h2>
+        <form method="post" action="{{ url_for('main.update_rabbit_llm_model', rabbit_id=rabbit.id) }}" class="stack" style="margin-bottom: 18px;">
+          <div class="meta">
+            Modele Mistral utilise quand le lapin doit generer lui-meme une petite phrase. Par defaut:
+            <span class="mono">{{ DEFAULT_RABBIT_LLM_MODEL }}</span>.
+          </div>
+          <label>Modele LLM</label>
+          <select name="llm_model">
+            {% for model_value, model_label in RABBIT_LLM_MODEL_OPTIONS %}
+              <option value="{{ model_value }}" {% if rabbit_llm_model == model_value %}selected{% endif %}>
+                {{ model_label }}
+              </option>
+            {% endfor %}
+          </select>
+          <div class="actions">
+            <button class="button primary" type="submit">Enregistrer le modele</button>
+          </div>
+        </form>
         <form method="post" action="{{ url_for('main.update_rabbit_tts_voice', rabbit_id=rabbit.id) }}" class="stack">
           <div class="meta">
             Choisis une voix Voxtral. La valeur enregistree correspond au <span class="mono">voice_id</span>
             envoye a l'API Mistral.
           </div>
+          <label>Voix TTS</label>
           <select name="tts_voice">
             {% for voice_value, voice_label in RABBIT_TTS_VOICE_OPTIONS %}
               <option value="{{ voice_value }}" {% if rabbit_tts_voice == voice_value %}selected{% endif %}>
@@ -351,14 +341,6 @@
               </option>
             {% endfor %}
           </select>
-          <input
-            type="text"
-            name="tts_voice_custom"
-            placeholder="Autre voice_id Mistral"
-            spellcheck="false"
-            autocapitalize="off"
-            autocomplete="off"
-          >
           <div class="actions">
             <button class="button primary" type="submit">Enregistrer la voix</button>
           </div>
