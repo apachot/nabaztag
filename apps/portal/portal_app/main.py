@@ -432,13 +432,14 @@ def _conversation_messages_for_generation(rabbit: Rabbit) -> list[dict[str, str]
         )
 
     cutoff_id = rabbit.conversation_summary_turn_id or 0
-    recent_turns = (
+    recent_turns = list(
         RabbitConversationTurn.query.filter_by(rabbit_id=rabbit.id)
         .filter(RabbitConversationTurn.id > cutoff_id)
-        .order_by(RabbitConversationTurn.id.asc())
+        .order_by(RabbitConversationTurn.id.desc())
         .limit(CONVERSATION_RECENT_TURNS_LIMIT)
         .all()
     )
+    recent_turns.reverse()
     for turn in recent_turns:
         if turn.role not in {"user", "assistant"}:
             continue
