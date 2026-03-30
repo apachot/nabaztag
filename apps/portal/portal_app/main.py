@@ -430,7 +430,7 @@ def serve_choreography(filename: str):
     return send_file(path, mimetype="application/octet-stream", as_attachment=False, download_name=path.name)
 
 
-@main_bp.get("/media/audio/<path:filename>")
+@main_bp.get("/ojn_local/audio/<path:filename>")
 def serve_audio_asset(filename: str):
     path = _audio_assets_dir() / filename
     if not path.exists():
@@ -853,7 +853,7 @@ def rabbit_device_audio_upload(rabbit_id: int):
     destination = _audio_assets_dir() / stored_name
     uploaded.save(destination)
 
-    asset_url = f"{_portal_base_url()}{url_for('main.serve_audio_asset', filename=stored_name)}"
+    asset_url = f"broadcast/ojn_local/audio/{stored_name}"
     _enqueue_device_command(
         rabbit,
         command_type="audio",
