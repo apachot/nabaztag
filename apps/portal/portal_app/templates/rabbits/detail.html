@@ -145,11 +145,11 @@
                 alt="Schéma des LEDs du Nabaztag"
                 style="display: block; width: 100%; height: auto; border: 1px solid rgba(24, 23, 21, 0.08);"
               >
-              <span id="led-left-indicator" style="position: absolute; left: 29%; top: 55%; width: 20px; height: 20px; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_left if remote_rabbit and remote_rabbit.state else '#000000' }};"></span>
-              <span id="led-center-indicator" style="position: absolute; left: 44%; top: 55%; width: 20px; height: 20px; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_center if remote_rabbit and remote_rabbit.state else '#000000' }};"></span>
-              <span id="led-right-indicator" style="position: absolute; left: 59%; top: 55%; width: 20px; height: 20px; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_right if remote_rabbit and remote_rabbit.state else '#000000' }};"></span>
-              <span id="led-bottom-indicator" style="position: absolute; left: 44%; top: 78%; width: 20px; height: 20px; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_bottom if remote_rabbit and remote_rabbit.state else '#000000' }};"></span>
-              <span id="led-nose-indicator" style="position: absolute; left: 44%; top: 33%; width: 20px; height: 20px; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_nose if remote_rabbit and remote_rabbit.state else '#000000' }};"></span>
+              <span id="led-left-indicator" style="position: absolute; left: 29%; top: 55%; width: 20px; height: 20px; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_left if remote_rabbit and remote_rabbit.state else '#d9d9d9' }};"></span>
+              <span id="led-center-indicator" style="position: absolute; left: 44%; top: 55%; width: 20px; height: 20px; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_center if remote_rabbit and remote_rabbit.state else '#d9d9d9' }};"></span>
+              <span id="led-right-indicator" style="position: absolute; left: 59%; top: 55%; width: 20px; height: 20px; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_right if remote_rabbit and remote_rabbit.state else '#d9d9d9' }};"></span>
+              <span id="led-bottom-indicator" style="position: absolute; left: 44%; top: 78%; width: 20px; height: 20px; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_bottom if remote_rabbit and remote_rabbit.state else '#d9d9d9' }};"></span>
+              <span id="led-nose-indicator" style="position: absolute; left: 44%; top: 33%; width: 20px; height: 20px; border: 2px solid rgba(24, 23, 21, 0.18); background: {{ remote_rabbit.state.led_nose if remote_rabbit and remote_rabbit.state else '#d9d9d9' }};"></span>
             </div>
           </div>
 
@@ -395,9 +395,9 @@
 
       const setLedIndicator = (node, color) => {
         if (!node) return;
-        const normalized = color || "#000000";
+        const normalized = !color || color.toLowerCase() === "#000000" ? "#d9d9d9" : color;
         node.style.background = normalized;
-        node.style.boxShadow = normalized === "#000000" ? "none" : `0 0 14px ${normalized}`;
+        node.style.boxShadow = normalized === "#d9d9d9" ? "none" : `0 0 14px ${normalized}`;
       };
 
       const refreshSummary = async () => {
