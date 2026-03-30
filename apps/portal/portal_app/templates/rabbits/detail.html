@@ -120,6 +120,14 @@
             <input type="file" name="audio_file" accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg">
             <button class="button primary" type="submit">Téléverser et lire</button>
           </form>
+
+          <form method="post" action="{{ url_for('main.rabbit_device_say', rabbit_id=rabbit.id) }}" class="stack">
+            <strong>Faire parler le lapin</strong>
+            <label>Message</label>
+            <textarea name="message" rows="4" maxlength="500" placeholder="Bonjour Lapinou, ceci est un test de synthèse vocale."></textarea>
+            <div class="meta">Synthèse vocale simple générée sur le serveur, puis lue par le lapin comme un audio local.</div>
+            <button class="button primary" type="submit">Synthétiser et lire</button>
+          </form>
         </div>
       </article>
 

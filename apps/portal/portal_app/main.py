@@ -105,6 +105,73 @@ def _normalize_serial(value: str | None) -> str:
     return "".join(character for character in (value or "").lower() if character in "0123456789abcdef")
 
 
+def _synthesize_tts_asset(*, rabbit_slug: str, text: str) -> tuple[Path, str]:
+    normalized_text = " ".join(text.split())
+    if not normalized_text:
+        raise ValueError("empty text")
+
+    token = secrets.token_hex(6)
+    wav_name = f"{rabbit_slug}-tts-{token}.wav"
+    wav_path = _audio_assets_dir() / wav_name
+
+    try:
+        espeak_result = subprocess.run(
+            [
+                "espeak",
+                "-v",
+                "fr",
+                "-s",
+                "155",
+                "-w",
+                str(wav_path),
+                normalized_text,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("espeak is not available on the server") from exc
+
+    if espeak_result.returncode != 0 or not wav_path.exists():
+        raise RuntimeError((espeak_result.stderr or espeak_result.stdout or "espeak failed").strip())
+
+    mp3_path = wav_path.with_suffix(".mp3")
+    try:
+        ffmpeg_result = subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-i",
+                str(wav_path),
+                "-codec:a",
+                "libmp3lame",
+                "-q:a",
+                "4",
+                str(mp3_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return wav_path, wav_name
+
+    if ffmpeg_result.returncode == 0 and mp3_path.exists():
+        try:
+            wav_path.unlink()
+        except OSError:
+            current_app.logger.warning("unable to delete wav tts asset after mp3 conversion: %s", wav_path)
+        return mp3_path, mp3_path.name
+
+    current_app.logger.warning(
+        "ffmpeg tts conversion failed for %s: %s",
+        wav_path,
+        (ffmpeg_result.stderr or ffmpeg_result.stdout)[-1000:],
+    )
+    return wav_path, wav_name
+
+
 def _maybe_transcode_recording_to_mp3(source_path: Path) -> Path:
     target_path = source_path.with_suffix(".mp3")
     try:
@@ -862,6 +929,39 @@ def rabbit_device_audio_upload(rabbit_id: int):
         payload={"url": asset_url, "source": "upload", "filename": original_name},
     )
     flash("Audio téléversé et lecture mise en file.", "success")
+    return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+
+@main_bp.post("/rabbits/<int:rabbit_id>/device/say")
+@login_required
+def rabbit_device_say(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    message = request.form.get("message", "").strip()
+    if not message:
+        flash("Message obligatoire.", "error")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+    if len(message) > 500:
+        flash("Message trop long. Limite: 500 caractères.", "error")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    try:
+        asset_path, asset_name = _synthesize_tts_asset(rabbit_slug=rabbit.slug, text=message)
+    except (ValueError, RuntimeError) as exc:
+        flash(f"Synthèse vocale impossible: {exc}", "error")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    asset_url = f"broadcast/ojn_local/audio/{asset_name}"
+    _enqueue_device_command(
+        rabbit,
+        command_type="audio",
+        payload={
+            "url": asset_url,
+            "source": "tts",
+            "filename": asset_path.name,
+            "text": message,
+        },
+    )
+    flash("Message synthétisé et lecture mise en file.", "success")
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
 
