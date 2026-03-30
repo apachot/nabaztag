@@ -178,4 +178,4 @@ def build_init_packet() -> bytes:
 
 
 def choreography_storage_path(root: Path, filename: str) -> Path:
-    return root / "chor" / filename
+    return root / filename
