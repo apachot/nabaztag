@@ -7,7 +7,7 @@ import time
 from mimetypes import guess_type
 from pathlib import Path
 
-from flask import Blueprint, Response, current_app, flash, redirect, render_template, request, send_file, url_for
+from flask import Blueprint, Response, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
 
@@ -40,6 +40,13 @@ from .models import (
 )
 
 main_bp = Blueprint("main", __name__)
+
+LIVE_EVENT_TYPES = {
+    "rabbit.button",
+    "rabbit.recording.uploaded",
+    "rabbit.rfid.detected",
+    "rabbit.ears.moved",
+}
 
 LED_COLOR_PRESETS = {
     "off": "#000000",
@@ -166,6 +173,60 @@ def _read_recording_transcript(recording_path: Path) -> dict | None:
     except Exception:
         current_app.logger.warning("unable to read transcript sidecar for %s", recording_path)
         return {"status": "error", "text": "", "error": "invalid transcript sidecar", "model": None}
+
+
+def _serialize_recording(recording: RabbitRecording) -> dict:
+    transcript = _read_recording_transcript(Path(recording.source_path))
+    return {
+        "id": recording.id,
+        "filename": recording.filename,
+        "created_at": recording.created_at.isoformat() if recording.created_at else None,
+        "mode": recording.mode,
+        "url": url_for("main.download_recording", filename=recording.filename),
+        "transcript": transcript,
+    }
+
+
+def _serialize_event_log(event: RabbitEventLog) -> dict:
+    try:
+        payload = json.loads(event.payload) if event.payload else None
+    except json.JSONDecodeError:
+        payload = {"raw": event.payload}
+    return {
+        "id": event.id,
+        "event_type": event.event_type,
+        "source": event.source,
+        "level": event.level,
+        "created_at": event.created_at.isoformat() if event.created_at else None,
+        "payload": payload,
+    }
+
+
+def _latest_ztamps_for_rabbit(rabbit_id: int, *, limit: int = 20) -> list[dict]:
+    events = (
+        RabbitEventLog.query.filter_by(rabbit_id=rabbit_id, event_type="rabbit.rfid.detected")
+        .order_by(RabbitEventLog.created_at.desc())
+        .all()
+    )
+    seen_tags: set[str] = set()
+    ztamps: list[dict] = []
+    for event in events:
+        serialized = _serialize_event_log(event)
+        payload = serialized.get("payload") or {}
+        tag = payload.get("tag")
+        if not tag or tag in seen_tags:
+            continue
+        seen_tags.add(tag)
+        ztamps.append(
+            {
+                "tag": tag,
+                "created_at": serialized.get("created_at"),
+                "serial": payload.get("serial"),
+            }
+        )
+        if len(ztamps) >= limit:
+            break
+    return ztamps
 
 
 def _synthesize_tts_asset(*, rabbit_slug: str, text: str) -> tuple[Path, str]:
@@ -662,6 +723,7 @@ def rabbit_detail(rabbit_id: int):
         .limit(20)
         .all()
     )
+    ztamps = _latest_ztamps_for_rabbit(rabbit.id)
     return render_template(
         "rabbits/detail.html",
         rabbit=rabbit,
@@ -674,7 +736,121 @@ def rabbit_detail(rabbit_id: int):
         available_devices=available_devices,
         recordings=recordings,
         queued_commands=queued_commands,
+        ztamps=ztamps,
         led_color_presets=LED_COLOR_PRESETS,
+    )
+
+
+@main_bp.get("/rabbits/<int:rabbit_id>/events/live")
+@login_required
+def rabbit_live_events(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    after_id_raw = request.args.get("after_id", "").strip()
+    query = RabbitEventLog.query.filter_by(rabbit_id=rabbit.id).filter(
+        RabbitEventLog.event_type.in_(LIVE_EVENT_TYPES)
+    )
+    if after_id_raw.isdigit():
+        query = query.filter(RabbitEventLog.id > int(after_id_raw))
+
+    events = query.order_by(RabbitEventLog.id.asc()).limit(50).all()
+    payload = []
+    for event in events:
+        try:
+            parsed_payload = json.loads(event.payload) if event.payload else None
+        except json.JSONDecodeError:
+            parsed_payload = {"raw": event.payload}
+        payload.append(
+            {
+                "id": event.id,
+                "event_type": event.event_type,
+                "source": event.source,
+                "created_at": event.created_at.isoformat() if event.created_at else None,
+                "payload": parsed_payload,
+            }
+        )
+    return jsonify({"events": payload})
+
+
+@main_bp.get("/rabbits/<int:rabbit_id>/recordings/live")
+@login_required
+def rabbit_live_recordings(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    recordings = (
+        RabbitRecording.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(RabbitRecording.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    return jsonify({"recordings": [_serialize_recording(recording) for recording in recordings]})
+
+
+@main_bp.get("/rabbits/<int:rabbit_id>/ztamps/live")
+@login_required
+def rabbit_live_ztamps(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    return jsonify({"ztamps": _latest_ztamps_for_rabbit(rabbit.id)})
+
+
+@main_bp.get("/rabbits/<int:rabbit_id>/history/live")
+@login_required
+def rabbit_live_history(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    events = (
+        RabbitEventLog.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(RabbitEventLog.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    return jsonify({"events": [_serialize_event_log(event) for event in events]})
+
+
+@main_bp.get("/rabbits/<int:rabbit_id>/summary/live")
+@login_required
+def rabbit_live_summary(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    linked_device = (
+        DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(DeviceObservation.last_seen_at.desc())
+        .first()
+    )
+
+    remote_state = None
+    remote_error = None
+    connection_status = rabbit.connection_status
+
+    if rabbit.remote_rabbit_id:
+        try:
+            remote_rabbit = fetch_remote_rabbit(rabbit.remote_rabbit_id)
+            remote_state = {
+                "connection_status": remote_rabbit.get("connection_status"),
+                "created_at": remote_rabbit.get("created_at"),
+                "updated_at": remote_rabbit.get("updated_at"),
+                "device_serial": remote_rabbit.get("device_serial"),
+                "state": remote_rabbit.get("state"),
+            }
+            connection_status = remote_rabbit.get("connection_status", connection_status)
+        except NabaztagApiError as exc:
+            remote_error = str(exc)
+
+    return jsonify(
+        {
+            "rabbit": {
+                "connection_status": connection_status,
+                "target": f"{rabbit.target_host}:{rabbit.target_port}" if rabbit.target_host else None,
+            },
+            "linked_device": {
+                "serial": linked_device.serial if linked_device else None,
+                "last_seen_at": linked_device.last_seen_at.isoformat() if linked_device and linked_device.last_seen_at else None,
+                "last_ip": linked_device.last_ip if linked_device else None,
+                "firmware": linked_device.firmware if linked_device else None,
+                "hardware": linked_device.hardware if linked_device else None,
+                "last_path": linked_device.last_path if linked_device else None,
+            }
+            if linked_device
+            else None,
+            "remote_state": remote_state,
+            "remote_error": remote_error,
+        }
     )
 
 
