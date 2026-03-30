@@ -173,6 +173,89 @@
         background: var(--panel-strong);
         box-shadow: var(--shadow);
       }
+      .timeline-entry {
+        position: relative;
+        padding-top: 14px;
+      }
+      .timeline-entry::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 84px;
+        height: 3px;
+        background: rgba(24, 23, 21, 0.12);
+      }
+      .timeline-entry.event-entry {
+        border-color: rgba(36, 59, 55, 0.14);
+        background:
+          linear-gradient(90deg, rgba(36, 59, 55, 0.08), transparent 18%),
+          rgba(255, 255, 255, 0.56);
+      }
+      .timeline-entry.event-entry::before {
+        background: var(--accent);
+      }
+      .timeline-entry.command-entry {
+        border-color: rgba(184, 99, 62, 0.16);
+        background:
+          linear-gradient(90deg, rgba(184, 99, 62, 0.1), transparent 18%),
+          rgba(255, 252, 247, 0.72);
+      }
+      .timeline-entry.command-entry::before {
+        background: var(--accent-2);
+      }
+      .entry-kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .entry-kicker::before {
+        content: "";
+        width: 10px;
+        height: 10px;
+        background: currentColor;
+      }
+      .timeline-entry.event-entry .entry-kicker {
+        color: var(--accent);
+      }
+      .timeline-entry.command-entry .entry-kicker {
+        color: var(--accent-2);
+      }
+      .timeline-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 18px;
+      }
+      .timeline-legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.34);
+        font-size: 0.88rem;
+      }
+      .timeline-legend-item::before {
+        content: "";
+        width: 10px;
+        height: 10px;
+        background: currentColor;
+      }
+      .timeline-legend-item.event {
+        color: var(--accent);
+        border-color: rgba(36, 59, 55, 0.12);
+      }
+      .timeline-legend-item.command {
+        color: var(--accent-2);
+        border-color: rgba(184, 99, 62, 0.16);
+      }
       .meta { color: var(--muted); font-size: 0.95rem; }
       .mono {
         font-family: "SFMono-Regular", Menlo, Monaco, Consolas, monospace;

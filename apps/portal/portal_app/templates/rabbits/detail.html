@@ -92,7 +92,7 @@
         </div>
         <div>
           <img
-            src="{{ rabbit_photo_url or 'https://commons.wikimedia.org/wiki/Special:FilePath/Nabaztag.jpg' }}"
+            src="{{ rabbit_photo_url or url_for('main.default_rabbit_photo') }}"
             alt="Photo de {{ rabbit.name }}"
             style="display: block; width: 100%; max-width: 360px; height: auto; border: 1px solid rgba(24, 23, 21, 0.08);"
           >

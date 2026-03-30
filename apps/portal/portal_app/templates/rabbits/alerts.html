@@ -18,11 +18,16 @@
 
     <section class="panel">
       <h2>Chronologie</h2>
+      <div class="timeline-legend">
+        <div class="timeline-legend-item event">Événement détecté par le lapin</div>
+        <div class="timeline-legend-item command">Action déclenchée depuis l’interface</div>
+      </div>
       <div id="live-events" class="stack" data-url="{{ url_for('main.rabbit_live_events', rabbit_id=rabbit.id) }}">
         {% for item in timeline_items %}
           {% if item.kind == "event" %}
             {% set event = item.data %}
-            <div class="rabbit-card">
+            <div class="rabbit-card timeline-entry event-entry">
+              <div class="entry-kicker">Événement détecté</div>
               <strong>
                 {% if event.event_type == "rabbit.button" %}
                   Appui sur le bouton du crâne
@@ -39,6 +44,11 @@
               <div class="meta">{{ event.created_at }}</div>
               {% if event.payload %}
                 <div class="mono" style="margin-top: 8px;">{{ event.payload }}</div>
+                {% if event.event_type == "rabbit.recording.uploaded" and event.payload.audio_url %}
+                  <div style="margin-top: 10px;">
+                    <audio controls preload="none" src="{{ event.payload.audio_url }}" style="width: 100%;"></audio>
+                  </div>
+                {% endif %}
                 {% if event.event_type == "rabbit.recording.uploaded" and event.payload.transcript and event.payload.transcript.text %}
                   <div style="margin-top: 10px;">
                     <strong>Texte détecté</strong>
@@ -49,7 +59,8 @@
             </div>
           {% else %}
             {% set command = item.data %}
-            <div class="rabbit-card">
+            <div class="rabbit-card timeline-entry command-entry">
+              <div class="entry-kicker">Action envoyée</div>
               <strong>Commande {{ command.command_type }}</strong>
               <div class="meta">{{ command.created_at }}</div>
               <div class="meta">Statut: {{ command.status }}</div>
@@ -105,7 +116,12 @@
 
       const renderEvent = (event) => {
         const card = document.createElement("div");
-        card.className = "rabbit-card";
+        card.className = "rabbit-card timeline-entry event-entry";
+
+        const kicker = document.createElement("div");
+        kicker.className = "entry-kicker";
+        kicker.textContent = "Événement détecté";
+        card.appendChild(kicker);
 
         const title = document.createElement("strong");
         title.textContent = describeEvent(event);
@@ -122,6 +138,20 @@
           details.style.marginTop = "8px";
           details.textContent = JSON.stringify(event.payload);
           card.appendChild(details);
+
+          if (event.event_type === "rabbit.recording.uploaded" && event.payload.audio_url) {
+            const audioWrap = document.createElement("div");
+            audioWrap.style.marginTop = "10px";
+
+            const audio = document.createElement("audio");
+            audio.controls = true;
+            audio.preload = "none";
+            audio.src = event.payload.audio_url;
+            audio.style.width = "100%";
+            audioWrap.appendChild(audio);
+
+            card.appendChild(audioWrap);
+          }
 
           if (event.event_type === "rabbit.recording.uploaded" && event.payload.transcript && event.payload.transcript.text) {
             const transcriptWrap = document.createElement("div");
