@@ -359,7 +359,11 @@ def _body_led_states_for_command(command: RabbitDeviceCommand) -> dict[str, str]
 
     with APP.app_context():
         history = (
-            RabbitDeviceCommand.query.filter_by(rabbit_id=command.rabbit_id, command_type="led")
+            RabbitDeviceCommand.query.filter(
+                RabbitDeviceCommand.rabbit_id == command.rabbit_id,
+                RabbitDeviceCommand.command_type == "led",
+                RabbitDeviceCommand.status.in_(("queued", "sent")),
+            )
             .order_by(RabbitDeviceCommand.created_at.asc(), RabbitDeviceCommand.id.asc())
             .all()
         )
