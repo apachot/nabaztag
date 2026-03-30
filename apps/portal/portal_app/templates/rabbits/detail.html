@@ -224,11 +224,11 @@
         <h2>Voix TTS</h2>
         <form method="post" action="{{ url_for('main.update_rabbit_tts_voice', rabbit_id=rabbit.id) }}" class="stack">
           <div class="meta">
-            Choisis une voix predefinie, ou saisis une valeur custom si tu veux tester autre chose avec
-            <span class="mono">espeak -v</span>.
+            Choisis une voix Voxtral. La valeur enregistree correspond au <span class="mono">voice_id</span>
+            envoye a l'API Mistral.
           </div>
           <select name="tts_voice">
-            {% for voice_value, voice_label in RABBIT_TTS_VOICE_PRESETS %}
+            {% for voice_value, voice_label in RABBIT_TTS_VOICE_OPTIONS %}
               <option value="{{ voice_value }}" {% if (rabbit.tts_voice or DEFAULT_RABBIT_TTS_VOICE) == voice_value %}selected{% endif %}>
                 {{ voice_label }} · {{ voice_value }}
               </option>
@@ -237,7 +237,7 @@
           <input
             type="text"
             name="tts_voice_custom"
-            placeholder="Valeur custom espeak, ex: fr+croak"
+            placeholder="Autre voice_id Mistral, ex: Curious"
             spellcheck="false"
             autocapitalize="off"
             autocomplete="off"

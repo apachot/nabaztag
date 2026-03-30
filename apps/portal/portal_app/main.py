@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import secrets
 import subprocess
@@ -73,15 +74,68 @@ DEFAULT_RABBIT_PERSONALITY_PROMPT = (
     "attachant."
 )
 
-DEFAULT_RABBIT_TTS_VOICE = "fr+f4"
+DEFAULT_RABBIT_TTS_VOICE = "Curious"
 RABBIT_TTS_VOICE_PRESETS = [
-    ("fr+f4", "Francaise mutine"),
-    ("fr+f3", "Francaise espiègle"),
-    ("fr+f5", "Francaise legere"),
-    ("french-mbrola-4", "MBROLA feminine"),
-    ("fr", "Francais classique"),
-    ("french-mbrola-1", "MBROLA classique"),
+    ("Curious", "Curious"),
 ]
+MISTRAL_TTS_MODEL = "voxtral-mini-tts-2603"
+MISTRAL_TTS_RESPONSE_FORMAT = "mp3"
+MISTRAL_TTS_LIST_VOICES_URL = "https://api.mistral.ai/v1/audio/voices"
+MISTRAL_TTS_SPEECH_URL = "https://api.mistral.ai/v1/audio/speech"
+
+
+def _mistral_json_request(*, api_key: str, url: str, payload: dict | None = None) -> dict:
+    request_headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Accept": "application/json",
+    }
+    request_body = None
+    if payload is not None:
+        request_headers["Content-Type"] = "application/json"
+        request_body = json.dumps(payload).encode("utf-8")
+
+    http_request = urllib_request.Request(url, data=request_body, headers=request_headers)
+    try:
+        with urllib_request.urlopen(http_request, timeout=45) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib_error.HTTPError as exc:
+        raw_error = exc.read().decode("utf-8", errors="replace")
+        try:
+            error_payload = json.loads(raw_error)
+        except json.JSONDecodeError:
+            error_payload = {}
+        message = error_payload.get("message")
+        if not message and isinstance(error_payload.get("error"), dict):
+            message = error_payload["error"].get("message")
+        if not message and isinstance(error_payload.get("error"), str):
+            message = error_payload.get("error")
+        raise RuntimeError(message or f"Mistral API error ({exc.code})") from exc
+    except urllib_error.URLError as exc:
+        raise RuntimeError("Impossible de joindre l'API Mistral.") from exc
+
+
+def _list_mistral_saved_voices(api_key: str) -> list[dict]:
+    payload = _mistral_json_request(api_key=api_key, url=MISTRAL_TTS_LIST_VOICES_URL)
+    voices = payload.get("data")
+    if not isinstance(voices, list):
+        return []
+    return [voice for voice in voices if isinstance(voice, dict) and voice.get("id")]
+
+
+def _build_rabbit_tts_voice_options(saved_voices: list[dict] | None = None) -> list[tuple[str, str]]:
+    options: list[tuple[str, str]] = list(RABBIT_TTS_VOICE_PRESETS)
+    if not saved_voices:
+        return options
+
+    known_values = {voice_value for voice_value, _voice_label in options}
+    for voice in saved_voices:
+        voice_id = str(voice.get("id", "")).strip()
+        if not voice_id or voice_id in known_values:
+            continue
+        voice_name = str(voice.get("name") or voice_id).strip()
+        options.append((voice_id, f"{voice_name} (voix sauvegardee)"))
+        known_values.add(voice_id)
+    return options
 
 
 def _portal_base_url() -> str:
@@ -317,67 +371,32 @@ def _synthesize_tts_asset(*, rabbit_slug: str, text: str, voice: str) -> tuple[P
     normalized_text = " ".join(text.split())
     if not normalized_text:
         raise ValueError("empty text")
+    if not current_user.mistral_api_key:
+        raise RuntimeError("Ajoute d'abord ton token Mistral dans Mon compte.")
 
     token = secrets.token_hex(6)
-    wav_name = f"{rabbit_slug}-tts-{token}.wav"
-    wav_path = _audio_assets_dir() / wav_name
-
-    try:
-        espeak_result = subprocess.run(
-            [
-                "espeak",
-                "-v",
-                voice,
-                "-s",
-                "155",
-                "-w",
-                str(wav_path),
-                normalized_text,
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except FileNotFoundError as exc:
-        raise RuntimeError("espeak is not available on the server") from exc
-
-    if espeak_result.returncode != 0 or not wav_path.exists():
-        raise RuntimeError((espeak_result.stderr or espeak_result.stdout or "espeak failed").strip())
-
-    mp3_path = wav_path.with_suffix(".mp3")
-    try:
-        ffmpeg_result = subprocess.run(
-            [
-                "ffmpeg",
-                "-y",
-                "-i",
-                str(wav_path),
-                "-codec:a",
-                "libmp3lame",
-                "-q:a",
-                "4",
-                str(mp3_path),
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except FileNotFoundError:
-        return wav_path, wav_name
-
-    if ffmpeg_result.returncode == 0 and mp3_path.exists():
-        try:
-            wav_path.unlink()
-        except OSError:
-            current_app.logger.warning("unable to delete wav tts asset after mp3 conversion: %s", wav_path)
-        return mp3_path, mp3_path.name
-
-    current_app.logger.warning(
-        "ffmpeg tts conversion failed for %s: %s",
-        wav_path,
-        (ffmpeg_result.stderr or ffmpeg_result.stdout)[-1000:],
+    asset_name = f"{rabbit_slug}-tts-{token}.mp3"
+    asset_path = _audio_assets_dir() / asset_name
+    payload = {
+        "model": MISTRAL_TTS_MODEL,
+        "input": normalized_text,
+        "voice_id": voice,
+        "response_format": MISTRAL_TTS_RESPONSE_FORMAT,
+    }
+    response_payload = _mistral_json_request(
+        api_key=current_user.mistral_api_key,
+        url=MISTRAL_TTS_SPEECH_URL,
+        payload=payload,
     )
-    return wav_path, wav_name
+    audio_data = response_payload.get("audio_data")
+    if not isinstance(audio_data, str) or not audio_data.strip():
+        raise RuntimeError("Réponse TTS Mistral invalide.")
+
+    try:
+        asset_path.write_bytes(base64.b64decode(audio_data))
+    except (ValueError, OSError) as exc:
+        raise RuntimeError("Impossible d'enregistrer l'audio genere par Mistral.") from exc
+    return asset_path, asset_name
 
 
 def _extract_openai_text(payload: dict) -> str:
@@ -959,6 +978,7 @@ def rabbit_detail(rabbit_id: int):
     remote_rabbit = None
     remote_events: list[dict] = []
     remote_error = None
+    saved_mistral_voices: list[dict] = []
 
     linked_device = (
         DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
@@ -992,6 +1012,12 @@ def rabbit_detail(rabbit_id: int):
                     remote_error = str(sync_exc)
             else:
                 remote_error = str(exc)
+
+    if current_user.mistral_api_key:
+        try:
+            saved_mistral_voices = _list_mistral_saved_voices(current_user.mistral_api_key)
+        except RuntimeError as exc:
+            current_app.logger.warning("unable to list Mistral voices for user %s: %s", current_user.id, exc)
 
     remote_rabbit = _apply_local_device_state(
         rabbit,
@@ -1048,7 +1074,7 @@ def rabbit_detail(rabbit_id: int):
         led_color_presets=LED_COLOR_PRESETS,
         DEFAULT_RABBIT_PERSONALITY_PROMPT=DEFAULT_RABBIT_PERSONALITY_PROMPT,
         DEFAULT_RABBIT_TTS_VOICE=DEFAULT_RABBIT_TTS_VOICE,
-        RABBIT_TTS_VOICE_PRESETS=RABBIT_TTS_VOICE_PRESETS,
+        RABBIT_TTS_VOICE_OPTIONS=_build_rabbit_tts_voice_options(saved_mistral_voices),
         rabbit_photo_url=_rabbit_photo_url(rabbit),
     )
 
@@ -1617,6 +1643,13 @@ def rabbit_device_say(rabbit_id: int):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
     mode = request.form.get("mode", "manual").strip().lower()
     message = request.form.get("message", "").strip()
+
+    if not current_user.mistral_api_key:
+        error_message = "Ajoute d'abord ton token Mistral dans Mon compte."
+        flash(error_message, "error")
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"ok": False, "message": error_message}), 400
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     if mode == "generate":
         if not current_user.openai_api_key:
