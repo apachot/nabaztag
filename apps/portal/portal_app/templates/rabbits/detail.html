@@ -3,6 +3,17 @@
 {% block title %}{{ rabbit.name }} | Nabaztag Portal{% endblock %}
 
 {% block content %}
+  <style>
+    #led-layout [data-led-target] {
+      cursor: pointer !important;
+    }
+
+    #led-layout [data-led-target]:hover {
+      transform: scale(1.08);
+      box-shadow: 0 0 0 1px rgba(24, 23, 21, 0.14), 0 0 0 8px rgba(255, 255, 255, 0.16);
+    }
+  </style>
+
   <section class="stack">
     <section class="hero">
       <div class="hero-split">
