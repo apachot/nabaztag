@@ -350,36 +350,6 @@ def _choreography_root() -> Path:
     return root
 
 
-def _body_led_states_for_command(command: RabbitDeviceCommand) -> dict[str, str]:
-    payload = json.loads(command.payload or "{}")
-    target = payload.get("target")
-    color = payload.get("color")
-    if target not in {"left", "center", "right"} or not color:
-        return {}
-
-    with APP.app_context():
-        history = (
-            RabbitDeviceCommand.query.filter(
-                RabbitDeviceCommand.rabbit_id == command.rabbit_id,
-                RabbitDeviceCommand.command_type == "led",
-                RabbitDeviceCommand.status.in_(("queued", "sent")),
-            )
-            .order_by(RabbitDeviceCommand.created_at.asc(), RabbitDeviceCommand.id.asc())
-            .all()
-        )
-    states = {"left": "#000000", "center": "#000000", "right": "#000000"}
-    for item in history:
-        try:
-            item_payload = json.loads(item.payload or "{}")
-        except json.JSONDecodeError:
-            continue
-        item_target = item_payload.get("target")
-        item_color = item_payload.get("color")
-        if item_target in states and item_color:
-            states[item_target] = item_color
-    return states
-
-
 def _build_packet_for_command(command: RabbitDeviceCommand) -> EncodedPacket:
     payload = json.loads(command.payload or "{}")
     if command.command_type == "audio":
@@ -391,7 +361,9 @@ def _build_packet_for_command(command: RabbitDeviceCommand) -> EncodedPacket:
         color = payload["color"]
         if target in {"nose", "bottom"}:
             return build_nose_or_bottom_packet(target, color)
-        states = _body_led_states_for_command(command)
+        states = {"left": "#000000", "center": "#000000", "right": "#000000"}
+        if target in states:
+            states[target] = color
         filename = f"rabbit-{command.rabbit_id}-{command.id}-body.chor"
         packet, choreography = build_choreography_packet(states=states, filename=filename)
         choreography_path = _choreography_root() / filename
