@@ -221,6 +221,28 @@
       </article>
 
       <article class="panel">
+        <h2>Voix TTS</h2>
+        <form method="post" action="{{ url_for('main.update_rabbit_tts_voice', rabbit_id=rabbit.id) }}" class="stack">
+          <div class="meta">
+            Valeur envoyee a <span class="mono">espeak -v</span>. Exemples utiles : <span class="mono">fr</span>,
+            <span class="mono">fr+f3</span>, <span class="mono">fr+m3</span>.
+          </div>
+          <input
+            type="text"
+            name="tts_voice"
+            value="{{ rabbit.tts_voice or DEFAULT_RABBIT_TTS_VOICE }}"
+            placeholder="fr"
+            spellcheck="false"
+            autocapitalize="off"
+            autocomplete="off"
+          >
+          <div class="actions">
+            <button class="button primary" type="submit">Enregistrer la voix</button>
+          </div>
+        </form>
+      </article>
+
+      <article class="panel">
         <h2>Ztamp's</h2>
         <div class="meta">Tags RFID déjà détectés par ce lapin.</div>
         <div class="stack" id="ztamps-list" data-url="{{ url_for('main.rabbit_live_ztamps', rabbit_id=rabbit.id) }}" style="margin-top: 16px;">

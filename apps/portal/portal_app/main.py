@@ -73,6 +73,8 @@ DEFAULT_RABBIT_PERSONALITY_PROMPT = (
     "attachant."
 )
 
+DEFAULT_RABBIT_TTS_VOICE = "fr"
+
 
 def _portal_base_url() -> str:
     return request.url_root.rstrip("/") + (request.script_root or "")
@@ -303,7 +305,7 @@ def _latest_ztamps_for_rabbit(rabbit_id: int, *, limit: int = 20) -> list[dict]:
     return payload
 
 
-def _synthesize_tts_asset(*, rabbit_slug: str, text: str) -> tuple[Path, str]:
+def _synthesize_tts_asset(*, rabbit_slug: str, text: str, voice: str) -> tuple[Path, str]:
     normalized_text = " ".join(text.split())
     if not normalized_text:
         raise ValueError("empty text")
@@ -317,7 +319,7 @@ def _synthesize_tts_asset(*, rabbit_slug: str, text: str) -> tuple[Path, str]:
             [
                 "espeak",
                 "-v",
-                "fr",
+                voice,
                 "-s",
                 "155",
                 "-w",
@@ -917,6 +919,16 @@ def update_rabbit_prompt(rabbit_id: int):
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
 
+@main_bp.post("/rabbits/<int:rabbit_id>/tts-voice")
+@login_required
+def update_rabbit_tts_voice(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    rabbit.tts_voice = request.form.get("tts_voice", "").strip() or DEFAULT_RABBIT_TTS_VOICE
+    db.session.commit()
+    flash("Voix TTS du lapin mise a jour.", "success")
+    return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+
 @main_bp.get("/rabbits/<int:rabbit_id>")
 @login_required
 def rabbit_detail(rabbit_id: int):
@@ -1012,6 +1024,7 @@ def rabbit_detail(rabbit_id: int):
         ztamps=ztamps,
         led_color_presets=LED_COLOR_PRESETS,
         DEFAULT_RABBIT_PERSONALITY_PROMPT=DEFAULT_RABBIT_PERSONALITY_PROMPT,
+        DEFAULT_RABBIT_TTS_VOICE=DEFAULT_RABBIT_TTS_VOICE,
         rabbit_photo_url=_rabbit_photo_url(rabbit),
     )
 
@@ -1361,6 +1374,7 @@ def create_rabbit():
                 target_port=int(target_port) if target_port else 10543,
                 notes=notes or None,
                 personality_prompt=DEFAULT_RABBIT_PERSONALITY_PROMPT,
+                tts_voice=DEFAULT_RABBIT_TTS_VOICE,
                 provisioning_state="registered",
                 remote_rabbit_id=remote_payload["id"] if remote_payload else None,
             )
@@ -1614,7 +1628,11 @@ def rabbit_device_say(rabbit_id: int):
             return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     try:
-        asset_path, asset_name = _synthesize_tts_asset(rabbit_slug=rabbit.slug, text=message)
+        asset_path, asset_name = _synthesize_tts_asset(
+            rabbit_slug=rabbit.slug,
+            text=message,
+            voice=rabbit.tts_voice or DEFAULT_RABBIT_TTS_VOICE,
+        )
     except (ValueError, RuntimeError) as exc:
         error_message = f"Synthèse vocale impossible: {exc}"
         flash(error_message, "error")
