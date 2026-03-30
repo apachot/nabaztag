@@ -40,6 +40,15 @@ from .models import (
 
 main_bp = Blueprint("main", __name__)
 
+LED_COLOR_PRESETS = {
+    "off": "#000000",
+    "warm": "#ff6600",
+    "red": "#ff0000",
+    "green": "#00ff00",
+    "blue": "#0000ff",
+    "white": "#ffffff",
+}
+
 
 def _portal_base_url() -> str:
     return request.url_root.rstrip("/") + (request.script_root or "")
@@ -481,6 +490,7 @@ def rabbit_detail(rabbit_id: int):
         available_devices=available_devices,
         recordings=recordings,
         queued_commands=queued_commands,
+        led_color_presets=LED_COLOR_PRESETS,
     )
 
 
@@ -741,14 +751,15 @@ def rabbit_device_ears(rabbit_id: int):
 def rabbit_device_led(rabbit_id: int):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
     target = request.form.get("target", "").strip().lower()
-    color = request.form.get("color", "").strip().lower()
-    if target not in {"nose", "left", "center", "right", "bottom"} or not color.startswith("#") or len(color) != 7:
+    color_preset = request.form.get("color_preset", "").strip().lower()
+    color = LED_COLOR_PRESETS.get(color_preset)
+    if target not in {"nose", "left", "center", "right", "bottom"} or color is None:
         flash("Commande LED invalide.", "error")
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
     _enqueue_device_command(
         rabbit,
         command_type="led",
-        payload={"target": target, "color": color},
+        payload={"target": target, "color": color, "preset": color_preset},
     )
     flash("Commande LED mise en file.", "success")
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))

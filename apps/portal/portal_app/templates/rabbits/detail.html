@@ -80,8 +80,16 @@
               <option value="right">Corps droite</option>
               <option value="bottom">LED du bas</option>
             </select>
-            <label>Couleur</label>
-            <input type="color" name="color" value="#ff6600">
+            <label>Couleur prédéfinie</label>
+            <select name="color_preset">
+              <option value="off">Éteint</option>
+              <option value="warm">Orange</option>
+              <option value="red">Rouge</option>
+              <option value="green">Vert</option>
+              <option value="blue">Bleu</option>
+              <option value="white">Blanc</option>
+            </select>
+            <div class="meta">Presets limités aux couleurs validées pour éviter les animations incohérentes.</div>
             <button class="button primary" type="submit">Changer la LED</button>
           </form>
 
