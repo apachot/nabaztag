@@ -8,6 +8,7 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
+from datetime import timedelta
 from pathlib import Path
 
 from . import create_app
@@ -23,6 +24,7 @@ from .models import DeviceObservation, RabbitDeviceCommand, RabbitEventLog, Rabb
 from .extensions import db
 
 LOG = logging.getLogger("nabaztag.xmpp")
+LED_REFRESH_INTERVAL = timedelta(seconds=2)
 
 SASL_NS = "urn:ietf:params:xml:ns:xmpp-sasl"
 STREAM_NS = "http://etherx.jabber.org/streams"
@@ -405,6 +407,59 @@ async def _dispatch_commands_once() -> None:
                     )
                 )
                 db.session.commit()
+
+    await _refresh_sticky_leds()
+
+
+async def _refresh_sticky_leds() -> None:
+    with APP.app_context():
+        led_commands = (
+            RabbitDeviceCommand.query.filter_by(command_type="led")
+            .order_by(RabbitDeviceCommand.created_at.desc())
+            .all()
+        )
+
+    latest_by_target: dict[tuple[str, str], RabbitDeviceCommand] = {}
+    for command in led_commands:
+        try:
+            payload = json.loads(command.payload or "{}")
+        except json.JSONDecodeError:
+            continue
+        target = str(payload.get("target") or "")
+        if not target:
+            continue
+        key = (command.serial.lower(), target)
+        if key not in latest_by_target:
+            latest_by_target[key] = command
+
+    now = utc_now()
+    for command in latest_by_target.values():
+        try:
+            payload = json.loads(command.payload or "{}")
+        except json.JSONDecodeError:
+            continue
+        color = str(payload.get("color") or "").lower()
+        if command.status != "sent" or color == "#000000":
+            continue
+        if command.sent_at and now - command.sent_at < LED_REFRESH_INTERVAL:
+            continue
+
+        session = ACTIVE_SESSIONS.get(command.serial.lower())
+        if session is None or not session.resource:
+            continue
+
+        try:
+            packet = _build_packet_for_command(command)
+            await session.send_packet(packet)
+            with APP.app_context():
+                current = db.session.get(RabbitDeviceCommand, command.id)
+                if current is None:
+                    continue
+                current.sent_at = utc_now()
+                db.session.add(current)
+                db.session.commit()
+        except Exception:
+            LOG.exception("sticky led refresh failure id=%s", command.id)
 
 
 async def _dispatch_loop() -> None:
