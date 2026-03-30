@@ -117,9 +117,10 @@ EAR_ACTION_TO_POSITION = {
     "center": 8,
     "backward": 16,
 }
-CONVERSATION_RECENT_TURNS_LIMIT = 10
-CONVERSATION_SUMMARY_TRIGGER_TURNS = 14
-CONVERSATION_SUMMARY_TARGET_KEEP = 6
+CONVERSATION_MAX_EXCHANGES = 4
+CONVERSATION_MAX_TURNS = CONVERSATION_MAX_EXCHANGES * 2
+CONVERSATION_RECENT_TURNS_LIMIT = CONVERSATION_MAX_TURNS
+CONVERSATION_MAX_AGE_MINUTES = 15
 
 
 def _mistral_json_request(*, api_key: str, url: str, payload: dict | None = None) -> dict:
@@ -350,93 +351,47 @@ def _append_conversation_turn(
     )
     db.session.add(turn)
     db.session.commit()
+    _prune_rabbit_conversation(rabbit)
     return turn
 
 
-def _summarize_conversation_turns(
-    *,
-    api_key: str,
-    model: str,
-    existing_summary: str,
-    turns: list[RabbitConversationTurn],
-) -> str:
-    transcript_lines = []
-    for turn in turns:
-        label = "Utilisateur" if turn.role == "user" else "Lapin"
-        transcript_lines.append(f"{label}: {turn.text}")
-    response_payload = _mistral_json_request(
-        api_key=api_key,
-        url="https://api.mistral.ai/v1/chat/completions",
-        payload={
-            "model": model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": (
-                        "Tu compresses un historique de conversation entre un humain et un lapin Nabaztag. "
-                        "Ecris un resume compact en francais, utile pour poursuivre la conversation. "
-                        "Garde les informations durables, les sujets ouverts, les preferences, l'humeur, "
-                        "les promesses faites et les running gags. Oublie les details sans importance."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": (
-                        f"Resume existant:\n{existing_summary or '(aucun)'}\n\n"
-                        f"Nouveaux tours a compresser:\n" + "\n".join(transcript_lines)
-                    ),
-                },
-            ],
-            "max_tokens": 220,
-            "temperature": 0.3,
-        },
+def _prune_rabbit_conversation(rabbit: Rabbit) -> None:
+    had_summary = bool(rabbit.conversation_summary or rabbit.conversation_summary_turn_id)
+    cutoff_time = datetime.utcnow() - timedelta(minutes=CONVERSATION_MAX_AGE_MINUTES)
+    retained_turns = (
+        RabbitConversationTurn.query.filter_by(rabbit_id=rabbit.id)
+        .filter(RabbitConversationTurn.created_at >= cutoff_time)
+        .order_by(RabbitConversationTurn.id.desc())
+        .limit(CONVERSATION_MAX_TURNS)
+        .all()
     )
-    summary = _extract_mistral_chat_text(response_payload)
-    if not summary:
-        raise RuntimeError("Mistral n'a pas renvoye de resume de conversation.")
-    return " ".join(summary.split())
+    retained_ids = {turn.id for turn in retained_turns}
+    stale_turns = (
+        RabbitConversationTurn.query.filter_by(rabbit_id=rabbit.id)
+        .filter(~RabbitConversationTurn.id.in_(retained_ids))
+        .all()
+        if retained_ids
+        else []
+    )
+    for stale_turn in stale_turns:
+        db.session.delete(stale_turn)
+
+    rabbit.conversation_summary = None
+    rabbit.conversation_summary_turn_id = None
+
+    if stale_turns or had_summary:
+        db.session.commit()
 
 
 def _maybe_compact_rabbit_conversation(rabbit: Rabbit, *, api_key: str, model: str) -> None:
-    cutoff_id = rabbit.conversation_summary_turn_id or 0
-    unsummarized_turns = (
-        RabbitConversationTurn.query.filter_by(rabbit_id=rabbit.id)
-        .filter(RabbitConversationTurn.id > cutoff_id)
-        .order_by(RabbitConversationTurn.id.asc())
-        .all()
-    )
-    if len(unsummarized_turns) < CONVERSATION_SUMMARY_TRIGGER_TURNS:
-        return
-
-    turns_to_summarize = unsummarized_turns[:-CONVERSATION_SUMMARY_TARGET_KEEP]
-    if not turns_to_summarize:
-        return
-
-    summary = _summarize_conversation_turns(
-        api_key=api_key,
-        model=model,
-        existing_summary=rabbit.conversation_summary or "",
-        turns=turns_to_summarize,
-    )
-    rabbit.conversation_summary = summary
-    rabbit.conversation_summary_turn_id = turns_to_summarize[-1].id
-    db.session.commit()
+    del api_key, model
+    _prune_rabbit_conversation(rabbit)
 
 
 def _conversation_messages_for_generation(rabbit: Rabbit) -> list[dict[str, str]]:
     messages: list[dict[str, str]] = []
-    if rabbit.conversation_summary:
-        messages.append(
-            {
-                "role": "system",
-                "content": f"Memoire de conversation compressee:\n{rabbit.conversation_summary}",
-            }
-        )
-
-    cutoff_id = rabbit.conversation_summary_turn_id or 0
     recent_turns = list(
         RabbitConversationTurn.query.filter_by(rabbit_id=rabbit.id)
-        .filter(RabbitConversationTurn.id > cutoff_id)
         .order_by(RabbitConversationTurn.id.desc())
         .limit(CONVERSATION_RECENT_TURNS_LIMIT)
         .all()
@@ -1456,6 +1411,7 @@ def update_rabbit_llm_model(rabbit_id: int):
 @login_required
 def rabbit_detail(rabbit_id: int):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    _prune_rabbit_conversation(rabbit)
     remote_rabbit = None
     remote_events: list[dict] = []
     remote_error = None
@@ -1542,7 +1498,7 @@ def rabbit_detail(rabbit_id: int):
     conversation_turns = (
         RabbitConversationTurn.query.filter_by(rabbit_id=rabbit.id)
         .order_by(RabbitConversationTurn.created_at.desc())
-        .limit(20)
+        .limit(CONVERSATION_MAX_TURNS)
         .all()
     )
     for recording in recordings:
@@ -1703,10 +1659,11 @@ def rabbit_live_recordings(rabbit_id: int):
 @login_required
 def rabbit_live_conversation(rabbit_id: int):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    _prune_rabbit_conversation(rabbit)
     turns = (
         RabbitConversationTurn.query.filter_by(rabbit_id=rabbit.id)
         .order_by(RabbitConversationTurn.created_at.desc())
-        .limit(30)
+        .limit(CONVERSATION_MAX_TURNS)
         .all()
     )
     return jsonify(
