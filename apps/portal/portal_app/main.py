@@ -78,6 +78,14 @@ DEFAULT_RABBIT_TTS_VOICE = "Curious"
 RABBIT_TTS_VOICE_PRESETS = [
     ("Curious", "Curious"),
 ]
+LEGACY_RABBIT_TTS_VOICES = {
+    "fr",
+    "fr+f3",
+    "fr+f4",
+    "fr+f5",
+    "french-mbrola-1",
+    "french-mbrola-4",
+}
 MISTRAL_TTS_MODEL = "voxtral-mini-tts-2603"
 MISTRAL_TTS_RESPONSE_FORMAT = "mp3"
 MISTRAL_TTS_LIST_VOICES_URL = "https://api.mistral.ai/v1/audio/voices"
@@ -136,6 +144,19 @@ def _build_rabbit_tts_voice_options(saved_voices: list[dict] | None = None) -> l
         options.append((voice_id, f"{voice_name} (voix sauvegardee)"))
         known_values.add(voice_id)
     return options
+
+
+def _normalize_rabbit_tts_voice(rabbit: Rabbit, voice_options: list[tuple[str, str]]) -> str:
+    current_voice = (rabbit.tts_voice or "").strip()
+    allowed_values = {voice_value for voice_value, _voice_label in voice_options}
+    if current_voice and current_voice not in LEGACY_RABBIT_TTS_VOICES and current_voice in allowed_values:
+        return current_voice
+    if current_voice and current_voice not in LEGACY_RABBIT_TTS_VOICES and current_voice not in allowed_values:
+        return current_voice
+    if rabbit.tts_voice != DEFAULT_RABBIT_TTS_VOICE:
+        rabbit.tts_voice = DEFAULT_RABBIT_TTS_VOICE
+        db.session.commit()
+    return DEFAULT_RABBIT_TTS_VOICE
 
 
 def _portal_base_url() -> str:
@@ -1018,6 +1039,8 @@ def rabbit_detail(rabbit_id: int):
             saved_mistral_voices = _list_mistral_saved_voices(current_user.mistral_api_key)
         except RuntimeError as exc:
             current_app.logger.warning("unable to list Mistral voices for user %s: %s", current_user.id, exc)
+    rabbit_tts_voice_options = _build_rabbit_tts_voice_options(saved_mistral_voices)
+    rabbit_tts_voice = _normalize_rabbit_tts_voice(rabbit, rabbit_tts_voice_options)
 
     remote_rabbit = _apply_local_device_state(
         rabbit,
@@ -1074,7 +1097,8 @@ def rabbit_detail(rabbit_id: int):
         led_color_presets=LED_COLOR_PRESETS,
         DEFAULT_RABBIT_PERSONALITY_PROMPT=DEFAULT_RABBIT_PERSONALITY_PROMPT,
         DEFAULT_RABBIT_TTS_VOICE=DEFAULT_RABBIT_TTS_VOICE,
-        RABBIT_TTS_VOICE_OPTIONS=_build_rabbit_tts_voice_options(saved_mistral_voices),
+        RABBIT_TTS_VOICE_OPTIONS=rabbit_tts_voice_options,
+        rabbit_tts_voice=rabbit_tts_voice,
         rabbit_photo_url=_rabbit_photo_url(rabbit),
     )
 
@@ -1685,10 +1709,11 @@ def rabbit_device_say(rabbit_id: int):
             return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     try:
+        voice = _normalize_rabbit_tts_voice(rabbit, _build_rabbit_tts_voice_options())
         asset_path, asset_name = _synthesize_tts_asset(
             rabbit_slug=rabbit.slug,
             text=message,
-            voice=rabbit.tts_voice or DEFAULT_RABBIT_TTS_VOICE,
+            voice=voice,
         )
     except (ValueError, RuntimeError) as exc:
         error_message = f"Synthèse vocale impossible: {exc}"

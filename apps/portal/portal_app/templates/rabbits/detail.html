@@ -229,7 +229,7 @@
           </div>
           <select name="tts_voice">
             {% for voice_value, voice_label in RABBIT_TTS_VOICE_OPTIONS %}
-              <option value="{{ voice_value }}" {% if (rabbit.tts_voice or DEFAULT_RABBIT_TTS_VOICE) == voice_value %}selected{% endif %}>
+              <option value="{{ voice_value }}" {% if rabbit_tts_voice == voice_value %}selected{% endif %}>
                 {{ voice_label }} · {{ voice_value }}
               </option>
             {% endfor %}
