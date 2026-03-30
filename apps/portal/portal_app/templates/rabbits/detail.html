@@ -6,6 +6,15 @@
   <section class="stack">
     <section class="hero">
       <h1>{{ rabbit.name }}</h1>
+      {% if rabbit_photo_url %}
+        <div style="margin: 18px 0 20px;">
+          <img
+            src="{{ rabbit_photo_url }}"
+            alt="Photo de {{ rabbit.name }}"
+            style="display: block; width: 100%; max-width: 360px; height: auto; border: 1px solid rgba(24, 23, 21, 0.08);"
+          >
+        </div>
+      {% endif %}
       <div class="meta">Slug: <span class="mono">{{ rabbit.slug }}</span></div>
       <div class="meta">Statut local: <span id="rabbit-status">{{ rabbit.connection_status }}</span></div>
       <div class="meta">
@@ -36,21 +45,31 @@
         <p>{{ rabbit.notes }}</p>
       {% endif %}
       <div class="actions" style="margin-top: 16px;">
+        <a class="pill icon-pill" href="#live-events-panel" title="Voir les alertes" aria-label="Voir les alertes">⌁</a>
         <a class="pill" href="{{ url_for('main.edit_rabbit', rabbit_id=rabbit.id) }}">Modifier</a>
-        <a class="pill" href="{{ url_for('main.rabbit_provisioning', rabbit_id=rabbit.id) }}">Provisioning</a>
-        <form method="post" action="{{ url_for('main.rabbit_action', rabbit_id=rabbit.id) }}">
-          <input type="hidden" name="action" value="connect">
-          <button class="button primary" type="submit">Connecter</button>
-        </form>
-        <form method="post" action="{{ url_for('main.rabbit_action', rabbit_id=rabbit.id) }}">
-          <input type="hidden" name="action" value="sync">
-          <button class="pill" type="submit">Sync</button>
-        </form>
-        <form method="post" action="{{ url_for('main.rabbit_action', rabbit_id=rabbit.id) }}">
-          <input type="hidden" name="action" value="disconnect">
-          <button class="pill" type="submit">Déconnecter</button>
-        </form>
+        <a class="pill" href="{{ url_for('main.rabbit_details', rabbit_id=rabbit.id) }}">Détails</a>
       </div>
+      <form
+        method="post"
+        action="{{ url_for('main.upload_rabbit_photo', rabbit_id=rabbit.id) }}"
+        enctype="multipart/form-data"
+        class="stack"
+        style="margin-top: 22px; max-width: 420px;"
+      >
+        <strong>Photo du Nabaztag</strong>
+        <label>Téléverser une image</label>
+        <input type="file" name="photo_file" accept=".jpg,.jpeg,.png,.webp,.gif,image/jpeg,image/png,image/webp,image/gif">
+        <div class="meta">
+          Ajoute une photo du lapin pour l’identifier visuellement dans le portail.
+          Formats acceptés : JPG, PNG, WEBP, GIF.
+        </div>
+        <div class="actions">
+          <button class="button primary" type="submit">Téléverser la photo</button>
+          {% if rabbit.photo_original_name %}
+            <span class="meta">Fichier actuel : {{ rabbit.photo_original_name }}</span>
+          {% endif %}
+        </div>
+      </form>
     </section>
 
     {% if remote_error %}
@@ -131,47 +150,6 @@
         </div>
       </article>
 
-      <article class="panel">
-        <h2>Lapin physique détecté</h2>
-        {% if linked_device %}
-          <div class="rabbit-card">
-            <strong><span class="mono">{{ linked_device.serial }}</span></strong>
-            <div class="meta">Dernière vue: {{ linked_device.last_seen_at }}</div>
-            <div class="meta">IP source: {{ linked_device.last_ip or "n/a" }}</div>
-            <div class="meta">Firmware: {{ linked_device.firmware or "n/a" }}</div>
-            <div class="meta">Hardware: {{ linked_device.hardware or "n/a" }}</div>
-            <div class="meta">Dernier chemin: <span class="mono">{{ linked_device.last_path or "n/a" }}</span></div>
-          </div>
-        {% else %}
-          <p>Aucun lapin physique n’est encore rattaché à cette fiche.</p>
-        {% endif %}
-
-        {% if available_devices %}
-          <div class="stack" style="margin-top: 16px;">
-            {% for device in available_devices %}
-              <div class="rabbit-card">
-                <strong><span class="mono">{{ device.serial }}</span></strong>
-                <div class="meta">Dernière vue: {{ device.last_seen_at }}</div>
-                <div class="meta">IP source: {{ device.last_ip or "n/a" }}</div>
-                <div class="meta">Firmware: {{ device.firmware or "n/a" }}</div>
-                <div class="meta">Hardware: {{ device.hardware or "n/a" }}</div>
-                <div class="meta">Dernier chemin: <span class="mono">{{ device.last_path or "n/a" }}</span></div>
-                {% if device.rabbit_id == rabbit.id %}
-                  <div class="notice" style="margin-top: 12px;">Ce lapin physique est déjà rattaché à cette fiche.</div>
-                {% elif device.rabbit_id %}
-                  <div class="notice" style="margin-top: 12px;">Ce lapin physique est déjà rattaché à une autre fiche.</div>
-                {% else %}
-                  <form method="post" action="{{ url_for('main.claim_device', rabbit_id=rabbit.id) }}" style="margin-top: 12px;">
-                    <input type="hidden" name="observation_id" value="{{ device.id }}">
-                    <button class="button primary" type="submit">Rattacher ce lapin physique</button>
-                  </form>
-                {% endif %}
-              </div>
-            {% endfor %}
-          </div>
-        {% endif %}
-      </article>
-
       <article class="panel" id="device-state-panel" data-url="{{ url_for('main.rabbit_live_summary', rabbit_id=rabbit.id) }}">
         <h2>État device</h2>
         <div id="device-state-content">
@@ -187,7 +165,7 @@
         </div>
       </article>
 
-      <article class="panel">
+      <article class="panel" id="live-events-panel">
         <h2>Événements en temps réel</h2>
         <div class="meta">Affiche les nouveaux appuis bouton, enregistrements, tags RFID et mouvements d’oreilles.</div>
         <div

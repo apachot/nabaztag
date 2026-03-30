@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 from flask import Flask
+from sqlalchemy import text
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .auth import auth_bp
@@ -51,9 +52,27 @@ def create_app() -> Flask:
         from . import models
 
         db.create_all()
+        _ensure_portal_schema()
 
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok", "service": "nabaztag-portal"}
 
     return app
+
+
+def _ensure_portal_schema() -> None:
+    inspector = db.inspect(db.engine)
+    rabbit_columns = {column["name"] for column in inspector.get_columns("rabbit")}
+    statements: list[str] = []
+
+    if "photo_filename" not in rabbit_columns:
+        statements.append("ALTER TABLE rabbit ADD COLUMN photo_filename VARCHAR(255)")
+    if "photo_original_name" not in rabbit_columns:
+        statements.append("ALTER TABLE rabbit ADD COLUMN photo_original_name VARCHAR(255)")
+
+    for statement in statements:
+        db.session.execute(text(statement))
+
+    if statements:
+        db.session.commit()

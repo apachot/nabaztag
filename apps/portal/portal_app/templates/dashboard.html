@@ -5,51 +5,89 @@
 {% block content %}
   <section class="stack">
     <section class="hero">
-      <h1>Mes lapins</h1>
-      <p>
-        Tu peux maintenant rattacher chaque lapin à un compte, garder sa cible réseau,
-        et préparer le provisioning ou la connexion applicative.
-      </p>
-      <div class="actions" style="margin-top: 18px;">
-        <a class="button primary" href="{{ url_for('main.create_rabbit') }}">Ajouter un lapin</a>
+      <div class="hero-split">
+        <div>
+          <p class="section-kicker">Portail Nabaztag</p>
+          <h1 class="hero-title">Mes lapins connectés.</h1>
+          <p class="hero-text">
+            Le tableau de bord centralise les lapins rattachés à ton compte, leur cible réseau,
+            leur état local et l’accès à leurs fiches de contrôle.
+          </p>
+          <div class="actions" style="margin-top: 18px;">
+            <a class="button primary" href="{{ url_for('main.create_rabbit') }}">Ajouter un lapin</a>
+          </div>
+        </div>
+        <div class="metric-strip">
+          <div class="metric-panel">
+            <strong>{{ rabbits|length }}</strong>
+            <div class="metric-label">Lapins enregistrés</div>
+          </div>
+          <div class="metric-panel">
+            <strong>{{ rabbits|selectattr("connection_status", "equalto", "online")|list|length }}</strong>
+            <div class="metric-label">Statut online</div>
+          </div>
+          <div class="metric-panel">
+            <strong>{{ rabbits|selectattr("device_serial")|list|length }}</strong>
+            <div class="metric-label">Lapins physiques rattachés</div>
+          </div>
+        </div>
       </div>
     </section>
 
-    <section class="grid">
+    <section class="app-grid">
       {% for rabbit in rabbits %}
-        <article class="rabbit-card">
-          <h3>{{ rabbit.name }}</h3>
-          <div class="meta">Slug: <span class="mono">{{ rabbit.slug }}</span></div>
-          <div class="meta">Statut: {{ rabbit.connection_status }}</div>
-          <div class="meta">
-            Cible:
-            {% if rabbit.target_host %}
-              <span class="mono">{{ rabbit.target_host }}:{{ rabbit.target_port }}</span>
-            {% else %}
-              non renseignée
-            {% endif %}
+        <article class="panel">
+          <div class="panel-header-row">
+            <div>
+              <p class="section-kicker">Lapin</p>
+              <h3 style="margin: 0;">{{ rabbit.name }}</h3>
+            </div>
+            <div class="meta">{{ rabbit.connection_status }}</div>
+          </div>
+          <div class="subtle-grid">
+            <div class="meta">Slug: <span class="mono">{{ rabbit.slug }}</span></div>
+            <div class="meta">
+              Cible:
+              {% if rabbit.target_host %}
+                <span class="mono">{{ rabbit.target_host }}:{{ rabbit.target_port }}</span>
+              {% else %}
+                non renseignée
+              {% endif %}
+            </div>
+            <div class="meta">
+              Lapin physique:
+              {% if rabbit.device_serial %}
+                <span class="mono">{{ rabbit.device_serial }}</span>
+              {% else %}
+                non rattaché
+              {% endif %}
+            </div>
           </div>
           {% if rabbit.notes %}
-            <p>{{ rabbit.notes }}</p>
+            <p style="margin-top: 16px;">{{ rabbit.notes }}</p>
           {% endif %}
-          <div class="actions" style="margin-top: 12px;">
-            <a class="pill" href="{{ url_for('main.rabbit_detail', rabbit_id=rabbit.id) }}">Ouvrir la fiche</a>
+          <div class="actions" style="margin-top: 18px;">
+            <a class="button primary" href="{{ url_for('main.rabbit_detail', rabbit_id=rabbit.id) }}">Ouvrir la fiche</a>
+            <a class="pill" href="{{ url_for('main.edit_rabbit', rabbit_id=rabbit.id) }}">Modifier</a>
           </div>
-          <form method="post" action="{{ url_for('main.update_rabbit_status', rabbit_id=rabbit.id) }}">
-            <div class="actions" style="margin-top: 12px;">
-              <select name="connection_status">
-                <option value="offline" {% if rabbit.connection_status == "offline" %}selected{% endif %}>offline</option>
-                <option value="online" {% if rabbit.connection_status == "online" %}selected{% endif %}>online</option>
-                <option value="simulated" {% if rabbit.connection_status == "simulated" %}selected{% endif %}>simulated</option>
-              </select>
-              <button class="button" type="submit">Mettre à jour</button>
-            </div>
-          </form>
+          <div class="surface-soft" style="margin-top: 18px;">
+            <form method="post" action="{{ url_for('main.update_rabbit_status', rabbit_id=rabbit.id) }}">
+              <div class="actions">
+                <select name="connection_status">
+                  <option value="offline" {% if rabbit.connection_status == "offline" %}selected{% endif %}>offline</option>
+                  <option value="online" {% if rabbit.connection_status == "online" %}selected{% endif %}>online</option>
+                  <option value="simulated" {% if rabbit.connection_status == "simulated" %}selected{% endif %}>simulated</option>
+                </select>
+                <button class="button" type="submit">Mettre à jour</button>
+              </div>
+            </form>
+          </div>
         </article>
       {% else %}
         <article class="panel">
-          <h3>Aucun lapin</h3>
-          <p>Commence par créer ton premier lapin.</p>
+          <p class="section-kicker">Démarrage</p>
+          <h3>Aucun lapin enregistré.</h3>
+          <p>Commence par créer une fiche puis associer un lapin physique à ton compte.</p>
         </article>
       {% endfor %}
     </section>

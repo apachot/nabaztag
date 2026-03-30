@@ -36,6 +36,8 @@ class Rabbit(db.Model):
     target_host = db.Column(db.String(255))
     target_port = db.Column(db.Integer, default=10543)
     notes = db.Column(db.Text)
+    photo_filename = db.Column(db.String(255))
+    photo_original_name = db.Column(db.String(255))
     provisioning_state = db.Column(db.String(32), default="draft", nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at = db.Column(

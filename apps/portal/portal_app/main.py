@@ -108,6 +108,12 @@ def _audio_assets_dir() -> Path:
     return audio_dir
 
 
+def _rabbit_photos_dir() -> Path:
+    photo_dir = Path(current_app.instance_path) / "rabbit_photos"
+    photo_dir.mkdir(parents=True, exist_ok=True)
+    return photo_dir
+
+
 def _bootcode_path() -> Path:
     return Path(current_app.root_path).parents[2] / "deploy" / "assets" / "bootcode.default"
 
@@ -185,6 +191,12 @@ def _serialize_recording(recording: RabbitRecording) -> dict:
         "url": url_for("main.download_recording", filename=recording.filename),
         "transcript": transcript,
     }
+
+
+def _rabbit_photo_url(rabbit: Rabbit) -> str | None:
+    if not rabbit.photo_filename:
+        return None
+    return url_for("main.rabbit_photo", rabbit_id=rabbit.id)
 
 
 def _serialize_event_log(event: RabbitEventLog) -> dict:
@@ -738,6 +750,57 @@ def rabbit_detail(rabbit_id: int):
         queued_commands=queued_commands,
         ztamps=ztamps,
         led_color_presets=LED_COLOR_PRESETS,
+        rabbit_photo_url=_rabbit_photo_url(rabbit),
+    )
+
+
+@main_bp.get("/rabbits/<int:rabbit_id>/details")
+@login_required
+def rabbit_details(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    remote_rabbit = None
+    remote_events: list[dict] = []
+    remote_error = None
+
+    linked_device = (
+        DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(DeviceObservation.last_seen_at.desc())
+        .first()
+    )
+
+    if rabbit.remote_rabbit_id:
+        try:
+            remote_rabbit = fetch_remote_rabbit(rabbit.remote_rabbit_id)
+            if linked_device and remote_rabbit.get("device_serial") != linked_device.serial:
+                remote_id = _sync_remote_rabbit(rabbit, linked_serial=linked_device.serial)
+                if remote_id:
+                    remote_rabbit = fetch_remote_rabbit(remote_id)
+            remote_events = fetch_remote_events(rabbit.remote_rabbit_id)
+        except NabaztagApiError as exc:
+            remote_error = str(exc)
+
+    available_devices = (
+        DeviceObservation.query.filter(
+            (DeviceObservation.rabbit_id.is_(None)) | (DeviceObservation.rabbit_id == rabbit.id)
+        )
+        .order_by(DeviceObservation.last_seen_at.desc())
+        .limit(10)
+        .all()
+    )
+    provisioning_sessions = (
+        ProvisioningSession.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(ProvisioningSession.created_at.desc())
+        .all()
+    )
+    return render_template(
+        "rabbits/details.html",
+        rabbit=rabbit,
+        remote_rabbit=remote_rabbit,
+        remote_events=remote_events,
+        remote_error=remote_error,
+        linked_device=linked_device,
+        available_devices=available_devices,
+        provisioning_sessions=provisioning_sessions,
     )
 
 
@@ -1206,6 +1269,65 @@ def rabbit_device_say(rabbit_id: int):
     )
     flash("Message synthétisé et lecture mise en file.", "success")
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+
+@main_bp.post("/rabbits/<int:rabbit_id>/photo")
+@login_required
+def upload_rabbit_photo(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    uploaded = request.files.get("photo_file")
+    if uploaded is None or not uploaded.filename:
+        flash("Photo obligatoire.", "error")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    original_name = secure_filename(uploaded.filename)
+    if not original_name:
+        flash("Nom de fichier invalide.", "error")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    extension = Path(original_name).suffix.lower()
+    if extension not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
+        flash("Formats acceptés : JPG, PNG, WEBP, GIF.", "error")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    stored_name = f"{rabbit.slug}-{secrets.token_hex(8)}{extension}"
+    destination = _rabbit_photos_dir() / stored_name
+    uploaded.save(destination)
+
+    if rabbit.photo_filename:
+        previous = _rabbit_photos_dir() / rabbit.photo_filename
+        if previous.exists():
+            try:
+                previous.unlink()
+            except OSError:
+                current_app.logger.warning("unable to delete previous rabbit photo: %s", previous)
+
+    rabbit.photo_filename = stored_name
+    rabbit.photo_original_name = original_name
+    db.session.add(
+        RabbitEventLog(
+            rabbit_id=rabbit.id,
+            source="portal",
+            event_type="rabbit.photo.updated",
+            payload=json.dumps({"filename": stored_name, "original_name": original_name}),
+        )
+    )
+    db.session.commit()
+    flash("Photo du lapin mise à jour.", "success")
+    return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+
+@main_bp.get("/rabbits/<int:rabbit_id>/photo")
+@login_required
+def rabbit_photo(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    if not rabbit.photo_filename:
+        return Response("Not found\n", status=404, mimetype="text/plain")
+    path = _rabbit_photos_dir() / rabbit.photo_filename
+    if not path.exists():
+        return Response("Not found\n", status=404, mimetype="text/plain")
+    mimetype = guess_type(path.name)[0] or "application/octet-stream"
+    return send_file(path, mimetype=mimetype, as_attachment=False, download_name=path.name)
 
 
 @main_bp.get("/recordings/<path:filename>")
