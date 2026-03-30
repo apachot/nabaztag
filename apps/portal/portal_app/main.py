@@ -491,6 +491,81 @@ def _enqueue_device_command(
     return command
 
 
+def _apply_local_device_state(
+    rabbit: Rabbit,
+    remote_state: dict | None,
+    *,
+    serial: str | None = None,
+) -> dict | None:
+    resolved_serial = _normalize_serial(serial)
+    if not resolved_serial:
+        return remote_state
+
+    state = dict((remote_state or {}).get("state") or {})
+    if remote_state is None:
+        remote_state = {
+            "connection_status": rabbit.connection_status,
+            "created_at": None,
+            "updated_at": None,
+            "device_serial": resolved_serial,
+            "state": state,
+        }
+    else:
+        remote_state = dict(remote_state)
+        remote_state["device_serial"] = remote_state.get("device_serial") or resolved_serial
+
+    latest_commands = (
+        RabbitDeviceCommand.query.filter_by(rabbit_id=rabbit.id, serial=resolved_serial)
+        .filter(RabbitDeviceCommand.status.in_(("queued", "sent")))
+        .order_by(RabbitDeviceCommand.created_at.desc())
+        .limit(100)
+        .all()
+    )
+
+    latest_led_by_target: dict[str, dict] = {}
+    latest_ears_payload: dict | None = None
+    latest_audio_payload: dict | None = None
+
+    for command in latest_commands:
+        try:
+            payload = json.loads(command.payload or "{}")
+        except json.JSONDecodeError:
+            continue
+        if command.command_type == "led":
+            target = str(payload.get("target") or "").lower()
+            if target and target not in latest_led_by_target:
+                latest_led_by_target[target] = payload
+        elif command.command_type == "ears" and latest_ears_payload is None:
+            latest_ears_payload = payload
+        elif command.command_type == "audio" and latest_audio_payload is None:
+            latest_audio_payload = payload
+
+    led_state_map = {
+        "left": "led_left",
+        "center": "led_center",
+        "right": "led_right",
+        "bottom": "led_bottom",
+        "nose": "led_nose",
+    }
+    for target, field_name in led_state_map.items():
+        payload = latest_led_by_target.get(target)
+        if payload is not None:
+            state[field_name] = payload.get("color") or "#000000"
+
+    if latest_ears_payload is not None:
+        if "left" in latest_ears_payload:
+            state["left_ear"] = int(latest_ears_payload["left"])
+        if "right" in latest_ears_payload:
+            state["right_ear"] = int(latest_ears_payload["right"])
+
+    if latest_audio_payload is not None:
+        state["audio_playing"] = True
+        state["last_audio_url"] = latest_audio_payload.get("url")
+
+    remote_state["state"] = state
+    return remote_state
+
+
 def _sync_remote_rabbit(rabbit: Rabbit, *, linked_serial: str | None = None) -> str | None:
     remote_id = rabbit.remote_rabbit_id
     needs_recreate = not remote_id
@@ -759,6 +834,12 @@ def rabbit_detail(rabbit_id: int):
             else:
                 remote_error = str(exc)
 
+    remote_rabbit = _apply_local_device_state(
+        rabbit,
+        remote_rabbit,
+        serial=linked_device.serial if linked_device else None,
+    )
+
     provisioning_sessions = (
         ProvisioningSession.query.filter_by(rabbit_id=rabbit.id)
         .order_by(ProvisioningSession.created_at.desc())
@@ -976,6 +1057,12 @@ def rabbit_live_summary(rabbit_id: int):
             connection_status = remote_rabbit.get("connection_status", connection_status)
         except NabaztagApiError as exc:
             remote_error = str(exc)
+
+    remote_state = _apply_local_device_state(
+        rabbit,
+        remote_state,
+        serial=linked_device.serial if linked_device else None,
+    )
 
     return jsonify(
         {
