@@ -192,6 +192,35 @@
       </article>
 
       <article class="panel">
+        <h2>Plugins</h2>
+        <div class="stack">
+          <div class="meta">
+            Active ou désactive les grandes capacités du lapin sans alourdir le noyau du portail.
+          </div>
+          {% for plugin in plugin_statuses %}
+            <div class="rabbit-card">
+              <strong>{{ plugin.label }}</strong>
+              <div class="meta">{{ plugin.description }}</div>
+              <div class="meta">
+                Catégorie: {{ plugin.category }}
+                {% if plugin.experimental %}
+                  · expérimental
+                {% endif %}
+              </div>
+              <div class="meta">État: {{ "actif" if plugin.enabled else "inactif" }}</div>
+              <form method="post" action="{{ url_for('main.update_rabbit_plugin_state', rabbit_id=rabbit.id, plugin_id=plugin.plugin_id) }}" class="actions" style="margin-top: 12px;">
+                <input type="hidden" name="enabled" value="{{ '0' if plugin.enabled else '1' }}">
+                <button class="pill" type="submit">
+                  {{ "Désactiver" if plugin.enabled else "Activer" }}
+                </button>
+              </form>
+            </div>
+          {% endfor %}
+        </div>
+      </article>
+
+      {% if use_cases_plugin_enabled %}
+      <article class="panel">
         <h2>Laboratoire d'usages</h2>
         <div class="stack">
           <div class="meta">
@@ -255,6 +284,7 @@
           </div>
         </div>
       </article>
+      {% endif %}
 
       <article class="panel">
         <h2>LEDs du Nabaztag</h2>

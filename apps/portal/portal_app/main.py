@@ -48,10 +48,12 @@ from .models import (
     RabbitConversationTurn,
     RabbitDeviceCommand,
     RabbitEventLog,
+    RabbitPluginState,
     RabbitRecording,
     Ztamp,
     utc_now,
 )
+from .plugins import get_plugin_definition, get_plugin_definitions
 
 main_bp = Blueprint("main", __name__)
 
@@ -1028,6 +1030,39 @@ def _serialize_live_event(event: RabbitEventLog, *, rabbit_id: int) -> dict:
     return serialized
 
 
+def _plugin_statuses_for_rabbit(rabbit: Rabbit) -> list[dict]:
+    existing_states = {
+        state.plugin_id: state
+        for state in RabbitPluginState.query.filter_by(rabbit_id=rabbit.id).all()
+    }
+    statuses: list[dict] = []
+    for plugin in get_plugin_definitions():
+        state = existing_states.get(plugin.plugin_id)
+        enabled = state.enabled if state is not None else plugin.default_enabled
+        statuses.append(
+            {
+                "plugin_id": plugin.plugin_id,
+                "label": plugin.label,
+                "description": plugin.description,
+                "category": plugin.category,
+                "experimental": plugin.experimental,
+                "enabled": enabled,
+                "default_enabled": plugin.default_enabled,
+            }
+        )
+    return statuses
+
+
+def _is_plugin_enabled(rabbit: Rabbit, plugin_id: str) -> bool:
+    plugin = get_plugin_definition(plugin_id)
+    if plugin is None:
+        return False
+    state = RabbitPluginState.query.filter_by(rabbit_id=rabbit.id, plugin_id=plugin.plugin_id).first()
+    if state is None:
+        return plugin.default_enabled
+    return bool(state.enabled)
+
+
 def _latest_ztamps_for_rabbit(rabbit_id: int, *, limit: int = 20) -> list[dict]:
     if not Ztamp.query.filter_by(rabbit_id=rabbit_id).first():
         historical_events = (
@@ -1722,6 +1757,36 @@ def account():
     return render_template("account.html")
 
 
+@main_bp.post("/rabbits/<int:rabbit_id>/plugins/<plugin_id>")
+@login_required
+def update_rabbit_plugin_state(rabbit_id: int, plugin_id: str):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    plugin = get_plugin_definition(plugin_id)
+    if plugin is None:
+        flash("Plugin inconnu.", "error")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    enabled = request.form.get("enabled", "").strip().lower() in {"1", "true", "on", "yes"}
+    state = RabbitPluginState.query.filter_by(rabbit_id=rabbit.id, plugin_id=plugin.plugin_id).first()
+    if state is None:
+        state = RabbitPluginState(rabbit_id=rabbit.id, plugin_id=plugin.plugin_id, enabled=enabled)
+    else:
+        state.enabled = enabled
+    db.session.add(state)
+    _append_rabbit_event(
+        rabbit,
+        source="portal",
+        event_type="rabbit.plugin.updated",
+        payload={"plugin_id": plugin.plugin_id, "enabled": enabled},
+    )
+    db.session.commit()
+    flash(
+        f"Plugin `{plugin.label}` {'activé' if enabled else 'désactivé'}.",
+        "success",
+    )
+    return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+
 @main_bp.post("/rabbits/<int:rabbit_id>/prompt")
 @login_required
 def update_rabbit_prompt(rabbit_id: int):
@@ -1894,6 +1959,7 @@ def rabbit_detail(rabbit_id: int):
         .all()
     )
     ztamps = _latest_ztamps_for_rabbit(rabbit.id)
+    plugin_statuses = _plugin_statuses_for_rabbit(rabbit)
     return render_template(
         "rabbits/detail.html",
         rabbit=rabbit,
@@ -1908,6 +1974,8 @@ def rabbit_detail(rabbit_id: int):
         conversation_turns=list(reversed(conversation_turns)),
         queued_commands=queued_commands,
         ztamps=ztamps,
+        plugin_statuses=plugin_statuses,
+        use_cases_plugin_enabled=_is_plugin_enabled(rabbit, "use_cases"),
         led_color_presets=LED_COLOR_PRESETS,
         DEFAULT_RABBIT_PERSONALITY_PROMPT=DEFAULT_RABBIT_PERSONALITY_PROMPT,
         DEFAULT_RABBIT_LLM_MODEL=DEFAULT_RABBIT_LLM_MODEL,
