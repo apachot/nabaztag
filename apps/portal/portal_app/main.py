@@ -306,7 +306,7 @@ def _run_auto_performance_for_rabbit(rabbit_id: int) -> None:
             rabbit,
             source="portal",
             event_type="rabbit.auto_performance.generated",
-            payload={"text": performance["text"]},
+            payload=_performance_event_payload(performance),
         )
         rabbit.auto_performance_next_at = _compute_next_auto_performance_at(rabbit, after_utc=datetime.utcnow())
         db.session.commit()
@@ -736,6 +736,15 @@ def _queue_generated_performance(
         },
     )
     return asset_path, asset_name
+
+
+def _performance_event_payload(performance: dict) -> dict:
+    return {
+        "text": performance["text"],
+        "ears": performance.get("ears") or {"left": None, "right": None},
+        "led_commands": performance.get("led_commands") or [],
+        "performance": performance,
+    }
 
 
 def _build_rabbit_tts_voice_options(saved_voices: list[dict] | None = None) -> list[tuple[str, str]]:
@@ -1519,7 +1528,7 @@ def violet_record():
                     payload={
                         "recording_id": recording.id,
                         "filename": filename,
-                        "text": performance["text"],
+                        **_performance_event_payload(performance),
                     },
                 )
                 db.session.commit()
