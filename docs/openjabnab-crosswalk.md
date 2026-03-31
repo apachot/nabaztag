@@ -258,6 +258,28 @@ On voit aussi le comportement associé :
 - remontée RFID en `GET`
 - retries sur l’upload d’enregistrement
 
+### Cas particulier de `p4.jsp`
+
+Dans le code OpenJabNab inspecté, je n’ai pas retrouvé d’endpoint nommé explicitement `p4.jsp`.
+
+En revanche, le bootcode montre clairement le mécanisme fonctionnel associé :
+
+- `locate.jsp` fournit `ping` et `broad`
+- le lapin récupère ensuite des trames via HTTP et XMPP
+- ces trames sont passées à `evalTrame`
+- `processIncomingTrame` gère leur exécution et leur éventuelle mise en file avec `ttl`
+
+Autrement dit :
+
+- la logique "serveur qui pousse ou expose des trames de contrôle" est bien présente
+- mais le nom `p4.jsp` ne ressort pas comme primitive explicite dans OpenJabNab
+
+### Conséquence projet
+
+- dans notre matrice, `p4.jsp` doit être considéré comme historiquement documenté
+- mais non confirmé tel quel par le code OpenJabNab inspecté
+- ce que le code confirme vraiment, c’est le couple `ping` / `broad` + `evalTrame`
+
 ### Détail utile
 
 L’upload record côté OpenJabNab :
@@ -288,7 +310,51 @@ Cela confirme directement la pertinence du garde-fou que nous avons ajouté :
 
 Ce n’est donc pas juste une hypothèse applicative : le bootcode OpenJabNab montre bien un comportement de retry côté lapin.
 
-## 11. État réel vs état commandé
+## 11. Ce qu’OpenJabNab remonte réellement depuis le lapin
+
+### Oreilles
+
+Dans `xmpphandler.cpp`, OpenJabNab parse explicitement :
+
+- `<ears xmlns="violet:nabaztag:ears"><left>...</left><right>...</right></ears>`
+
+puis appelle :
+
+- `bunny->OnEarsMove(left, right)`
+
+Cela prouve un point important :
+
+- le lapin remonte bien au serveur des positions d’oreilles via XMPP
+- OpenJabNab sait les recevoir et les dispatcher aux plugins
+
+Cette remontée est donc plus qu’un simple "état commandé localement par le serveur".
+
+### Limite de l’API publique
+
+Dans `bunny.cpp`, le chemin API Violet `?ears=...` fait :
+
+- `answer->AddEarPosition(0, 0); // TODO: send real positions`
+
+Donc :
+
+- OpenJabNab reçoit bien des mouvements d’oreilles
+- mais l’API publique exposée au-dessus ne renvoie pas proprement ces positions réelles
+- elle renvoie même actuellement une valeur factice
+
+### LEDs
+
+Je n’ai pas trouvé dans les fichiers inspectés :
+
+- d’équivalent XMPP simple pour une remontée publique de l’état courant des LEDs
+- d’API publique claire qui exposerait cet état réel
+
+### Conséquence projet
+
+- pour les oreilles, il existe une télémétrie montante réelle côté protocole XMPP
+- mais elle n’est pas proprement exposée par l’API publique OpenJabNab
+- pour les LEDs, je n’ai pas trouvé de remontée d’état réel comparable
+
+## 12. État réel vs état commandé
 
 ### Ce que disait la matrice
 
@@ -306,20 +372,21 @@ En revanche, OpenJabNab :
 
 - construit des paquets de commande
 - maintient des structures internes de service
-- met à jour le statut via trames et resources
+- reçoit aussi des événements XMPP de mouvement d’oreilles
 
 Conclusion :
 
-- OpenJabNab confirme surtout un modèle de contrôle
-- pas une télémétrie fine, publique et proprement exposée
+- OpenJabNab confirme un modèle de contrôle
+- il confirme aussi une remontée réelle des oreilles vers le serveur
+- mais pas une télémétrie fine, publique et proprement exposée pour oreilles + LEDs
 
-## 12. Tableau de croisement
+## 13. Tableau de croisement
 
 | Élément | Matrice documentaire | OpenJabNab | Conclusion |
 |---|---|---|---|
 | `bc.jsp` | documenté | présent dans configs et bootcode | confirmé |
 | `locate.jsp` | documenté | URL construite dans `main.mtl` | confirmé |
-| `p4.jsp` | documenté | présent, mais analyse incomplète ici | confirmé partiellement |
+| `p4.jsp` | documenté | pas retrouvé tel quel, remplacé de fait par `ping` / `broad` + trames | non confirmé tel quel |
 | `record.jsp` | documenté | URL et logique d’upload confirmées | confirmé |
 | `rfid.jsp` | documenté | URL et logique de remontée confirmées | confirmé |
 | `api.jsp` | documenté | pas le cœur d’OpenJabNab inspecté ici | non croisé complètement |
@@ -330,22 +397,52 @@ Conclusion :
 | bloc `0x0B` | documenté | classe `SleepPacket` | confirmé |
 | bloc `0x09` reboot | documenté | traité dans `main.mtl` | confirmé |
 | oreilles par instruction | documenté | `SetEarsPosition`, services `4` et `5` | confirmé |
+| oreilles par remontée device | flou | `<ears>...</ears>` reçu en XMPP | confirmé |
 | nez blink | documenté | `Service_Nose` | confirmé |
 | bottom LED | partiellement documenté | `Service_BottomLed` | confirmé par code |
-| lecture état réel oreilles | flou | pas trouvé clairement | non confirmé |
+| lecture état réel oreilles via API publique | flou | `TODO: send real positions` | non confirmé |
 | lecture état réel LEDs | flou | pas trouvé clairement | non confirmé |
 | doublons upload audio | plausible | retries explicites | confirmé |
 
-## 13. Implications immédiates pour notre projet
+## 14. Faisabilité dans notre stack actuelle
 
-### 13.1 Ce qu’on peut considérer comme solide
+### 14.1 État des oreilles
+
+Dans notre pile actuelle :
+
+- l’API locale sait stocker `left_ear` et `right_ear`
+- le portail sait aussi afficher ces champs
+- mais le chemin `state_event_from_packet(...)` ne fusionne aujourd’hui aucun delta détaillé provenant du paquet `state`
+
+Conséquence :
+
+- même si `nabd` ou une couche voisine pouvait fournir un état riche, notre code actuel ne l’exploite pas encore comme une télémétrie fine
+- côté portail, on complète encore l’état par reconstruction à partir des dernières commandes
+
+### 14.2 Reboot protocolaire `0x09`
+
+Dans notre pile actuelle :
+
+- le client protocole parle uniquement en JSON ligne à ligne au démon `nabd`
+- les commandes supportées sont `connect`, `disconnect`, `sync`, `info`, `ears`, `command`
+- aucune commande `reboot` n’existe aujourd’hui dans `apps/api/app/protocol/commands.py`
+- aucune branche `reboot` n’est gérée dans `apps/api/app/protocol/client.py`
+
+Conséquence :
+
+- nous ne savons pas aujourd’hui émettre un reboot bas niveau type `0x09`
+- pour y parvenir, il faudrait soit :
+- ajouter un support natif dans `nabd` si ce démon expose une commande JSON équivalente
+- soit descendre d’un niveau et parler un protocole plus bas que l’interface JSON actuelle
+
+### 14.3 Ce qu’on peut considérer comme solide
 
 - le parsing et la sérialisation des paquets `0x04`, `0x0A`, `0x0B`
 - le fait que `record.jsp` puisse être réessayé automatiquement côté lapin
 - le rôle de `violet:iq:sources` dans le bootstrap fonctionnel
-- la pertinence d’un reboot natif type `0x09` comme prochaine piste
+- la pertinence d’un reboot natif type `0x09` comme prochaine piste de recherche
 
-### 13.2 Ce qu’il faut continuer à traiter comme état estimé
+### 14.4 Ce qu’il faut continuer à traiter comme état estimé
 
 - la position courante des oreilles
 - l’état courant des LEDs
@@ -355,10 +452,10 @@ Tant qu’on n’a pas identifié une remontée fiable de télémétrie, ces val
 - dernier état commandé
 - ou état reconstruit
 
-### 13.3 Prochain chantier technique le plus intéressant
+### 14.5 Prochain chantier technique le plus intéressant
 
 À partir de ce croisement, la suite la plus utile serait probablement :
 
 1. inspecter plus finement le traitement de `p4.jsp` dans OpenJabNab
-2. chercher si des trames montantes contiennent réellement un delta d’état oreilles / LEDs
-3. évaluer si on peut implémenter un vrai reboot protocolaire `0x09` dans notre couche API/protocol
+2. chercher si des trames montantes contiennent réellement un delta d’état oreilles / LEDs, au-delà du message XMPP `<ears>`
+3. vérifier si `nabd` expose un reboot JSON équivalent, avant d’envisager un client de plus bas niveau
