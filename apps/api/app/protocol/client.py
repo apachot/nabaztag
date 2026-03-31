@@ -121,7 +121,7 @@ class ProtocolClient:
             if command.kind == "sync":
                 return state_event_from_packet(initial_state)
 
-            if command.kind in {"info", "ears", "command"}:
+            if command.kind in {"info", "ears", "command", "sleep", "wakeup"}:
                 self._send_packet(connection, packet)
                 response = self._read_response(connection, request_id=request_id)
                 return ProtocolEventEnvelope(

@@ -25,6 +25,20 @@ def build_sync_command() -> ProtocolCommandEnvelope:
     )
 
 
+def build_sleep_command() -> ProtocolCommandEnvelope:
+    return ProtocolCommandEnvelope(
+        kind="sleep",
+        payload={"type": "sleep"},
+    )
+
+
+def build_wakeup_command() -> ProtocolCommandEnvelope:
+    return ProtocolCommandEnvelope(
+        kind="wakeup",
+        payload={"type": "wakeup"},
+    )
+
+
 def build_led_command(payload: LedCommand) -> ProtocolCommandEnvelope:
     animation_colors = (
         {"left": payload.color, "center": payload.color, "right": payload.color}

@@ -22,6 +22,8 @@ class CommandType(str, Enum):
     LED = "led"
     EARS = "ears"
     AUDIO = "audio"
+    SLEEP = "sleep"
+    WAKEUP = "wakeup"
     RECORDING_START = "recording_start"
     RECORDING_STOP = "recording_stop"
 

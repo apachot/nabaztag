@@ -177,6 +177,15 @@
             <button class="button primary" type="submit">Téléverser et lire</button>
           </form>
 
+          <form method="post" action="{{ url_for('main.rabbit_action', rabbit_id=rabbit.id) }}" class="stack">
+            <strong>Sommeil</strong>
+            <div class="meta">Met le lapin en veille ou le réveille manuellement.</div>
+            <div class="actions">
+              <button class="pill" type="submit" name="action" value="sleep">Dormir</button>
+              <button class="pill" type="submit" name="action" value="wakeup">Réveiller</button>
+            </div>
+          </form>
+
           <form method="post" action="{{ url_for('main.rabbit_device_say', rabbit_id=rabbit.id) }}" class="stack" data-live-submit="true">
             <strong>Faire parler le lapin</strong>
             <input type="hidden" name="mode" value="manual" id="say-mode-input">

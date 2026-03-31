@@ -2418,7 +2418,7 @@ def rabbit_action(rabbit_id: int):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
     action = request.form.get("action", "").strip().lower()
 
-    if action not in {"connect", "disconnect", "sync", "reset-connection"}:
+    if action not in {"connect", "disconnect", "sync", "reset-connection", "sleep", "wakeup"}:
         flash("Action invalide.", "error")
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 

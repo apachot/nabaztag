@@ -113,6 +113,30 @@ class RabbitService:
         )
         return sync
 
+    def sleep(self, rabbit_id: str) -> RabbitSync:
+        rabbit = self.store.get_rabbit(rabbit_id)
+        sync = self.gateway.sleep(rabbit)
+        self.store.replace_rabbit(sync.rabbit)
+        self.store.append_event(
+            rabbit_id,
+            "rabbit.sleep",
+            "Rabbit put to sleep",
+            {"connection_status": sync.rabbit.connection_status},
+        )
+        return sync
+
+    def wakeup(self, rabbit_id: str) -> RabbitSync:
+        rabbit = self.store.get_rabbit(rabbit_id)
+        sync = self.gateway.wakeup(rabbit)
+        self.store.replace_rabbit(sync.rabbit)
+        self.store.append_event(
+            rabbit_id,
+            "rabbit.wakeup",
+            "Rabbit woken up",
+            {"connection_status": sync.rabbit.connection_status},
+        )
+        return sync
+
     def apply_led(self, rabbit_id: str, payload: LedCommand) -> Command:
         rabbit = self.store.get_rabbit(rabbit_id)
         command = self.store.queue_command(rabbit_id, CommandType.LED, payload.model_dump())

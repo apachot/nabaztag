@@ -11,7 +11,9 @@ from .protocol.commands import (
     build_led_command,
     build_recording_start_command,
     build_recording_stop_command,
+    build_sleep_command,
     build_sync_command,
+    build_wakeup_command,
 )
 from .protocol.events import offline_sync, sync_from_event
 from .models import (
@@ -41,6 +43,14 @@ class RabbitGateway(ABC):
 
     @abstractmethod
     def sync(self, rabbit: Rabbit) -> RabbitSync:
+        raise NotImplementedError
+
+    @abstractmethod
+    def sleep(self, rabbit: Rabbit) -> RabbitSync:
+        raise NotImplementedError
+
+    @abstractmethod
+    def wakeup(self, rabbit: Rabbit) -> RabbitSync:
         raise NotImplementedError
 
     @abstractmethod
@@ -78,6 +88,15 @@ class SimulatedRabbitGateway(RabbitGateway):
         return RabbitSync(rabbit=rabbit.model_copy(deep=True))
 
     def sync(self, rabbit: Rabbit) -> RabbitSync:
+        rabbit.updated_at = utc_now()
+        return RabbitSync(rabbit=rabbit.model_copy(deep=True))
+
+    def sleep(self, rabbit: Rabbit) -> RabbitSync:
+        rabbit.updated_at = utc_now()
+        rabbit.state.audio_playing = False
+        return RabbitSync(rabbit=rabbit.model_copy(deep=True))
+
+    def wakeup(self, rabbit: Rabbit) -> RabbitSync:
         rabbit.updated_at = utc_now()
         return RabbitSync(rabbit=rabbit.model_copy(deep=True))
 
@@ -148,6 +167,26 @@ class NabaztagProtocolGateway(RabbitGateway):
         )
         if event.connection_status is None and not event.state_delta and rabbit.connection_status == ConnectionStatus.OFFLINE:
             return offline_sync(rabbit)
+        return sync_from_event(rabbit, event)
+
+    def sleep(self, rabbit: Rabbit) -> RabbitSync:
+        event = self.client.send_to(
+            rabbit_slug=rabbit.slug,
+            command=build_sleep_command(),
+            host=self._target_host(rabbit),
+            port=self._target_port(rabbit),
+        )
+        sync = sync_from_event(rabbit, event)
+        sync.rabbit.state.audio_playing = False
+        return sync
+
+    def wakeup(self, rabbit: Rabbit) -> RabbitSync:
+        event = self.client.send_to(
+            rabbit_slug=rabbit.slug,
+            command=build_wakeup_command(),
+            host=self._target_host(rabbit),
+            port=self._target_port(rabbit),
+        )
         return sync_from_event(rabbit, event)
 
     def set_led(self, rabbit: Rabbit, payload: LedCommand) -> RabbitState:

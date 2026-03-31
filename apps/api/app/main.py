@@ -187,6 +187,26 @@ def sync_rabbit(rabbit_id: str) -> RabbitSync:
         raise HTTPException(status_code=404, detail="Rabbit not found") from exc
 
 
+@app.post("/api/rabbits/{rabbit_id}/sleep", response_model=RabbitSync)
+def sleep_rabbit(rabbit_id: str) -> RabbitSync:
+    try:
+        return service.sleep(rabbit_id)
+    except GatewayError as exc:
+        raise HTTPException(status_code=501, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Rabbit not found") from exc
+
+
+@app.post("/api/rabbits/{rabbit_id}/wakeup", response_model=RabbitSync)
+def wakeup_rabbit(rabbit_id: str) -> RabbitSync:
+    try:
+        return service.wakeup(rabbit_id)
+    except GatewayError as exc:
+        raise HTTPException(status_code=501, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Rabbit not found") from exc
+
+
 @app.post("/api/rabbits/{rabbit_id}/commands/led")
 def apply_led(rabbit_id: str, payload: LedCommand) -> dict:
     try:

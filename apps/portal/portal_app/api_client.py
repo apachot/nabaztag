@@ -95,6 +95,8 @@ def send_remote_action(remote_id: str, action: str, payload: dict | None = None)
         "connect": "/connect",
         "disconnect": "/disconnect",
         "sync": "/sync",
+        "sleep": "/sleep",
+        "wakeup": "/wakeup",
     }[action]
     return _api_request(
         f"/api/rabbits/{remote_id}{suffix}",
