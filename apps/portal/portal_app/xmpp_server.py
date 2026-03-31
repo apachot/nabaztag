@@ -399,6 +399,8 @@ def _build_packet_for_command(command: RabbitDeviceCommand) -> EncodedPacket:
     payload = json.loads(command.payload or "{}")
     if command.command_type == "audio":
         return build_audio_packet(payload["url"])
+    if command.command_type == "audio_stop":
+        return build_audio_packet(payload["url"])
     if command.command_type == "ears":
         return build_ears_packet(int(payload["left"]), int(payload["right"]))
     if command.command_type == "led":

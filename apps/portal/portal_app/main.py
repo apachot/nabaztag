@@ -896,6 +896,10 @@ def _audio_assets_dir() -> Path:
     return audio_dir
 
 
+def _bundled_audio_assets_dir() -> Path:
+    return Path(current_app.root_path) / "static"
+
+
 def _rabbit_photos_dir() -> Path:
     photo_dir = Path(current_app.instance_path) / "rabbit_photos"
     photo_dir.mkdir(parents=True, exist_ok=True)
@@ -1339,6 +1343,7 @@ def _apply_local_device_state(
     latest_led_by_target: dict[str, dict] = {}
     latest_ears_payload: dict | None = None
     latest_audio_payload: dict | None = None
+    latest_audio_stopped = False
 
     for command in latest_commands:
         try:
@@ -1351,7 +1356,9 @@ def _apply_local_device_state(
                 latest_led_by_target[target] = payload
         elif command.command_type == "ears" and latest_ears_payload is None:
             latest_ears_payload = payload
-        elif command.command_type == "audio" and latest_audio_payload is None:
+        elif command.command_type == "audio_stop" and latest_audio_payload is None and not latest_audio_stopped:
+            latest_audio_stopped = True
+        elif command.command_type == "audio" and latest_audio_payload is None and not latest_audio_stopped:
             latest_audio_payload = payload
 
     led_state_map = {
@@ -1372,7 +1379,10 @@ def _apply_local_device_state(
         if "right" in latest_ears_payload:
             state["right_ear"] = int(latest_ears_payload["right"])
 
-    if latest_audio_payload is not None:
+    if latest_audio_stopped:
+        state["audio_playing"] = False
+        state["last_audio_url"] = None
+    elif latest_audio_payload is not None:
         state["audio_playing"] = True
         state["last_audio_url"] = latest_audio_payload.get("url")
 
@@ -1680,7 +1690,10 @@ def serve_choreography(filename: str):
 def serve_audio_asset(filename: str):
     path = _audio_assets_dir() / filename
     if not path.exists():
-        return Response("Not found\n", status=404, mimetype="text/plain")
+        bundled_path = _bundled_audio_assets_dir() / filename
+        if not bundled_path.exists():
+            return Response("Not found\n", status=404, mimetype="text/plain")
+        path = bundled_path
     guessed_type = guess_type(path.name)[0] or "application/octet-stream"
     return send_file(path, mimetype=guessed_type, as_attachment=False, download_name=path.name)
 
@@ -2675,6 +2688,22 @@ def rabbit_use_case_test(rabbit_id: int):
         )
         db.session.commit()
         flash("Stream audio mis en file.", "success")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    if action == "radio-stop":
+        _enqueue_device_command(
+            rabbit,
+            command_type="audio_stop",
+            payload={"url": "broadcast/ojn_local/audio/silence.mp3", "source": "radio-stop"},
+        )
+        _append_rabbit_event(
+            rabbit,
+            source="portal",
+            event_type="rabbit.use_case.radio.stopped",
+            payload={},
+        )
+        db.session.commit()
+        flash("Arrêt de la lecture mis en file.", "success")
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     if action == "ztamp":
