@@ -1095,6 +1095,16 @@ def _run_plugin_pipeline(pipeline_name: str, *, rabbit: Rabbit, **context) -> li
     )
 
 
+def _latest_live_event_id(rabbit_id: int) -> int:
+    latest_event = (
+        RabbitEventLog.query.filter_by(rabbit_id=rabbit_id)
+        .filter(RabbitEventLog.event_type.in_(LIVE_EVENT_TYPES))
+        .order_by(RabbitEventLog.id.desc())
+        .first()
+    )
+    return latest_event.id if latest_event else 0
+
+
 def _latest_ztamps_for_rabbit(rabbit_id: int, *, limit: int = 20) -> list[dict]:
     if not Ztamp.query.filter_by(rabbit_id=rabbit_id).first():
         historical_events = (
@@ -2011,6 +2021,8 @@ def rabbit_detail(rabbit_id: int):
         rabbit=rabbit,
         ztamps=ztamps,
     )
+    latest_live_event_id = _latest_live_event_id(rabbit.id)
+    initial_live_event_cursor = max(rabbit.alerts_last_seen_event_id or 0, latest_live_event_id)
     return render_template(
         "rabbits/detail.html",
         rabbit=rabbit,
@@ -2026,6 +2038,7 @@ def rabbit_detail(rabbit_id: int):
         queued_commands=queued_commands,
         ztamps=ztamps,
         plugin_detail_panels=plugin_detail_panels,
+        initial_live_event_cursor=initial_live_event_cursor,
         led_color_presets=LED_COLOR_PRESETS,
         DEFAULT_RABBIT_PERSONALITY_PROMPT=DEFAULT_RABBIT_PERSONALITY_PROMPT,
         DEFAULT_RABBIT_LLM_MODEL=DEFAULT_RABBIT_LLM_MODEL,
@@ -2104,6 +2117,10 @@ def rabbit_alerts(rabbit_id: int):
         .all()
     )
     events = [_serialize_live_event(event, rabbit_id=rabbit.id) for event in raw_events]
+    latest_live_event_id = raw_events[0].id if raw_events else 0
+    if latest_live_event_id and (rabbit.alerts_last_seen_event_id or 0) < latest_live_event_id:
+        rabbit.alerts_last_seen_event_id = latest_live_event_id
+        db.session.commit()
     commands = (
         RabbitDeviceCommand.query.filter_by(rabbit_id=rabbit.id)
         .order_by(RabbitDeviceCommand.created_at.desc())
@@ -2130,6 +2147,21 @@ def rabbit_alerts(rabbit_id: int):
 
     timeline_items.sort(key=lambda item: item.get("created_at") or "", reverse=True)
     return render_template("rabbits/alerts.html", rabbit=rabbit, events=events, timeline_items=timeline_items)
+
+
+@main_bp.post("/rabbits/<int:rabbit_id>/alerts/seen")
+@login_required
+def rabbit_mark_alerts_seen(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    event_id_raw = request.form.get("event_id", "").strip()
+    if not event_id_raw.isdigit():
+        return jsonify({"ok": False, "message": "event_id invalide."}), 400
+
+    event_id = int(event_id_raw)
+    if event_id > (rabbit.alerts_last_seen_event_id or 0):
+        rabbit.alerts_last_seen_event_id = event_id
+        db.session.commit()
+    return jsonify({"ok": True, "event_id": rabbit.alerts_last_seen_event_id or 0})
 
 
 @main_bp.get("/rabbits/<int:rabbit_id>/events/live")

@@ -44,6 +44,7 @@ class Rabbit(db.Model):
     auto_performance_next_at = db.Column(db.DateTime(timezone=True))
     conversation_summary = db.Column(db.Text)
     conversation_summary_turn_id = db.Column(db.Integer)
+    alerts_last_seen_event_id = db.Column(db.Integer)
     connection_status = db.Column(db.String(32), default="offline", nullable=False)
     remote_rabbit_id = db.Column(db.String(64), unique=True, index=True)
     target_host = db.Column(db.String(255))

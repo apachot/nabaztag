@@ -521,7 +521,7 @@
         bottom: "LED du bas",
         nose: "nez",
       };
-      let lastId = 0;
+      let lastId = {{ initial_live_event_cursor or 0 }};
 
       const formatTimestamp = (value) => {
         if (!value) return "";
@@ -901,22 +901,6 @@
         }
       };
 
-      const primeEventsCursor = async () => {
-        try {
-          const response = await fetch(endpoint, {
-            headers: { "X-Requested-With": "fetch" },
-            cache: "no-store",
-          });
-          if (!response.ok) return;
-          const data = await response.json();
-          for (const event of data.events || []) {
-            lastId = Math.max(lastId, event.id || 0);
-          }
-        } catch (error) {
-          console.error("events cursor init failed", error);
-        }
-      };
-
       const submitLiveForm = async (form) => {
         const submitButton = form.querySelector('button[type="submit"]');
         const previousLabel = submitButton ? submitButton.textContent : "";
@@ -977,9 +961,7 @@
       }
       window.setInterval(refreshSummary, 2000);
       window.setInterval(refreshConversation, 3000);
-      primeEventsCursor().then(() => {
-        window.setInterval(loadEvents, 2000);
-      });
+      window.setInterval(loadEvents, 2000);
     })();
   </script>
 {% endblock %}

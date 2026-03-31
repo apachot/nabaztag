@@ -88,6 +88,7 @@
       if (!container) return;
 
       const endpoint = container.dataset.url;
+      const seenEndpoint = "{{ url_for('main.rabbit_mark_alerts_seen', rabbit_id=rabbit.id) }}";
       let lastId = {{ events[0].id if events else 0 }};
 
       const formatTimestamp = (value) => {
@@ -172,6 +173,22 @@
         return card;
       };
 
+      const markSeen = async () => {
+        if (!lastId) return;
+        try {
+          const formData = new FormData();
+          formData.set("event_id", String(lastId));
+          await fetch(seenEndpoint, {
+            method: "POST",
+            body: formData,
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+            credentials: "same-origin",
+          });
+        } catch (error) {
+          console.error("alerts seen update failed", error);
+        }
+      };
+
       const poll = async () => {
         try {
           const response = await fetch(`${endpoint}?after_id=${lastId}`, {
@@ -189,6 +206,7 @@
             container.prepend(renderEvent(event));
             lastId = Math.max(lastId, event.id || 0);
           }
+          await markSeen();
         } catch (error) {
           console.error("alerts poll failed", error);
         }

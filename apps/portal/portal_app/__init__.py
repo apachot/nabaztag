@@ -98,6 +98,8 @@ def _ensure_portal_schema() -> None:
         statements.append("ALTER TABLE rabbit ADD COLUMN conversation_summary TEXT")
     if "conversation_summary_turn_id" not in rabbit_columns:
         statements.append("ALTER TABLE rabbit ADD COLUMN conversation_summary_turn_id INTEGER")
+    if "alerts_last_seen_event_id" not in rabbit_columns:
+        statements.append("ALTER TABLE rabbit ADD COLUMN alerts_last_seen_event_id INTEGER")
     if "openai_api_key" not in user_columns:
         statements.append("ALTER TABLE user ADD COLUMN openai_api_key TEXT")
     if "mistral_api_key" not in user_columns:
