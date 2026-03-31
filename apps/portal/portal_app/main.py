@@ -48,20 +48,10 @@ from .models import (
     RabbitConversationTurn,
     RabbitDeviceCommand,
     RabbitEventLog,
-    RabbitPluginState,
     RabbitRecording,
     Ztamp,
     utc_now,
 )
-from .pipelines import (
-    PIPELINE_RABBIT_DETAIL_PANELS,
-    PIPELINE_RABBIT_EVENT_AFTER_RECORDING_UPLOAD,
-    PIPELINE_RABBIT_EVENT_AFTER_RFID_DETECTED,
-    PIPELINE_RABBIT_PERFORMANCE_AFTER_QUEUE,
-    PIPELINE_RABBIT_PERFORMANCE_BEFORE_QUEUE,
-    run_plugin_pipeline,
-)
-from .plugins import get_plugin_definition, get_plugin_definitions
 
 main_bp = Blueprint("main", __name__)
 
@@ -743,13 +733,6 @@ def _queue_generated_performance(
     source: str,
     mode: str,
 ) -> tuple[Path, str]:
-    _run_plugin_pipeline(
-        PIPELINE_RABBIT_PERFORMANCE_BEFORE_QUEUE,
-        rabbit=rabbit,
-        performance=performance,
-        source=source,
-        mode=mode,
-    )
     text = performance["text"]
     voice = _normalize_rabbit_tts_voice(rabbit, _build_rabbit_tts_voice_options())
     asset_path, asset_name = _synthesize_tts_asset(
@@ -799,14 +782,6 @@ def _queue_generated_performance(
             "text": text,
             "mode": mode,
         },
-    )
-    _run_plugin_pipeline(
-        PIPELINE_RABBIT_PERFORMANCE_AFTER_QUEUE,
-        rabbit=rabbit,
-        performance=performance,
-        source=source,
-        mode=mode,
-        asset_name=asset_name,
     )
     return asset_path, asset_name
 
@@ -1051,48 +1026,6 @@ def _serialize_live_event(event: RabbitEventLog, *, rabbit_id: int) -> dict:
 
     serialized["payload"] = payload
     return serialized
-
-
-def _plugin_statuses_for_rabbit(rabbit: Rabbit) -> list[dict]:
-    existing_states = {
-        state.plugin_id: state
-        for state in RabbitPluginState.query.filter_by(rabbit_id=rabbit.id).all()
-    }
-    statuses: list[dict] = []
-    for plugin in get_plugin_definitions():
-        state = existing_states.get(plugin.plugin_id)
-        enabled = state.enabled if state is not None else plugin.default_enabled
-        statuses.append(
-            {
-                "plugin_id": plugin.plugin_id,
-                "label": plugin.label,
-                "description": plugin.description,
-                "category": plugin.category,
-                "experimental": plugin.experimental,
-                "enabled": enabled,
-                "default_enabled": plugin.default_enabled,
-            }
-        )
-    return statuses
-
-
-def _is_plugin_enabled(rabbit: Rabbit, plugin_id: str) -> bool:
-    plugin = get_plugin_definition(plugin_id)
-    if plugin is None:
-        return False
-    state = RabbitPluginState.query.filter_by(rabbit_id=rabbit.id, plugin_id=plugin.plugin_id).first()
-    if state is None:
-        return plugin.default_enabled
-    return bool(state.enabled)
-
-
-def _run_plugin_pipeline(pipeline_name: str, *, rabbit: Rabbit, **context) -> list[dict]:
-    return run_plugin_pipeline(
-        pipeline_name,
-        rabbit=rabbit,
-        is_enabled=_is_plugin_enabled,
-        **context,
-    )
 
 
 def _latest_live_event_id(rabbit_id: int) -> int:
@@ -1723,13 +1656,6 @@ def violet_rfid():
         event_type="rabbit.rfid.detected",
         payload={"serial": serial_number, "tag": tag_id},
     )
-    if rabbit is not None:
-        _run_plugin_pipeline(
-            PIPELINE_RABBIT_EVENT_AFTER_RFID_DETECTED,
-            rabbit=rabbit,
-            tag_id=tag_id,
-            serial=serial_number,
-        )
     db.session.commit()
     current_app.logger.info("nabaztag.rfid sn=%s tag=%s", serial_number, tag_id)
     return Response("", mimetype="text/plain")
@@ -1804,36 +1730,6 @@ def account():
             return redirect(url_for("main.account"))
 
     return render_template("account.html")
-
-
-@main_bp.post("/rabbits/<int:rabbit_id>/plugins/<plugin_id>")
-@login_required
-def update_rabbit_plugin_state(rabbit_id: int, plugin_id: str):
-    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
-    plugin = get_plugin_definition(plugin_id)
-    if plugin is None:
-        flash("Plugin inconnu.", "error")
-        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
-
-    enabled = request.form.get("enabled", "").strip().lower() in {"1", "true", "on", "yes"}
-    state = RabbitPluginState.query.filter_by(rabbit_id=rabbit.id, plugin_id=plugin.plugin_id).first()
-    if state is None:
-        state = RabbitPluginState(rabbit_id=rabbit.id, plugin_id=plugin.plugin_id, enabled=enabled)
-    else:
-        state.enabled = enabled
-    db.session.add(state)
-    _append_rabbit_event(
-        rabbit,
-        source="portal",
-        event_type="rabbit.plugin.updated",
-        payload={"plugin_id": plugin.plugin_id, "enabled": enabled},
-    )
-    db.session.commit()
-    flash(
-        f"Plugin `{plugin.label}` {'activé' if enabled else 'désactivé'}.",
-        "success",
-    )
-    return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
 
 @main_bp.post("/rabbits/<int:rabbit_id>/prompt")
@@ -2008,11 +1904,6 @@ def rabbit_detail(rabbit_id: int):
         .all()
     )
     ztamps = _latest_ztamps_for_rabbit(rabbit.id)
-    plugin_detail_panels = _run_plugin_pipeline(
-        PIPELINE_RABBIT_DETAIL_PANELS,
-        rabbit=rabbit,
-        ztamps=ztamps,
-    )
     latest_live_event_id = _latest_live_event_id(rabbit.id)
     initial_live_event_cursor = max(rabbit.alerts_last_seen_event_id or 0, latest_live_event_id)
     return render_template(
@@ -2029,7 +1920,6 @@ def rabbit_detail(rabbit_id: int):
         conversation_turns=list(reversed(conversation_turns)),
         queued_commands=queued_commands,
         ztamps=ztamps,
-        plugin_detail_panels=plugin_detail_panels,
         initial_live_event_cursor=initial_live_event_cursor,
         led_color_presets=LED_COLOR_PRESETS,
         DEFAULT_RABBIT_PERSONALITY_PROMPT=DEFAULT_RABBIT_PERSONALITY_PROMPT,
@@ -2317,7 +2207,6 @@ def edit_rabbit(rabbit_id: int):
         "rabbits/edit.html",
         rabbit=rabbit,
         rabbit_photo_url=_rabbit_photo_url(rabbit),
-        plugin_statuses=_plugin_statuses_for_rabbit(rabbit),
     )
 
 

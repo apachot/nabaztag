@@ -91,12 +91,6 @@ class Rabbit(db.Model):
         cascade="all, delete-orphan",
         order_by="RabbitConversationTurn.created_at.asc()",
     )
-    plugin_states = db.relationship(
-        "RabbitPluginState",
-        back_populates="rabbit",
-        cascade="all, delete-orphan",
-        order_by="RabbitPluginState.plugin_id.asc()",
-    )
 
 
 class DeviceObservation(db.Model):
@@ -192,25 +186,6 @@ class Ztamp(db.Model):
     last_seen_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
 
     rabbit = db.relationship("Rabbit", back_populates="ztamps")
-
-
-class RabbitPluginState(db.Model):
-    __table_args__ = (UniqueConstraint("rabbit_id", "plugin_id", name="uq_rabbit_plugin_state"),)
-
-    id = db.Column(db.Integer, primary_key=True)
-    rabbit_id = db.Column(db.Integer, db.ForeignKey("rabbit.id"), nullable=False, index=True)
-    plugin_id = db.Column(db.String(64), nullable=False, index=True)
-    enabled = db.Column(db.Boolean, default=False, nullable=False)
-    settings = db.Column(db.Text)
-    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
-    updated_at = db.Column(
-        db.DateTime(timezone=True),
-        default=utc_now,
-        onupdate=utc_now,
-        nullable=False,
-    )
-
-    rabbit = db.relationship("Rabbit", back_populates="plugin_states")
 
 
 @login_manager.user_loader

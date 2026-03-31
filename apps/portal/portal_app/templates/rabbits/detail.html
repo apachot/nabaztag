@@ -191,80 +191,70 @@
         </div>
       </article>
 
-      {% for plugin_panel in plugin_detail_panels %}
-        {% set panel = plugin_panel.result %}
-        {% if panel.panel_type == "use_cases" %}
-          <article class="panel">
-            <h2>{{ panel.title }}</h2>
-            <div class="stack">
-              <div class="meta">
-                Interfaces de test pour des usages intéressants du lapin, construites via le pipeline plugin.
-              </div>
+      <article class="panel">
+        <h2>Laboratoire d'usages</h2>
+        <div class="stack">
+          <div class="meta">
+            Interfaces de test pour des usages intéressants du lapin, intégrées nativement au portail.
+          </div>
 
-              <form method="post" action="{{ url_for('main.rabbit_use_case_test', rabbit_id=rabbit.id) }}" class="stack">
-                <strong>Scenes expressives</strong>
-                <input type="hidden" name="action" value="scene">
-                <label>Scene</label>
-                <select name="scene">
-                  <option value="welcome">Accueil</option>
-                  <option value="alert">Alerte douce</option>
-                  <option value="dream">Pre-dodo</option>
-                  <option value="surprise">Surprise</option>
-                </select>
-                <div class="meta">Test rapide d'une presence incarnée: voix, oreilles et LEDs ensemble.</div>
-                <button class="button primary" type="submit">Lancer la scene</button>
-              </form>
+          <form method="post" action="{{ url_for('main.rabbit_use_case_test', rabbit_id=rabbit.id) }}" class="stack">
+            <strong>Scenes expressives</strong>
+            <input type="hidden" name="action" value="scene">
+            <label>Scene</label>
+            <select name="scene">
+              <option value="welcome">Accueil</option>
+              <option value="alert">Alerte douce</option>
+              <option value="dream">Pre-dodo</option>
+              <option value="surprise">Surprise</option>
+            </select>
+            <div class="meta">Test rapide d'une presence incarnée: voix, oreilles et LEDs ensemble.</div>
+            <button class="button primary" type="submit">Lancer la scene</button>
+          </form>
 
-              <form method="post" action="{{ url_for('main.rabbit_use_case_test', rabbit_id=rabbit.id) }}" class="stack">
-                <strong>Improvisation domestique</strong>
-                <input type="hidden" name="action" value="improvise">
-                <div class="meta">Demande au modele Mistral du lapin d'inventer une micro-performance originale pour divertir maintenant.</div>
-                <button class="button primary" type="submit">Improviser</button>
-              </form>
+          <form method="post" action="{{ url_for('main.rabbit_use_case_test', rabbit_id=rabbit.id) }}" class="stack">
+            <strong>Improvisation domestique</strong>
+            <input type="hidden" name="action" value="improvise">
+            <div class="meta">Demande au modele Mistral du lapin d'inventer une micro-performance originale pour divertir maintenant.</div>
+            <button class="button primary" type="submit">Improviser</button>
+          </form>
 
-              <form method="post" action="{{ url_for('main.rabbit_use_case_test', rabbit_id=rabbit.id) }}" class="stack">
-                <strong>Radio / stream</strong>
-                <input type="hidden" name="action" value="radio">
-                <label>URL du flux audio</label>
-                <input type="text" name="stream_url" placeholder="https://.../stream.mp3">
-                <div class="meta">Teste l'usage compagnon ambiant avec un flux audio ou radio internet.</div>
-                <button class="button primary" type="submit">Lancer le stream</button>
-              </form>
+          <form method="post" action="{{ url_for('main.rabbit_use_case_test', rabbit_id=rabbit.id) }}" class="stack">
+            <strong>Radio / stream</strong>
+            <input type="hidden" name="action" value="radio">
+            <label>URL du flux audio</label>
+            <input type="text" name="stream_url" placeholder="https://.../stream.mp3">
+            <div class="meta">Teste l'usage compagnon ambiant avec un flux audio ou radio internet.</div>
+            <button class="button primary" type="submit">Lancer le stream</button>
+          </form>
 
-              <form method="post" action="{{ url_for('main.rabbit_use_case_test', rabbit_id=rabbit.id) }}" class="stack">
-                <strong>Scenario Ztamp</strong>
-                <input type="hidden" name="action" value="ztamp">
-                <label>Ztamp detecte</label>
-                <select name="ztamp_id">
-                  {% for ztamp in panel.ztamps %}
-                    <option value="{{ ztamp.id }}">
-                      {% if ztamp.name %}
-                        {{ ztamp.name }}
-                      {% else %}
-                        {{ ztamp.tag }}
-                      {% endif %}
-                    </option>
-                  {% endfor %}
-                </select>
-                <div class="meta">Declenche une petite scene tangible inspiree d'un Ztamp deja detecte par le lapin.</div>
-                <button class="button primary" type="submit" {% if not panel.ztamps %}disabled{% endif %}>Tester le scenario Ztamp</button>
-                {% if not panel.ztamps %}
-                  <div class="meta">Aucun Ztamp detecte pour l'instant.</div>
-                {% endif %}
-              </form>
+          <form method="post" action="{{ url_for('main.rabbit_use_case_test', rabbit_id=rabbit.id) }}" class="stack">
+            <strong>Scenario Ztamp</strong>
+            <input type="hidden" name="action" value="ztamp">
+            <label>Ztamp detecte</label>
+            <select name="ztamp_id">
+              {% for ztamp in ztamps %}
+                <option value="{{ ztamp.id }}">
+                  {% if ztamp.name %}
+                    {{ ztamp.name }}
+                  {% else %}
+                    {{ ztamp.tag }}
+                  {% endif %}
+                </option>
+              {% endfor %}
+            </select>
+            <div class="meta">Declenche une petite scene tangible inspiree d'un Ztamp deja detecte par le lapin.</div>
+            <button class="button primary" type="submit" {% if not ztamps %}disabled{% endif %}>Tester le scenario Ztamp</button>
+            {% if not ztamps %}
+              <div class="meta">Aucun Ztamp detecte pour l'instant.</div>
+            {% endif %}
+          </form>
 
-              <div class="meta">
-                Note: le vrai mode veille/reveil natif n'est pas encore branche ici. Le preset `Pre-dodo` teste seulement une scene calme avec les primitives actuelles.
-              </div>
-            </div>
-          </article>
-        {% elif panel.panel_type == "coming_soon" %}
-          <article class="panel">
-            <h2>{{ panel.title }}</h2>
-            <div class="meta">{{ panel.message }}</div>
-          </article>
-        {% endif %}
-      {% endfor %}
+          <div class="meta">
+            Note: le vrai mode veille/reveil natif n'est pas encore branche ici. Le preset `Pre-dodo` teste seulement une scene calme avec les primitives actuelles.
+          </div>
+        </div>
+      </article>
 
       <article class="panel">
         <h2>LEDs du Nabaztag</h2>
