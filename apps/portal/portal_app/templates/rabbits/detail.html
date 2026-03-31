@@ -257,52 +257,6 @@
       </article>
 
       <article class="panel">
-        <h2>Home Assistant</h2>
-        <div class="stack">
-          <div class="meta">
-            Première compatibilité Home Assistant: le lapin peut lire l'agenda et l'état d'entités, sans recoder toute la logique domotique.
-          </div>
-          {% if current_user.home_assistant_base_url and current_user.home_assistant_api_token %}
-            <div class="meta">Serveur configuré: <span class="mono">{{ current_user.home_assistant_base_url }}</span></div>
-            {% if home_assistant_error %}
-              <div class="meta" style="color: #a33;">{{ home_assistant_error }}</div>
-            {% endif %}
-
-            <form method="post" action="{{ url_for('main.rabbit_home_assistant_test', rabbit_id=rabbit.id) }}" class="stack">
-              <strong>Lire l'agenda</strong>
-              <input type="hidden" name="action" value="calendar-summary">
-              <label>Calendrier</label>
-              <select name="calendar_entity_id">
-                {% for calendar in home_assistant_calendars %}
-                  <option value="{{ calendar.entity_id }}">{{ calendar.name }} · {{ calendar.entity_id }}</option>
-                {% endfor %}
-              </select>
-              <label>Fenêtre de lecture</label>
-              <input type="number" name="lookahead_hours" min="1" max="72" value="24">
-              <div class="meta">Le lapin résume les prochains événements du calendrier sélectionné.</div>
-              <button class="button primary" type="submit" {% if not home_assistant_calendars %}disabled{% endif %}>Lire le prochain agenda</button>
-              {% if not home_assistant_calendars %}
-                <div class="meta">Aucun calendrier n'a été récupéré depuis Home Assistant.</div>
-              {% endif %}
-            </form>
-
-            <form method="post" action="{{ url_for('main.rabbit_home_assistant_test', rabbit_id=rabbit.id) }}" class="stack">
-              <strong>Lire l'état d'une entité</strong>
-              <input type="hidden" name="action" value="entity-state">
-              <label>Entity ID</label>
-              <input type="text" name="entity_id" placeholder="sensor.mail_unread_count">
-              <div class="meta">Pratique pour exposer au lapin un capteur, une boîte mail, une présence ou une info de maison connectée.</div>
-              <button class="button primary" type="submit">Lire l'état</button>
-            </form>
-          {% else %}
-            <div class="meta">
-              Configure d'abord Home Assistant dans <a href="{{ url_for('main.account') }}">Mon compte</a>.
-            </div>
-          {% endif %}
-        </div>
-      </article>
-
-      <article class="panel">
         <h2>LEDs du Nabaztag</h2>
         <div class="stack">
           <div>
