@@ -2604,12 +2604,32 @@ def rabbit_device_ears(rabbit_id: int):
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return jsonify({"ok": False, "message": message}), 400
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+    wakeup_message = None
+    if rabbit.remote_rabbit_id and rabbit.connection_status != "online":
+        try:
+            result = send_remote_action(rabbit.remote_rabbit_id, "wakeup", {})
+            rabbit.connection_status = result.get("rabbit", {}).get("connection_status", rabbit.connection_status)
+            db.session.add(
+                RabbitEventLog(
+                    rabbit_id=rabbit.id,
+                    source="api",
+                    event_type="rabbit.ears.wakeup",
+                    payload=json.dumps({"wakeup": result}),
+                )
+            )
+            db.session.commit()
+            wakeup_message = "Réveil automatique envoyé avant la commande oreilles."
+            time.sleep(0.6)
+        except NabaztagApiError:
+            db.session.rollback()
     _enqueue_device_command(
         rabbit,
         command_type="ears",
         payload={"left": int(left), "right": int(right)},
     )
     message = "Commande oreilles mise en file."
+    if wakeup_message:
+        message = f"{wakeup_message} {message}"
     flash(message, "success")
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         return jsonify({"ok": True, "message": message})
