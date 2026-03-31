@@ -2491,25 +2491,6 @@ def rabbit_action(rabbit_id: int):
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     try:
-        if action in {"sleep", "wakeup"}:
-            if not current_user.mistral_api_key:
-                flash("Ajoute d'abord ton token Mistral dans Mon compte.", "error")
-                return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
-            payload = _queue_sleep_or_wakeup_sequence(
-                rabbit,
-                api_key=current_user.mistral_api_key,
-                action=action,
-            )
-            _append_rabbit_event(
-                rabbit,
-                source="portal",
-                event_type=f"rabbit.{action}.sequence.queued",
-                payload=payload,
-            )
-            db.session.commit()
-            flash("Séquence envoyée.", "success")
-            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
-
         linked_device = (
             DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
             .order_by(DeviceObservation.last_seen_at.desc())
@@ -2521,6 +2502,54 @@ def rabbit_action(rabbit_id: int):
         )
         if not remote_id:
             flash("Ce lapin n'est pas encore enregistré dans l'API device.", "error")
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+        if action == "sleep":
+            _enqueue_device_command(
+                rabbit,
+                command_type="audio",
+                payload={
+                    "url": "broadcast/ojn_local/audio/sleep-chime.mp3",
+                    "source": "sleep",
+                    "filename": "sleep-chime.mp3",
+                    "text": None,
+                    "mode": "sleep",
+                },
+            )
+            time.sleep(0.8)
+            result = send_remote_action(remote_id, "sleep", {})
+            rabbit.connection_status = result.get("rabbit", {}).get("connection_status", rabbit.connection_status)
+            db.session.add(
+                RabbitEventLog(
+                    rabbit_id=rabbit.id,
+                    source="api",
+                    event_type="rabbit.sleep.sequence",
+                    payload=json.dumps({"audio": "sleep-chime.mp3", "sleep": result}),
+                )
+            )
+            db.session.commit()
+            flash("Mise en sommeil envoyée.", "success")
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+        if action == "wakeup":
+            if not current_user.mistral_api_key:
+                flash("Ajoute d'abord ton token Mistral dans Mon compte.", "error")
+                return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+            result = send_remote_action(remote_id, "wakeup", {})
+            rabbit.connection_status = result.get("rabbit", {}).get("connection_status", rabbit.connection_status)
+            payload = _queue_sleep_or_wakeup_sequence(
+                rabbit,
+                api_key=current_user.mistral_api_key,
+                action=action,
+            )
+            db.session.add(
+                RabbitEventLog(
+                    rabbit_id=rabbit.id,
+                    source="api",
+                    event_type="rabbit.wakeup.sequence",
+                    payload=json.dumps({"wakeup": result, **payload}),
+                )
+            )
+            db.session.commit()
+            flash("Réveil envoyé.", "success")
             return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
         if action == "reset-connection":
             disconnect_result = send_remote_action(remote_id, "disconnect", {})
