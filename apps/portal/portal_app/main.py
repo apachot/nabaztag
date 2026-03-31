@@ -903,9 +903,9 @@ def _bundled_audio_assets_dir() -> Path:
 def _ensure_stream_interrupt_choreography() -> tuple[str, dict[str, str]]:
     filename = "stream-interrupt.chor"
     states = {
-        "left": "#000000",
-        "center": "#000000",
-        "right": "#000000",
+        "left": "#00ffff",
+        "center": "#ffffff",
+        "right": "#00ffff",
     }
     path = choreography_storage_path(_choreographies_dir(), filename)
     if not path.exists():
@@ -2708,17 +2708,22 @@ def rabbit_use_case_test(rabbit_id: int):
         filename, states = _ensure_stream_interrupt_choreography()
         _enqueue_device_command(
             rabbit,
+            command_type="ears",
+            payload={"left": 6, "right": 10},
+        )
+        _enqueue_device_command(
+            rabbit,
             command_type="choreography",
             payload={"filename": filename, "states": states, "purpose": "radio-stop"},
         )
         _append_rabbit_event(
             rabbit,
             source="portal",
-            event_type="rabbit.use_case.radio.stopped",
-            payload={},
+            event_type="rabbit.use_case.radio.interrupted",
+            payload={"animation": "stream-interrupt"},
         )
         db.session.commit()
-        flash("Arrêt de la lecture mis en file.", "success")
+        flash("Animation d'interruption mise en file.", "success")
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     if action == "ztamp":

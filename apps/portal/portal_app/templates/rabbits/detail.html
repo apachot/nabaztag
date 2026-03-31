@@ -236,10 +236,10 @@
           </form>
 
           <form method="post" action="{{ url_for('main.rabbit_use_case_test', rabbit_id=rabbit.id) }}" class="stack">
-            <strong>Arrêt du stream</strong>
+            <strong>Interrompre le stream</strong>
             <input type="hidden" name="action" value="radio-stop">
-            <div class="meta">Coupe la lecture en envoyant un très court silence local au lapin.</div>
-            <button class="pill" type="submit">Arrêter la lecture</button>
+            <div class="meta">Lance une petite animation pour casser le flux en cours.</div>
+            <button class="pill" type="submit">Lancer l'animation</button>
           </form>
 
           <form method="post" action="{{ url_for('main.rabbit_use_case_test', rabbit_id=rabbit.id) }}" class="stack">
