@@ -819,6 +819,74 @@ def _performance_event_payload(performance: dict) -> dict:
     }
 
 
+def _queue_sleep_or_wakeup_sequence(rabbit: Rabbit, *, api_key: str, action: str) -> dict:
+    voice = _normalize_rabbit_tts_voice(rabbit, _build_rabbit_tts_voice_options())
+    if action == "sleep":
+        text = (
+            "Ooooh... je suis un petit lapin fatigue. Je m'etire doucement, je souffle mes lumieres, "
+            "et je vous souhaite une tres bonne nuit."
+        )
+        start_leds = [
+            {"target": "left", "color": LED_COLOR_PRESETS["yellow"], "preset": "yellow"},
+            {"target": "center", "color": LED_COLOR_PRESETS["white"], "preset": "white"},
+            {"target": "right", "color": LED_COLOR_PRESETS["yellow"], "preset": "yellow"},
+        ]
+        end_leds = [
+            {"target": "left", "color": LED_COLOR_PRESETS["off"], "preset": "off"},
+            {"target": "center", "color": LED_COLOR_PRESETS["off"], "preset": "off"},
+            {"target": "right", "color": LED_COLOR_PRESETS["off"], "preset": "off"},
+            {"target": "bottom", "color": LED_COLOR_PRESETS["off"], "preset": "off"},
+            {"target": "nose", "color": LED_COLOR_PRESETS["off"], "preset": "off"},
+        ]
+        start_ears = {"left": 7, "right": 9}
+        end_ears = {"left": 12, "right": 12}
+    else:
+        text = (
+            "Bonjour bonjour... je me reveille en douceur, j'etire mes oreilles, je rallume mes petites lumieres, "
+            "et je suis pret pour une nouvelle journee."
+        )
+        start_leds = [
+            {"target": "left", "color": LED_COLOR_PRESETS["cyan"], "preset": "cyan"},
+            {"target": "center", "color": LED_COLOR_PRESETS["white"], "preset": "white"},
+            {"target": "right", "color": LED_COLOR_PRESETS["cyan"], "preset": "cyan"},
+            {"target": "bottom", "color": LED_COLOR_PRESETS["blue"], "preset": "blue"},
+        ]
+        end_leds = []
+        start_ears = {"left": 6, "right": 10}
+        end_ears = {"left": 8, "right": 8}
+
+    asset_path, asset_name = _synthesize_tts_asset(
+        api_key=api_key,
+        rabbit_slug=rabbit.slug,
+        text=text,
+        voice=voice,
+    )
+    _enqueue_device_command(rabbit, command_type="ears", payload=start_ears)
+    for led_command in start_leds:
+        _enqueue_device_command(rabbit, command_type="led", payload=led_command)
+    _enqueue_device_command(
+        rabbit,
+        command_type="audio",
+        payload={
+            "url": f"broadcast/ojn_local/audio/{asset_name}",
+            "source": action,
+            "filename": asset_path.name,
+            "text": text,
+            "mode": action,
+        },
+    )
+    _enqueue_device_command(rabbit, command_type="ears", payload=end_ears)
+    for led_command in end_leds:
+        _enqueue_device_command(rabbit, command_type="led", payload=led_command)
+
+    return {
+        "text": text,
+        "ears": {"start": start_ears, "end": end_ears},
+        "led_commands": {"start": start_leds, "end": end_leds},
+        "asset_name": asset_name,
+    }
+
+
 def _build_rabbit_tts_voice_options(saved_voices: list[dict] | None = None) -> list[tuple[str, str]]:
     options: list[tuple[str, str]] = list(RABBIT_TTS_VOICE_PRESETS)
     if not saved_voices:
@@ -2423,6 +2491,25 @@ def rabbit_action(rabbit_id: int):
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     try:
+        if action in {"sleep", "wakeup"}:
+            if not current_user.mistral_api_key:
+                flash("Ajoute d'abord ton token Mistral dans Mon compte.", "error")
+                return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+            payload = _queue_sleep_or_wakeup_sequence(
+                rabbit,
+                api_key=current_user.mistral_api_key,
+                action=action,
+            )
+            _append_rabbit_event(
+                rabbit,
+                source="portal",
+                event_type=f"rabbit.{action}.sequence.queued",
+                payload=payload,
+            )
+            db.session.commit()
+            flash("Séquence envoyée.", "success")
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
         linked_device = (
             DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
             .order_by(DeviceObservation.last_seen_at.desc())
