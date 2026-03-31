@@ -138,6 +138,54 @@ AUTO_PERFORMANCE_LOOP_SECONDS = 45
 AUTO_PERFORMANCE_CLAIM_MINUTES = 10
 AUTO_PERFORMANCE_MAX_BATCH = 3
 AUTO_PERFORMANCE_TIMEZONE = ZoneInfo("Europe/Paris")
+RABBIT_USE_CASE_SCENES = {
+    "welcome": {
+        "label": "Accueil",
+        "description": "Une petite scene chaleureuse pour saluer la maison.",
+        "text": "Coucou la maison. Je suis reveille, moustaches en avant, et je vous envoie une petite lueur de bonne humeur.",
+        "ears": {"left": 6, "right": 10},
+        "leds": [
+            {"target": "left", "color": LED_COLOR_PRESETS["yellow"], "preset": "yellow"},
+            {"target": "center", "color": LED_COLOR_PRESETS["white"], "preset": "white"},
+            {"target": "right", "color": LED_COLOR_PRESETS["yellow"], "preset": "yellow"},
+        ],
+    },
+    "alert": {
+        "label": "Alerte douce",
+        "description": "Un signal vivant pour notifier sans brutaliser.",
+        "text": "Petit signal du terrier. Quelque chose merite un coup d'oeil, alors je dresse les oreilles et je clignote avec tact.",
+        "ears": {"left": 2, "right": 2},
+        "leds": [
+            {"target": "nose", "color": LED_COLOR_PRESETS["red"], "preset": "red"},
+            {"target": "left", "color": LED_COLOR_PRESETS["red"], "preset": "red"},
+            {"target": "right", "color": LED_COLOR_PRESETS["red"], "preset": "red"},
+        ],
+    },
+    "dream": {
+        "label": "Pre-dodo",
+        "description": "Une scene calme de fin de journee, sans vrai mode sleep.",
+        "text": "Le terrier se calme. Je baisse un peu les oreilles et je garde juste une veilleuse douce pour accompagner le silence.",
+        "ears": {"left": 12, "right": 12},
+        "leds": [
+            {"target": "left", "color": LED_COLOR_PRESETS["off"], "preset": "off"},
+            {"target": "center", "color": LED_COLOR_PRESETS["off"], "preset": "off"},
+            {"target": "right", "color": LED_COLOR_PRESETS["off"], "preset": "off"},
+            {"target": "bottom", "color": LED_COLOR_PRESETS["blue"], "preset": "blue"},
+        ],
+    },
+    "surprise": {
+        "label": "Surprise",
+        "description": "Une micro-performance malicieuse pour attirer l'attention.",
+        "text": "Hop hop hop. Je fais mon petit numero de lapin augmente, avec une lueur espiègle et une posture qui dit attention, fantaisie imminente.",
+        "ears": {"left": 4, "right": 12},
+        "leds": [
+            {"target": "left", "color": LED_COLOR_PRESETS["violet"], "preset": "violet"},
+            {"target": "center", "color": LED_COLOR_PRESETS["cyan"], "preset": "cyan"},
+            {"target": "right", "color": LED_COLOR_PRESETS["yellow"], "preset": "yellow"},
+            {"target": "nose", "color": LED_COLOR_PRESETS["red"], "preset": "red"},
+        ],
+    },
+}
 
 _auto_intervention_worker_lock = threading.Lock()
 _auto_intervention_worker_started = False
@@ -736,6 +784,30 @@ def _queue_generated_performance(
         },
     )
     return asset_path, asset_name
+
+
+def _queue_use_case_scene(
+    rabbit: Rabbit,
+    *,
+    api_key: str,
+    scene_key: str,
+) -> tuple[str, dict]:
+    scene = RABBIT_USE_CASE_SCENES.get(scene_key)
+    if scene is None:
+        raise ValueError("Scene inconnue.")
+    performance = {
+        "text": scene["text"],
+        "ears": dict(scene["ears"]),
+        "led_commands": list(scene["leds"]),
+    }
+    _queue_generated_performance(
+        rabbit,
+        api_key=api_key,
+        performance=performance,
+        source="use_case",
+        mode=scene_key,
+    )
+    return scene["label"], performance
 
 
 def _performance_event_payload(performance: dict) -> dict:
@@ -2480,6 +2552,141 @@ def rabbit_device_audio(rabbit_id: int):
         payload={"url": url},
     )
     flash("Lecture audio mise en file.", "success")
+    return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+
+@main_bp.post("/rabbits/<int:rabbit_id>/use-cases/test")
+@login_required
+def rabbit_use_case_test(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    action = request.form.get("action", "").strip().lower()
+
+    if action == "scene":
+        if not current_user.mistral_api_key:
+            flash("Ajoute d'abord ton token Mistral dans Mon compte.", "error")
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+        scene_key = request.form.get("scene", "").strip().lower()
+        try:
+            scene_label, performance = _queue_use_case_scene(
+                rabbit,
+                api_key=current_user.mistral_api_key,
+                scene_key=scene_key,
+            )
+        except (ValueError, RuntimeError) as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+        _append_rabbit_event(
+            rabbit,
+            source="portal",
+            event_type="rabbit.use_case.scene.queued",
+            payload={"scene": scene_key, "label": scene_label, **_performance_event_payload(performance)},
+        )
+        db.session.commit()
+        flash(f"Scene `{scene_label}` mise en file.", "success")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    if action == "improvise":
+        if not current_user.mistral_api_key:
+            flash("Ajoute d'abord ton token Mistral dans Mon compte.", "error")
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+        try:
+            llm_model = _normalize_rabbit_llm_model(rabbit, _build_rabbit_llm_model_options())
+            performance = _generate_mistral_rabbit_performance(
+                api_key=current_user.mistral_api_key,
+                model=llm_model,
+                rabbit_name=rabbit.name,
+                personality_prompt=rabbit.personality_prompt or DEFAULT_RABBIT_PERSONALITY_PROMPT,
+                user_prompt_override=(
+                    "Invente une micro-performance domestique originale, courte et expressive pour divertir "
+                    "les habitants maintenant. Utilise bien la voix, les oreilles et les LEDs."
+                ),
+            )
+            _queue_generated_performance(
+                rabbit,
+                api_key=current_user.mistral_api_key,
+                performance=performance,
+                source="use_case",
+                mode="improvise",
+            )
+        except RuntimeError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+        _append_rabbit_event(
+            rabbit,
+            source="portal",
+            event_type="rabbit.use_case.improvised",
+            payload=_performance_event_payload(performance),
+        )
+        db.session.commit()
+        flash("Improvisation mise en file.", "success")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    if action == "radio":
+        stream_url = request.form.get("stream_url", "").strip()
+        if not stream_url:
+            flash("URL de stream obligatoire.", "error")
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+        _enqueue_device_command(
+            rabbit,
+            command_type="audio",
+            payload={"url": stream_url, "source": "radio"},
+        )
+        _append_rabbit_event(
+            rabbit,
+            source="portal",
+            event_type="rabbit.use_case.radio.queued",
+            payload={"url": stream_url},
+        )
+        db.session.commit()
+        flash("Stream audio mis en file.", "success")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    if action == "ztamp":
+        if not current_user.mistral_api_key:
+            flash("Ajoute d'abord ton token Mistral dans Mon compte.", "error")
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+        ztamp_id_raw = request.form.get("ztamp_id", "").strip()
+        if not ztamp_id_raw.isdigit():
+            flash("Ztamp invalide.", "error")
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+        ztamp = Ztamp.query.filter_by(id=int(ztamp_id_raw), rabbit_id=rabbit.id).first()
+        if ztamp is None:
+            flash("Ztamp introuvable.", "error")
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+        ztamp_name = (ztamp.name or "").strip() or f"Ztamp {ztamp.tag}"
+        try:
+            llm_model = _normalize_rabbit_llm_model(rabbit, _build_rabbit_llm_model_options())
+            performance = _generate_mistral_rabbit_performance(
+                api_key=current_user.mistral_api_key,
+                model=llm_model,
+                rabbit_name=rabbit.name,
+                personality_prompt=rabbit.personality_prompt or DEFAULT_RABBIT_PERSONALITY_PROMPT,
+                user_prompt_override=(
+                    f"Le lapin vient de detecter le Ztamp `{ztamp_name}` (tag {ztamp.tag}). "
+                    "Invente une courte scene tangible, ludique et domestique inspiree par cet objet."
+                ),
+            )
+            _queue_generated_performance(
+                rabbit,
+                api_key=current_user.mistral_api_key,
+                performance=performance,
+                source="use_case",
+                mode="ztamp",
+            )
+        except RuntimeError as exc:
+            flash(str(exc), "error")
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+        _append_rabbit_event(
+            rabbit,
+            source="portal",
+            event_type="rabbit.use_case.ztamp.queued",
+            payload={"ztamp_id": ztamp.id, "ztamp_tag": ztamp.tag, "ztamp_name": ztamp.name, **_performance_event_payload(performance)},
+        )
+        db.session.commit()
+        flash(f"Scenario Ztamp `{ztamp_name}` mis en file.", "success")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    flash("Cas d'usage invalide.", "error")
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
 
