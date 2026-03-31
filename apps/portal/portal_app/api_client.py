@@ -119,3 +119,11 @@ def stop_remote_recording(remote_id: str, *, reason: str = "user") -> dict:
         method="POST",
         payload={"reason": reason},
     )
+
+
+def set_remote_ears(remote_id: str, *, left: int, right: int) -> dict:
+    return _api_request(
+        f"/api/rabbits/{remote_id}/commands/ears",
+        method="POST",
+        payload={"left": left, "right": right},
+    )
