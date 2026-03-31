@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from mimetypes import guess_type
 from pathlib import Path
 from urllib import error as urllib_error
+from urllib import parse as urllib_parse
 from urllib import request as urllib_request
 from zoneinfo import ZoneInfo
 
@@ -138,6 +139,7 @@ AUTO_PERFORMANCE_LOOP_SECONDS = 45
 AUTO_PERFORMANCE_CLAIM_MINUTES = 10
 AUTO_PERFORMANCE_MAX_BATCH = 3
 AUTO_PERFORMANCE_TIMEZONE = ZoneInfo("Europe/Paris")
+HOME_ASSISTANT_DEFAULT_LOOKAHEAD_HOURS = 24
 RABBIT_USE_CASE_SCENES = {
     "welcome": {
         "label": "Accueil",
@@ -1077,6 +1079,107 @@ def _latest_ztamps_for_rabbit(rabbit_id: int, *, limit: int = 20) -> list[dict]:
     return payload
 
 
+def _home_assistant_base_url() -> str | None:
+    base_url = str(getattr(current_user, "home_assistant_base_url", "") or "").strip()
+    if not base_url:
+        return None
+    return base_url.rstrip("/")
+
+
+def _home_assistant_request(*, method: str, path: str, payload: dict | None = None) -> dict | list:
+    base_url = _home_assistant_base_url()
+    api_token = str(getattr(current_user, "home_assistant_api_token", "") or "").strip()
+    if not base_url or not api_token:
+        raise RuntimeError("Configure d'abord l'URL et le token Home Assistant dans Mon compte.")
+
+    request_headers = {
+        "Authorization": f"Bearer {api_token}",
+        "Content-Type": "application/json",
+    }
+    request_body = None if payload is None else json.dumps(payload).encode("utf-8")
+    http_request = urllib_request.Request(
+        f"{base_url}{path}",
+        data=request_body,
+        headers=request_headers,
+        method=method.upper(),
+    )
+    try:
+        with urllib_request.urlopen(http_request, timeout=20) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib_error.HTTPError as exc:
+        error_body = exc.read().decode("utf-8", errors="replace")
+        try:
+            error_payload = json.loads(error_body)
+            error_message = error_payload.get("message") or error_body
+        except json.JSONDecodeError:
+            error_message = error_body or str(exc)
+        raise RuntimeError(f"Home Assistant a renvoyé {exc.code}: {error_message}") from exc
+    except urllib_error.URLError as exc:
+        raise RuntimeError(f"Home Assistant est injoignable: {exc.reason}") from exc
+
+
+def _list_home_assistant_calendars() -> list[dict]:
+    payload = _home_assistant_request(method="GET", path="/api/calendars")
+    if not isinstance(payload, list):
+        raise RuntimeError("Réponse Home Assistant invalide pour la liste des calendriers.")
+    calendars: list[dict] = []
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        entity_id = str(item.get("entity_id") or "").strip()
+        if not entity_id:
+            continue
+        name = str(item.get("name") or entity_id).strip()
+        calendars.append({"entity_id": entity_id, "name": name})
+    return calendars
+
+
+def _fetch_home_assistant_calendar_events(entity_id: str, *, hours: int = HOME_ASSISTANT_DEFAULT_LOOKAHEAD_HOURS) -> list[dict]:
+    normalized_entity_id = entity_id.strip()
+    if not normalized_entity_id:
+        raise RuntimeError("Entité calendrier Home Assistant obligatoire.")
+    now = datetime.now(AUTO_PERFORMANCE_TIMEZONE)
+    start = now.isoformat()
+    end = (now + timedelta(hours=max(1, min(hours, 72)))).isoformat()
+    path = f"/api/calendars/{normalized_entity_id}?start={urllib_parse.quote(start)}&end={urllib_parse.quote(end)}"
+    payload = _home_assistant_request(method="GET", path=path)
+    if not isinstance(payload, list):
+        raise RuntimeError("Réponse Home Assistant invalide pour les événements calendrier.")
+    return [item for item in payload if isinstance(item, dict)]
+
+
+def _fetch_home_assistant_state(entity_id: str) -> dict:
+    normalized_entity_id = entity_id.strip()
+    if not normalized_entity_id:
+        raise RuntimeError("Entité Home Assistant obligatoire.")
+    payload = _home_assistant_request(method="GET", path=f"/api/states/{normalized_entity_id}")
+    if not isinstance(payload, dict):
+        raise RuntimeError("Réponse Home Assistant invalide pour l'état de l'entité.")
+    return payload
+
+
+def _summarize_home_assistant_calendar(entity_id: str, events: list[dict]) -> str:
+    if not events:
+        return f"Je n'ai rien trouvé dans `{entity_id}` pour les prochaines heures. Le terrier de l'agenda est calme."
+    first_event = events[0]
+    summary = str(first_event.get("summary") or "un événement").strip()
+    start_text = str(first_event.get("start") or first_event.get("start_date") or "").strip()
+    if len(events) == 1:
+        return f"Dans ton calendrier `{entity_id}`, le prochain événement est `{summary}` à {start_text}."
+    return (
+        f"Dans `{entity_id}`, le prochain événement est `{summary}` à {start_text}. "
+        f"J'ai aussi repéré {len(events) - 1} autre"
+        f"{'s' if len(events) - 1 > 1 else ''} événement"
+        f"{'s' if len(events) - 1 > 1 else ''} dans la foulée."
+    )
+
+
+def _summarize_home_assistant_state(entity_id: str, state_payload: dict) -> str:
+    state = str(state_payload.get("state") or "inconnu").strip()
+    friendly_name = str((state_payload.get("attributes") or {}).get("friendly_name") or entity_id).strip()
+    return f"L'état actuel de `{friendly_name}` est `{state}`."
+
+
 def _synthesize_tts_asset(*, api_key: str, rabbit_slug: str, text: str, voice: str) -> tuple[Path, str]:
     normalized_text = " ".join(text.split())
     if not normalized_text:
@@ -1697,26 +1800,45 @@ def account():
     if request.method == "POST":
         provider = request.form.get("provider", "mistral").strip().lower()
         action = request.form.get("action", "save").strip().lower()
+        if provider == "mistral":
+            field_name = "mistral_api_key"
+            provider_label = "Mistral"
 
-        if provider != "mistral":
-            flash("Provider invalide.", "error")
-            return redirect(url_for("main.account"))
-        field_name = "mistral_api_key"
-        provider_label = "Mistral"
+            if action == "clear":
+                setattr(current_user, field_name, None)
+                db.session.commit()
+                flash(f"Token {provider_label} supprimé.", "success")
+                return redirect(url_for("main.account"))
 
-        if action == "clear":
-            setattr(current_user, field_name, None)
-            db.session.commit()
-            flash(f"Token {provider_label} supprimé.", "success")
-            return redirect(url_for("main.account"))
+            api_key = request.form.get(field_name, "").strip()
+            if not api_key:
+                flash(f"Saisis un token {provider_label} ou utilise le bouton de suppression.", "error")
+            else:
+                setattr(current_user, field_name, api_key)
+                db.session.commit()
+                flash(f"Token {provider_label} enregistré.", "success")
+                return redirect(url_for("main.account"))
 
-        api_key = request.form.get(field_name, "").strip()
-        if not api_key:
-            flash(f"Saisis un token {provider_label} ou utilise le bouton de suppression.", "error")
+        elif provider == "home-assistant":
+            if action == "clear":
+                current_user.home_assistant_base_url = None
+                current_user.home_assistant_api_token = None
+                db.session.commit()
+                flash("Configuration Home Assistant supprimée.", "success")
+                return redirect(url_for("main.account"))
+
+            base_url = request.form.get("home_assistant_base_url", "").strip().rstrip("/")
+            api_token = request.form.get("home_assistant_api_token", "").strip()
+            if not base_url or not api_token:
+                flash("Saisis l'URL et le token Home Assistant, ou utilise le bouton de suppression.", "error")
+            else:
+                current_user.home_assistant_base_url = base_url
+                current_user.home_assistant_api_token = api_token
+                db.session.commit()
+                flash("Configuration Home Assistant enregistrée.", "success")
+                return redirect(url_for("main.account"))
         else:
-            setattr(current_user, field_name, api_key)
-            db.session.commit()
-            flash(f"Token {provider_label} enregistré.", "success")
+            flash("Provider invalide.", "error")
             return redirect(url_for("main.account"))
 
     return render_template("account.html")
@@ -1801,6 +1923,8 @@ def rabbit_detail(rabbit_id: int):
     remote_error = None
     saved_mistral_voices: list[dict] = []
     available_mistral_models: list[dict] = []
+    home_assistant_calendars: list[dict] = []
+    home_assistant_error = None
 
     linked_device = (
         DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
@@ -1844,6 +1968,12 @@ def rabbit_detail(rabbit_id: int):
             available_mistral_models = _list_mistral_models(current_user.mistral_api_key)
         except RuntimeError as exc:
             current_app.logger.warning("unable to list Mistral models for user %s: %s", current_user.id, exc)
+    if current_user.home_assistant_base_url and current_user.home_assistant_api_token:
+        try:
+            home_assistant_calendars = _list_home_assistant_calendars()
+        except RuntimeError as exc:
+            home_assistant_error = str(exc)
+            current_app.logger.warning("unable to list Home Assistant calendars for user %s: %s", current_user.id, exc)
     rabbit_tts_voice_options = _build_rabbit_tts_voice_options(saved_mistral_voices)
     rabbit_tts_voice = _normalize_rabbit_tts_voice(rabbit, rabbit_tts_voice_options)
     rabbit_llm_model_options = _build_rabbit_llm_model_options(available_mistral_models)
@@ -1921,6 +2051,8 @@ def rabbit_detail(rabbit_id: int):
         AUTO_PERFORMANCE_DEFAULT_WINDOW_END=AUTO_PERFORMANCE_DEFAULT_WINDOW_END,
         rabbit_auto_performance_next_at=_format_auto_performance_next_at(rabbit.auto_performance_next_at),
         rabbit_photo_url=_rabbit_photo_url(rabbit),
+        home_assistant_calendars=home_assistant_calendars,
+        home_assistant_error=home_assistant_error,
     )
 
 
@@ -2687,6 +2819,87 @@ def rabbit_use_case_test(rabbit_id: int):
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     flash("Cas d'usage invalide.", "error")
+    return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+
+@main_bp.post("/rabbits/<int:rabbit_id>/home-assistant/test")
+@login_required
+def rabbit_home_assistant_test(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    if not current_user.home_assistant_base_url or not current_user.home_assistant_api_token:
+        flash("Configure d'abord Home Assistant dans Mon compte.", "error")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+    if not current_user.mistral_api_key:
+        flash("Ajoute d'abord ton token Mistral dans Mon compte.", "error")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    action = request.form.get("action", "").strip().lower()
+
+    try:
+        if action == "calendar-summary":
+            entity_id = request.form.get("calendar_entity_id", "").strip()
+            hours_raw = request.form.get("lookahead_hours", "").strip()
+            hours = int(hours_raw) if hours_raw.isdigit() else HOME_ASSISTANT_DEFAULT_LOOKAHEAD_HOURS
+            events = _fetch_home_assistant_calendar_events(entity_id, hours=hours)
+            text = _summarize_home_assistant_calendar(entity_id, events)
+            performance = {
+                "text": text,
+                "ears": {"left": 7, "right": 9},
+                "led_commands": [
+                    {"target": "left", "color": LED_COLOR_PRESETS["blue"], "preset": "blue"},
+                    {"target": "center", "color": LED_COLOR_PRESETS["white"], "preset": "white"},
+                    {"target": "right", "color": LED_COLOR_PRESETS["blue"], "preset": "blue"},
+                ],
+            }
+            _queue_generated_performance(
+                rabbit,
+                api_key=current_user.mistral_api_key,
+                performance=performance,
+                source="home_assistant",
+                mode="calendar-summary",
+            )
+            _append_rabbit_event(
+                rabbit,
+                source="portal",
+                event_type="rabbit.home_assistant.calendar_summary.queued",
+                payload={"entity_id": entity_id, "events_count": len(events), **_performance_event_payload(performance)},
+            )
+            db.session.commit()
+            flash("Résumé Home Assistant de l'agenda mis en file.", "success")
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+        if action == "entity-state":
+            entity_id = request.form.get("entity_id", "").strip()
+            state_payload = _fetch_home_assistant_state(entity_id)
+            text = _summarize_home_assistant_state(entity_id, state_payload)
+            performance = {
+                "text": text,
+                "ears": {"left": 8, "right": 8},
+                "led_commands": [
+                    {"target": "center", "color": LED_COLOR_PRESETS["cyan"], "preset": "cyan"},
+                ],
+            }
+            _queue_generated_performance(
+                rabbit,
+                api_key=current_user.mistral_api_key,
+                performance=performance,
+                source="home_assistant",
+                mode="entity-state",
+            )
+            _append_rabbit_event(
+                rabbit,
+                source="portal",
+                event_type="rabbit.home_assistant.entity_state.queued",
+                payload={"entity_id": entity_id, "state": state_payload.get("state"), **_performance_event_payload(performance)},
+            )
+            db.session.commit()
+            flash("Lecture d'état Home Assistant mise en file.", "success")
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+    except RuntimeError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    flash("Action Home Assistant invalide.", "error")
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
 

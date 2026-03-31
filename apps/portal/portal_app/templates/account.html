@@ -41,5 +41,49 @@
         </div>
       </form>
     </article>
+
+    <article class="panel">
+      <form method="post" class="stack">
+        <input type="hidden" name="provider" value="home-assistant">
+        <div class="field">
+          <label for="home_assistant_base_url">URL Home Assistant</label>
+          <input
+            id="home_assistant_base_url"
+            name="home_assistant_base_url"
+            type="text"
+            spellcheck="false"
+            autocapitalize="off"
+            autocomplete="off"
+            placeholder="https://homeassistant.local:8123"
+            value="{{ current_user.home_assistant_base_url or '' }}"
+          >
+        </div>
+        <div class="field">
+          <label for="home_assistant_api_token">Token d'accès long terme</label>
+          <input
+            id="home_assistant_api_token"
+            name="home_assistant_api_token"
+            type="password"
+            spellcheck="false"
+            autocapitalize="off"
+            autocomplete="off"
+            placeholder="{% if current_user.home_assistant_api_token %}Token déjà enregistré{% else %}...{% endif %}"
+          >
+        </div>
+        <div class="meta">
+          {% if current_user.home_assistant_base_url and current_user.home_assistant_api_token %}
+            Home Assistant est configuré pour ce compte.
+          {% else %}
+            Aucune configuration Home Assistant n'est encore enregistrée.
+          {% endif %}
+        </div>
+        <div class="actions">
+          <button class="button primary" type="submit" name="action" value="save">Enregistrer Home Assistant</button>
+          {% if current_user.home_assistant_base_url or current_user.home_assistant_api_token %}
+            <button class="pill" type="submit" name="action" value="clear">Supprimer la configuration</button>
+          {% endif %}
+        </div>
+      </form>
+    </article>
   </section>
 {% endblock %}
