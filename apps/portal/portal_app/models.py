@@ -147,6 +147,7 @@ class RabbitRecording(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     rabbit_id = db.Column(db.Integer, db.ForeignKey("rabbit.id"), nullable=False, index=True)
     serial = db.Column(db.String(32), nullable=False, index=True)
+    content_sha1 = db.Column(db.String(40), index=True)
     filename = db.Column(db.String(255), nullable=False, unique=True)
     source_path = db.Column(db.String(255), nullable=False)
     mode = db.Column(db.String(32))

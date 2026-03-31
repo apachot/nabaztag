@@ -71,6 +71,7 @@ def _ensure_portal_schema() -> None:
     inspector = db.inspect(db.engine)
     rabbit_columns = {column["name"] for column in inspector.get_columns("rabbit")}
     user_columns = {column["name"] for column in inspector.get_columns("user")}
+    recording_columns = {column["name"] for column in inspector.get_columns("rabbit_recording")}
     statements: list[str] = []
 
     if "photo_filename" not in rabbit_columns:
@@ -101,6 +102,8 @@ def _ensure_portal_schema() -> None:
         statements.append("ALTER TABLE user ADD COLUMN openai_api_key TEXT")
     if "mistral_api_key" not in user_columns:
         statements.append("ALTER TABLE user ADD COLUMN mistral_api_key TEXT")
+    if "content_sha1" not in recording_columns:
+        statements.append("ALTER TABLE rabbit_recording ADD COLUMN content_sha1 VARCHAR(40)")
 
     for statement in statements:
         db.session.execute(text(statement))

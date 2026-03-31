@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import random
 import re
@@ -108,6 +109,7 @@ MISTRAL_TTS_LIST_VOICES_URL = "https://api.mistral.ai/v1/audio/voices"
 MISTRAL_TTS_SPEECH_URL = "https://api.mistral.ai/v1/audio/speech"
 DEFAULT_RABBIT_LLM_MODEL = "mistral-small-2603"
 MISTRAL_MODELS_URL = "https://api.mistral.ai/v1/models"
+RECORDING_DEDUPLICATION_WINDOW_SECONDS = 30
 BODY_LED_TARGETS = ("left", "center", "right")
 LED_TARGETS = ("left", "center", "right", "bottom", "nose")
 LED_MODE_TO_PRESET = {
@@ -1077,6 +1079,16 @@ def _maybe_transcode_recording_to_mp3(source_path: Path) -> Path:
     return source_path
 
 
+def _find_recent_duplicate_recording(rabbit: Rabbit, content_sha1: str) -> RabbitRecording | None:
+    cutoff_time = datetime.utcnow() - timedelta(seconds=RECORDING_DEDUPLICATION_WINDOW_SECONDS)
+    return (
+        RabbitRecording.query.filter_by(rabbit_id=rabbit.id, content_sha1=content_sha1)
+        .filter(RabbitRecording.created_at >= cutoff_time)
+        .order_by(RabbitRecording.id.desc())
+        .first()
+    )
+
+
 def _record_device_observation(
     *,
     serial: str | None,
@@ -1366,18 +1378,43 @@ def violet_bootcode():
 def violet_record():
     serial_number = (request.args.get("sn") or "").replace(":", "").lower() or "unknown"
     payload = request.get_data(cache=False)
+    payload_sha1 = hashlib.sha1(payload).hexdigest()
+    rabbit = _rabbit_for_serial(serial_number)
+    if rabbit is not None:
+        duplicate_recording = _find_recent_duplicate_recording(rabbit, payload_sha1)
+        if duplicate_recording is not None:
+            _append_rabbit_event(
+                rabbit,
+                source="device",
+                event_type="rabbit.recording.duplicate_ignored",
+                payload={
+                    "serial": serial_number,
+                    "content_sha1": payload_sha1,
+                    "existing_recording_id": duplicate_recording.id,
+                    "existing_filename": duplicate_recording.filename,
+                    "size": len(payload),
+                },
+            )
+            db.session.commit()
+            current_app.logger.info(
+                "nabaztag.record duplicate ignored sn=%s sha1=%s existing_recording_id=%s",
+                serial_number,
+                payload_sha1,
+                duplicate_recording.id,
+            )
+            return Response("", mimetype="text/plain")
     raw_filename = f"record_{serial_number}_{int(time.time())}.wav"
     raw_filepath = _recordings_dir() / raw_filename
     raw_filepath.write_bytes(payload)
     stored_path = _maybe_transcode_recording_to_mp3(raw_filepath)
     filename = stored_path.name
     transcript = _transcribe_recording_asset(stored_path)
-    rabbit = _rabbit_for_serial(serial_number)
     recording = None
     if rabbit is not None:
         recording = RabbitRecording(
             rabbit_id=rabbit.id,
             serial=serial_number,
+            content_sha1=payload_sha1,
             filename=filename,
             source_path=str(stored_path),
             mode=request.args.get("m"),
