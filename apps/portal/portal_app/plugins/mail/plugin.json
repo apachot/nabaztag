@@ -1,0 +1,14 @@
+{
+  "plugin_id": "mail",
+  "label": "Mail",
+  "description": "Notifications de messages importants et résumés vocaux de la boîte de réception.",
+  "category": "assistant",
+  "default_enabled": false,
+  "experimental": true,
+  "hooks": [
+    {
+      "pipeline": "rabbit.event.after_rfid_detected",
+      "handler": "handlers.after_rfid_detected"
+    }
+  ]
+}

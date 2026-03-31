@@ -30,18 +30,21 @@ Les plugins apportent ensuite :
 
 Le projet dispose désormais :
 
-- d'un registre de plugins Python
+- d'un dossier `plugins/` dans l'arborescence
+- d'un manifeste `plugin.json` normalisé par plugin
+- d'un registre chargé dynamiquement depuis ces manifests
 - d'un état d'activation par lapin
 - d'une interface d'activation / désactivation sur la fiche d'un lapin
 
 Références :
 
-- [plugins.py](/Users/apachot/Documents/GitHub/nabaztag/apps/portal/portal_app/plugins.py)
+- [plugins/__init__.py](/Users/apachot/Documents/GitHub/nabaztag/apps/portal/portal_app/plugins/__init__.py)
+- [pipelines.py](/Users/apachot/Documents/GitHub/nabaztag/apps/portal/portal_app/pipelines.py)
 - [models.py](/Users/apachot/Documents/GitHub/nabaztag/apps/portal/portal_app/models.py)
 
 ## 3. Modèle de données
 
-Le registre décrit les plugins disponibles dans le code :
+Le manifeste JSON décrit les plugins disponibles :
 
 - `plugin_id`
 - `label`
@@ -49,6 +52,12 @@ Le registre décrit les plugins disponibles dans le code :
 - `category`
 - `default_enabled`
 - `experimental`
+- `hooks`
+
+Chaque hook déclare :
+
+- le `pipeline`
+- la `handler` Python appelée
 
 La base stocke ensuite, par lapin :
 
@@ -64,7 +73,7 @@ Cela permet :
 
 ## 4. Premier plugin pilote
 
-Le premier plugin réel est :
+Le premier plugin réellement branché sur les pipelines est :
 
 - `use_cases`
 
@@ -101,7 +110,7 @@ Sortir progressivement les écrans et actions du `Laboratoire d'usages` dans un 
 
 ### Étape 2
 
-Définir une interface plugin plus riche, par exemple :
+Enrichir encore les pipelines et l'interface plugin, par exemple :
 
 - `is_available(user, rabbit)`
 - `get_panels(rabbit)`

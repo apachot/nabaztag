@@ -1,0 +1,14 @@
+{
+  "plugin_id": "spotify",
+  "label": "Spotify",
+  "description": "Pont futur vers un récepteur Spotify Connect et un flux audio relu par le lapin.",
+  "category": "media",
+  "default_enabled": false,
+  "experimental": true,
+  "hooks": [
+    {
+      "pipeline": "rabbit.detail.panels",
+      "handler": "handlers.build_detail_panel"
+    }
+  ]
+}

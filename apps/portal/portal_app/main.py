@@ -53,6 +53,14 @@ from .models import (
     Ztamp,
     utc_now,
 )
+from .pipelines import (
+    PIPELINE_RABBIT_DETAIL_PANELS,
+    PIPELINE_RABBIT_EVENT_AFTER_RECORDING_UPLOAD,
+    PIPELINE_RABBIT_EVENT_AFTER_RFID_DETECTED,
+    PIPELINE_RABBIT_PERFORMANCE_AFTER_QUEUE,
+    PIPELINE_RABBIT_PERFORMANCE_BEFORE_QUEUE,
+    run_plugin_pipeline,
+)
 from .plugins import get_plugin_definition, get_plugin_definitions
 
 main_bp = Blueprint("main", __name__)
@@ -735,6 +743,13 @@ def _queue_generated_performance(
     source: str,
     mode: str,
 ) -> tuple[Path, str]:
+    _run_plugin_pipeline(
+        PIPELINE_RABBIT_PERFORMANCE_BEFORE_QUEUE,
+        rabbit=rabbit,
+        performance=performance,
+        source=source,
+        mode=mode,
+    )
     text = performance["text"]
     voice = _normalize_rabbit_tts_voice(rabbit, _build_rabbit_tts_voice_options())
     asset_path, asset_name = _synthesize_tts_asset(
@@ -784,6 +799,14 @@ def _queue_generated_performance(
             "text": text,
             "mode": mode,
         },
+    )
+    _run_plugin_pipeline(
+        PIPELINE_RABBIT_PERFORMANCE_AFTER_QUEUE,
+        rabbit=rabbit,
+        performance=performance,
+        source=source,
+        mode=mode,
+        asset_name=asset_name,
     )
     return asset_path, asset_name
 
@@ -1061,6 +1084,15 @@ def _is_plugin_enabled(rabbit: Rabbit, plugin_id: str) -> bool:
     if state is None:
         return plugin.default_enabled
     return bool(state.enabled)
+
+
+def _run_plugin_pipeline(pipeline_name: str, *, rabbit: Rabbit, **context) -> list[dict]:
+    return run_plugin_pipeline(
+        pipeline_name,
+        rabbit=rabbit,
+        is_enabled=_is_plugin_enabled,
+        **context,
+    )
 
 
 def _latest_ztamps_for_rabbit(rabbit_id: int, *, limit: int = 20) -> list[dict]:
@@ -1477,6 +1509,14 @@ def violet_locate():
             "path": request.path,
         },
     )
+    if rabbit is not None:
+        _run_plugin_pipeline(
+            PIPELINE_RABBIT_EVENT_AFTER_RECORDING_UPLOAD,
+            rabbit=rabbit,
+            filename=filename,
+            transcript_text=transcript_text,
+            mode=request.args.get("m"),
+        )
     db.session.commit()
     current_app.logger.info(
         "nabaztag.locate sn=%s hardware=%s firmware=%s reply=%s",
@@ -1681,6 +1721,13 @@ def violet_rfid():
         event_type="rabbit.rfid.detected",
         payload={"serial": serial_number, "tag": tag_id},
     )
+    if rabbit is not None:
+        _run_plugin_pipeline(
+            PIPELINE_RABBIT_EVENT_AFTER_RFID_DETECTED,
+            rabbit=rabbit,
+            tag_id=tag_id,
+            serial=serial_number,
+        )
     db.session.commit()
     current_app.logger.info("nabaztag.rfid sn=%s tag=%s", serial_number, tag_id)
     return Response("", mimetype="text/plain")
@@ -1959,6 +2006,11 @@ def rabbit_detail(rabbit_id: int):
         .all()
     )
     ztamps = _latest_ztamps_for_rabbit(rabbit.id)
+    plugin_detail_panels = _run_plugin_pipeline(
+        PIPELINE_RABBIT_DETAIL_PANELS,
+        rabbit=rabbit,
+        ztamps=ztamps,
+    )
     return render_template(
         "rabbits/detail.html",
         rabbit=rabbit,
@@ -1973,7 +2025,7 @@ def rabbit_detail(rabbit_id: int):
         conversation_turns=list(reversed(conversation_turns)),
         queued_commands=queued_commands,
         ztamps=ztamps,
-        use_cases_plugin_enabled=_is_plugin_enabled(rabbit, "use_cases"),
+        plugin_detail_panels=plugin_detail_panels,
         led_color_presets=LED_COLOR_PRESETS,
         DEFAULT_RABBIT_PERSONALITY_PROMPT=DEFAULT_RABBIT_PERSONALITY_PROMPT,
         DEFAULT_RABBIT_LLM_MODEL=DEFAULT_RABBIT_LLM_MODEL,
