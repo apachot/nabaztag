@@ -900,6 +900,20 @@ def _bundled_audio_assets_dir() -> Path:
     return Path(current_app.root_path) / "static"
 
 
+def _ensure_stream_interrupt_choreography() -> tuple[str, dict[str, str]]:
+    filename = "stream-interrupt.chor"
+    states = {
+        "left": "#000000",
+        "center": "#000000",
+        "right": "#000000",
+    }
+    path = choreography_storage_path(_choreographies_dir(), filename)
+    if not path.exists():
+        _packet, chor_bytes = build_choreography_packet(states=states, filename=filename)
+        path.write_bytes(chor_bytes)
+    return filename, states
+
+
 def _rabbit_photos_dir() -> Path:
     photo_dir = Path(current_app.instance_path) / "rabbit_photos"
     photo_dir.mkdir(parents=True, exist_ok=True)
@@ -1356,7 +1370,7 @@ def _apply_local_device_state(
                 latest_led_by_target[target] = payload
         elif command.command_type == "ears" and latest_ears_payload is None:
             latest_ears_payload = payload
-        elif command.command_type == "audio_stop" and latest_audio_payload is None and not latest_audio_stopped:
+        elif command.command_type in {"audio_stop", "choreography"} and latest_audio_payload is None and not latest_audio_stopped:
             latest_audio_stopped = True
         elif command.command_type == "audio" and latest_audio_payload is None and not latest_audio_stopped:
             latest_audio_payload = payload
@@ -2691,10 +2705,11 @@ def rabbit_use_case_test(rabbit_id: int):
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     if action == "radio-stop":
+        filename, states = _ensure_stream_interrupt_choreography()
         _enqueue_device_command(
             rabbit,
-            command_type="audio_stop",
-            payload={"url": "broadcast/ojn_local/audio/silence.mp3", "source": "radio-stop"},
+            command_type="choreography",
+            payload={"filename": filename, "states": states, "purpose": "radio-stop"},
         )
         _append_rabbit_event(
             rabbit,

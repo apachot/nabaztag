@@ -15,6 +15,7 @@ from .device_protocol import (
     EncodedPacket,
     build_audio_packet,
     build_body_led_packet,
+    build_choreography_packet,
     build_ears_packet,
     build_init_packet,
     build_nose_or_bottom_packet,
@@ -401,6 +402,12 @@ def _build_packet_for_command(command: RabbitDeviceCommand) -> EncodedPacket:
         return build_audio_packet(payload["url"])
     if command.command_type == "audio_stop":
         return build_audio_packet(payload["url"])
+    if command.command_type == "choreography":
+        packet, _chor_bytes = build_choreography_packet(
+            states=payload.get("states") or {"left": "#000000", "center": "#000000", "right": "#000000"},
+            filename=payload["filename"],
+        )
+        return packet
     if command.command_type == "ears":
         return build_ears_packet(int(payload["left"]), int(payload["right"]))
     if command.command_type == "led":
