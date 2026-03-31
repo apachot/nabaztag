@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import base64
 import hashlib
 import json
@@ -469,13 +470,40 @@ def _extract_json_object(raw_text: str) -> dict:
         match = re.search(r"\{.*\}", text, re.DOTALL)
         if not match:
             raise RuntimeError("Le modele n'a pas renvoye un JSON valide.") from None
+        candidate = match.group(0)
         try:
-            direct_payload = json.loads(match.group(0))
+            direct_payload = json.loads(candidate)
         except json.JSONDecodeError as exc:
-            raise RuntimeError("Le modele a renvoye un JSON invalide.") from exc
+            try:
+                direct_payload = ast.literal_eval(candidate)
+            except (ValueError, SyntaxError) as literal_exc:
+                raise RuntimeError("Le modele a renvoye un JSON invalide.") from literal_exc
     if not isinstance(direct_payload, dict):
         raise RuntimeError("Le modele a renvoye un JSON invalide.")
     return direct_payload
+
+
+def _maybe_unwrap_nested_performance_payload(payload: dict) -> dict:
+    current_payload = payload
+    for _ in range(2):
+        if not isinstance(current_payload, dict):
+            break
+        if "ears" in current_payload or "leds" in current_payload:
+            return current_payload
+        raw_text = current_payload.get("text")
+        if not isinstance(raw_text, str):
+            return current_payload
+        nested_text = raw_text.strip()
+        if not nested_text.startswith("{"):
+            return current_payload
+        try:
+            nested_payload = json.loads(nested_text)
+        except json.JSONDecodeError:
+            return current_payload
+        if not isinstance(nested_payload, dict):
+            return current_payload
+        current_payload = nested_payload
+    return current_payload
 
 
 def _normalize_generated_ear_instruction(instruction: object) -> int | None:
@@ -524,7 +552,12 @@ def _normalize_generated_led_instruction(target: str, instruction: object) -> di
 
 
 def _normalize_generated_performance(payload: dict) -> dict:
+    payload = _maybe_unwrap_nested_performance_payload(payload)
     text = " ".join(str(payload.get("text") or "").split()).strip()
+    if not text:
+        raise RuntimeError("Le modele n'a pas fourni de texte a lire.")
+    text = re.sub(r"\*[^*]+\*", "", text).strip()
+    text = re.sub(r"\s{2,}", " ", text).strip()
     if not text:
         raise RuntimeError("Le modele n'a pas fourni de texte a lire.")
 
@@ -1049,7 +1082,10 @@ def _generate_mistral_rabbit_performance(
         "3. Pour les LEDs du corps `left/center/right`, seul `steady` ou `off` est autorise. "
         "4. Pour `bottom`, seul `steady` ou `off` est autorise. "
         "5. Pour `nose`, seuls `off`, `blink` et `double_blink` sont autorises. "
-        "6. Ne mets jamais de texte hors JSON."
+        "6. Le champ `text` doit contenir uniquement la phrase prononcee par le lapin, sans didascalie, "
+        "sans description de geste, sans mention des oreilles, sans mention des LEDs, sans asterisques. "
+        "7. Reponds avec un JSON strict valide, avec des doubles guillemets JSON, jamais avec des quotes simples. "
+        "8. Ne mets jamais de texte hors JSON."
     )
     user_prompt = user_prompt_override or (
         f"Genere maintenant une petite performance originale pour {rabbit_name}. "
