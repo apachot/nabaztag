@@ -1519,14 +1519,6 @@ def violet_locate():
             "path": request.path,
         },
     )
-    if rabbit is not None:
-        _run_plugin_pipeline(
-            PIPELINE_RABBIT_EVENT_AFTER_RECORDING_UPLOAD,
-            rabbit=rabbit,
-            filename=filename,
-            transcript_text=transcript_text,
-            mode=request.args.get("m"),
-        )
     db.session.commit()
     current_app.logger.info(
         "nabaztag.locate sn=%s hardware=%s firmware=%s reply=%s",
