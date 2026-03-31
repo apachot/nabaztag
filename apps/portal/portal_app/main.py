@@ -1959,7 +1959,6 @@ def rabbit_detail(rabbit_id: int):
         .all()
     )
     ztamps = _latest_ztamps_for_rabbit(rabbit.id)
-    plugin_statuses = _plugin_statuses_for_rabbit(rabbit)
     return render_template(
         "rabbits/detail.html",
         rabbit=rabbit,
@@ -1974,7 +1973,6 @@ def rabbit_detail(rabbit_id: int):
         conversation_turns=list(reversed(conversation_turns)),
         queued_commands=queued_commands,
         ztamps=ztamps,
-        plugin_statuses=plugin_statuses,
         use_cases_plugin_enabled=_is_plugin_enabled(rabbit, "use_cases"),
         led_color_presets=LED_COLOR_PRESETS,
         DEFAULT_RABBIT_PERSONALITY_PROMPT=DEFAULT_RABBIT_PERSONALITY_PROMPT,
@@ -2239,7 +2237,12 @@ def edit_rabbit(rabbit_id: int):
         flash("Lapin mis à jour.", "success")
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
-    return render_template("rabbits/edit.html", rabbit=rabbit)
+    return render_template(
+        "rabbits/edit.html",
+        rabbit=rabbit,
+        rabbit_photo_url=_rabbit_photo_url(rabbit),
+        plugin_statuses=_plugin_statuses_for_rabbit(rabbit),
+    )
 
 
 @main_bp.route("/rabbits/<int:rabbit_id>/ztamps/<int:ztamp_id>/edit", methods=["GET", "POST"])
