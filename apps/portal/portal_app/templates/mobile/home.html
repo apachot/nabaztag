@@ -197,10 +197,6 @@
         return;
       }
 
-      const recognition = new SpeechRecognition();
-      recognition.lang = "fr-FR";
-      recognition.interimResults = true;
-      recognition.continuous = false;
       const form = button.closest("form");
       const rabbitName = {{ selected_rabbit.name|tojson }};
 
@@ -211,6 +207,7 @@
       let finalTranscript = "";
       let shouldAutoSend = false;
       let restartTimer = null;
+      let recognition = null;
 
       const refreshStatus = (message) => {
         status.textContent = message;
@@ -362,11 +359,103 @@
             return;
           }
           try {
+            if (!recognition) {
+              recognition = buildRecognition();
+            }
             recognition.start();
           } catch (_error) {
+            recognition = null;
             scheduleRecognitionRestart(300);
           }
         }, delayMs);
+      };
+
+      const buildRecognition = () => {
+        const nextRecognition = new SpeechRecognition();
+        nextRecognition.lang = "fr-FR";
+        nextRecognition.interimResults = true;
+        nextRecognition.continuous = false;
+
+        nextRecognition.onstart = () => {
+          listening = true;
+          if (waitForWakeWord) {
+            refreshStatus(`J'écoute… dis “Ok ${rabbitName}”.`);
+          } else {
+            refreshStatus("Mot-clé détecté. Parle maintenant.");
+          }
+        };
+
+        nextRecognition.onresult = (event) => {
+          let interim = "";
+          for (let index = event.resultIndex; index < event.results.length; index += 1) {
+            const transcriptValue = event.results[index][0]?.transcript || "";
+            if (event.results[index].isFinal) {
+              finalTranscript += `${transcriptValue.trim()} `;
+            } else {
+              interim += transcriptValue;
+            }
+          }
+          input.value = `${finalTranscript}${interim}`.trim();
+          updateTranscript(input.value);
+        };
+
+        nextRecognition.onerror = () => {
+          listening = false;
+          shouldAutoSend = false;
+          recognition = null;
+          refreshStatus("Impossible d'utiliser le micro pour le moment.");
+          if (sessionActive && !sending) {
+            scheduleRecognitionRestart(600);
+          }
+        };
+
+        nextRecognition.onend = () => {
+          listening = false;
+          recognition = null;
+          const normalized = input.value.trim();
+          if (waitForWakeWord) {
+            if (hasWakeWord(normalized)) {
+              const immediateMessage = extractMessageAfterWakeWord(normalized);
+              playCue(1046, 140);
+              void triggerRabbitWakeAck();
+              waitForWakeWord = false;
+              finalTranscript = "";
+              clearRestartTimer();
+              if (immediateMessage) {
+                input.value = immediateMessage;
+                updateTranscript(immediateMessage);
+                shouldAutoSend = true;
+                playCue(784, 120);
+                finalTranscript = immediateMessage;
+                void sendMessage();
+                return;
+              }
+              shouldAutoSend = true;
+              input.value = "";
+              updateTranscript("");
+              scheduleRecognitionRestart(250);
+              return;
+            }
+            finalTranscript = "";
+            input.value = "";
+            updateTranscript("");
+          }
+          if (shouldAutoSend && normalized) {
+            playCue(784, 120);
+            shouldAutoSend = false;
+            void sendMessage();
+            return;
+          }
+          if (sessionActive && !sending) {
+            shouldAutoSend = !waitForWakeWord;
+            scheduleRecognitionRestart(400);
+            return;
+          }
+          shouldAutoSend = false;
+          refreshStatus("Touchez le micro pour dicter un message.");
+        };
+
+        return nextRecognition;
       };
 
       const triggerRabbitWakeAck = async () => {
@@ -447,7 +536,10 @@
         sessionActive = !sessionActive;
         if (!sessionActive) {
           clearRestartTimer();
-          recognition.stop();
+          if (recognition) {
+            recognition.stop();
+          }
+          recognition = null;
           shouldAutoSend = false;
           waitForWakeWord = true;
           refreshStatus("Micro arrêté.");
@@ -459,82 +551,14 @@
         updateTranscript("");
         shouldAutoSend = false;
         refreshStatus("Activation du micro…");
-        recognition.start();
+        recognition = buildRecognition();
+        try {
+          recognition.start();
+        } catch (_error) {
+          recognition = null;
+          refreshStatus("Impossible d'activer le micro pour le moment.");
+        }
       });
-
-      recognition.onstart = () => {
-        listening = true;
-        if (waitForWakeWord) {
-          refreshStatus(`J'écoute… dis “Ok ${rabbitName}”.`);
-        } else {
-          refreshStatus("Mot-clé détecté. Parle maintenant.");
-        }
-      };
-
-      recognition.onresult = (event) => {
-        let interim = "";
-        for (let index = event.resultIndex; index < event.results.length; index += 1) {
-          const transcript = event.results[index][0]?.transcript || "";
-          if (event.results[index].isFinal) {
-            finalTranscript += `${transcript.trim()} `;
-          } else {
-            interim += transcript;
-          }
-        }
-        input.value = `${finalTranscript}${interim}`.trim();
-        updateTranscript(input.value);
-      };
-
-      recognition.onerror = () => {
-        listening = false;
-        shouldAutoSend = false;
-        refreshStatus("Impossible d'utiliser le micro pour le moment.");
-      };
-
-      recognition.onend = () => {
-        listening = false;
-        const normalized = input.value.trim();
-        if (waitForWakeWord) {
-          if (hasWakeWord(normalized)) {
-            const immediateMessage = extractMessageAfterWakeWord(normalized);
-            playCue(1046, 140);
-            void triggerRabbitWakeAck();
-            waitForWakeWord = false;
-            finalTranscript = "";
-            clearRestartTimer();
-            if (immediateMessage) {
-              input.value = immediateMessage;
-              updateTranscript(immediateMessage);
-              shouldAutoSend = true;
-              playCue(784, 120);
-              finalTranscript = immediateMessage;
-              void sendMessage();
-              return;
-            }
-            shouldAutoSend = true;
-            input.value = "";
-            updateTranscript("");
-            scheduleRecognitionRestart(250);
-            return;
-          }
-          finalTranscript = "";
-          input.value = "";
-          updateTranscript("");
-        }
-        if (shouldAutoSend && normalized) {
-          playCue(784, 120);
-          shouldAutoSend = false;
-          void sendMessage();
-          return;
-        }
-        if (sessionActive && !sending) {
-          shouldAutoSend = !waitForWakeWord;
-          scheduleRecognitionRestart(400);
-          return;
-        }
-        shouldAutoSend = false;
-        refreshStatus("Touchez le micro pour dicter un message.");
-      };
     })();
   </script>
 {% endblock %}
