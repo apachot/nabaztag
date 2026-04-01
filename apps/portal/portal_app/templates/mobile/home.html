@@ -197,9 +197,10 @@
       const form = button.closest("form");
 
       let listening = false;
+      let sending = false;
+      let sessionActive = false;
       let finalTranscript = "";
       let shouldAutoSend = false;
-      let autoResume = false;
 
       const refreshStatus = (message) => {
         status.textContent = message;
@@ -213,16 +214,22 @@
 
       const sendMessage = async () => {
         const normalized = input.value.trim();
-        if (!normalized || !form) {
+        if (!normalized || !form || sending) {
           refreshStatus("Touchez le micro pour dicter un message.");
           return;
         }
+        sending = true;
+        const payload = new FormData(form);
+        payload.set("message", normalized);
+        input.value = "";
+        finalTranscript = "";
+        updateTranscript("");
         refreshStatus("Message envoyé au lapin…");
         try {
           const response = await fetch(form.action, {
             method: "POST",
             headers: { "X-Requested-With": "XMLHttpRequest" },
-            body: new FormData(form),
+            body: payload,
             credentials: "same-origin",
           });
           const data = await response.json();
@@ -231,31 +238,36 @@
           }
           reply.style.display = "block";
           replyText.textContent = data.reply || "";
-          input.value = "";
-          updateTranscript("");
-          refreshStatus("Réponse reçue. Reprise de l'écoute…");
-          autoResume = true;
-          window.setTimeout(() => {
-            if (!listening) {
-              recognition.start();
-            }
-          }, 900);
+          if (sessionActive) {
+            refreshStatus("Réponse reçue. J'écoute de nouveau…");
+            window.setTimeout(() => {
+              if (sessionActive && !listening && !sending) {
+                recognition.start();
+              }
+            }, 900);
+          } else {
+            refreshStatus("Touchez le micro pour dicter un message.");
+          }
         } catch (error) {
           refreshStatus(error instanceof Error ? error.message : "Erreur d'envoi.");
-          autoResume = false;
+        } finally {
+          sending = false;
         }
       };
 
       button.addEventListener("click", () => {
-        if (listening) {
-          autoResume = false;
+        sessionActive = !sessionActive;
+        if (!sessionActive) {
           recognition.stop();
+          shouldAutoSend = false;
+          refreshStatus("Micro arrêté.");
           return;
         }
         finalTranscript = "";
         input.value = "";
         updateTranscript("");
         shouldAutoSend = true;
+        refreshStatus("Activation du micro…");
         recognition.start();
       });
 
@@ -281,7 +293,6 @@
       recognition.onerror = () => {
         listening = false;
         shouldAutoSend = false;
-        autoResume = false;
         refreshStatus("Impossible d'utiliser le micro pour le moment.");
       };
 
@@ -293,8 +304,13 @@
           void sendMessage();
           return;
         }
-        if (autoResume) {
-          autoResume = false;
+        if (sessionActive && !sending) {
+          shouldAutoSend = true;
+          window.setTimeout(() => {
+            if (sessionActive && !listening && !sending) {
+              recognition.start();
+            }
+          }, 400);
           return;
         }
         shouldAutoSend = false;
