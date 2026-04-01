@@ -2542,6 +2542,37 @@ def rabbit_provisioning(rabbit_id: int):
     )
 
 
+@main_bp.get("/rabbits/<int:rabbit_id>/provisioning/live")
+@login_required
+def rabbit_provisioning_live(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    linked_device = (
+        DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(DeviceObservation.last_seen_at.desc())
+        .first()
+    )
+    button_candidate, recent_unclaimed_devices = _recent_provisioning_candidates()
+
+    def _serialize_device(device: DeviceObservation | None) -> dict | None:
+        if device is None:
+            return None
+        return {
+            "id": device.id,
+            "serial": device.serial,
+            "last_seen_at": device.last_seen_at.isoformat() if device.last_seen_at else None,
+            "last_path": device.last_path,
+        }
+
+    return jsonify(
+        {
+            "linked_device": _serialize_device(linked_device),
+            "button_candidate": _serialize_device(button_candidate),
+            "recent_unclaimed_devices": [_serialize_device(device) for device in recent_unclaimed_devices],
+            "claim_url": url_for("main.claim_device", rabbit_id=rabbit.id),
+        }
+    )
+
+
 @main_bp.route("/rabbits/new", methods=["GET", "POST"])
 @login_required
 def create_rabbit():
@@ -2588,10 +2619,12 @@ def create_rabbit():
     )
 
 
-@main_bp.post("/rabbits/<int:rabbit_id>/provisioning/test")
+@main_bp.route("/rabbits/<int:rabbit_id>/provisioning/test", methods=["GET", "POST"])
 @login_required
 def rabbit_provisioning_test(rabbit_id: int):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    if request.method == "GET":
+        return redirect(url_for("main.rabbit_provisioning", rabbit_id=rabbit.id))
     filename, states = _ensure_provisioning_test_choreography()
     _enqueue_device_command(
         rabbit,

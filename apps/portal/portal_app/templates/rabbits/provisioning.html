@@ -351,45 +351,52 @@
         <div>
           <h2>Identifier automatiquement le bon Nabaztag</h2>
           <p>Une fois revenu sur ton Wi‑Fi d’origine, appuie sur le bouton du lapin. Cela nous aide à retrouver automatiquement, parmi les lapins non encore rattachés, celui qui vient de se manifester.</p>
-          {% if linked_device %}
-            <div class="notice" style="margin-top: 12px;">
-              Ce lapin est déjà rattaché au Nabaztag <span class="mono">{{ linked_device.serial }}</span>.
-            </div>
-          {% elif button_candidate %}
-            <div class="rabbit-card" style="margin-top: 16px;">
-              <strong>Nabaztag détecté après appui bouton</strong>
-              <div class="meta">Serial : <span class="mono">{{ button_candidate.serial }}</span></div>
-              <div class="meta">Dernière activité : {{ button_candidate.last_seen_at }}</div>
-              <div class="meta">Chemin : <span class="mono">{{ button_candidate.last_path or 'n/a' }}</span></div>
-              <form method="post" action="{{ url_for('main.claim_device', rabbit_id=rabbit.id) }}" style="margin-top: 14px;">
-                <input type="hidden" name="observation_id" value="{{ button_candidate.id }}">
-                <input type="hidden" name="next" value="provisioning">
-                <button class="button primary" type="submit">Associer ce Nabaztag</button>
-              </form>
-            </div>
-          {% else %}
-            <div class="notice" style="margin-top: 12px;">
-              Aucun appui bouton non rattaché détecté pour l’instant. Appuie sur le bouton du lapin puis recharge cette page.
-            </div>
-          {% endif %}
+          <div
+            id="provisioning-live"
+            data-url="{{ url_for('main.rabbit_provisioning_live', rabbit_id=rabbit.id) }}"
+            data-claim-url="{{ url_for('main.claim_device', rabbit_id=rabbit.id) }}"
+            style="margin-top: 12px;"
+          >
+            {% if linked_device %}
+              <div class="notice" style="margin-top: 12px;">
+                Ce lapin est déjà rattaché au Nabaztag <span class="mono">{{ linked_device.serial }}</span>.
+              </div>
+            {% elif button_candidate %}
+              <div class="rabbit-card" style="margin-top: 16px;">
+                <strong>Nabaztag détecté après appui bouton</strong>
+                <div class="meta">Serial : <span class="mono">{{ button_candidate.serial }}</span></div>
+                <div class="meta">Dernière activité : {{ button_candidate.last_seen_at }}</div>
+                <div class="meta">Chemin : <span class="mono">{{ button_candidate.last_path or 'n/a' }}</span></div>
+                <form method="post" action="{{ url_for('main.claim_device', rabbit_id=rabbit.id) }}" style="margin-top: 14px;">
+                  <input type="hidden" name="observation_id" value="{{ button_candidate.id }}">
+                  <input type="hidden" name="next" value="provisioning">
+                  <button class="button primary" type="submit">Associer ce Nabaztag</button>
+                </form>
+              </div>
+            {% else %}
+              <div class="notice" style="margin-top: 12px;">
+                Aucun appui bouton non rattaché détecté pour l’instant. Appuie sur le bouton du lapin et la page se mettra à jour automatiquement.
+              </div>
+            {% endif %}
 
-          {% if recent_unclaimed_devices %}
-            <div class="stack" style="margin-top: 16px;">
-              <div class="meta">Lapins non rattachés vus récemment :</div>
-              {% for device in recent_unclaimed_devices %}
-                <div class="rabbit-card">
-                  <strong><span class="mono">{{ device.serial }}</span></strong>
-                  <div class="meta">Dernière vue : {{ device.last_seen_at }}</div>
-                  <div class="meta">Dernière activité : <span class="mono">{{ device.last_path or 'n/a' }}</span></div>
-                  <form method="post" action="{{ url_for('main.claim_device', rabbit_id=rabbit.id) }}" style="margin-top: 12px;">
-                    <input type="hidden" name="observation_id" value="{{ device.id }}">
-                    <input type="hidden" name="next" value="provisioning">
-                    <button class="pill" type="submit">Associer manuellement</button>
-                  </form>
-                </div>
-              {% endfor %}
-            </div>
-          {% endif %}
+            {% if recent_unclaimed_devices %}
+              <div class="stack" style="margin-top: 16px;">
+                <div class="meta">Lapins non rattachés vus récemment :</div>
+                {% for device in recent_unclaimed_devices %}
+                  <div class="rabbit-card">
+                    <strong><span class="mono">{{ device.serial }}</span></strong>
+                    <div class="meta">Dernière vue : {{ device.last_seen_at }}</div>
+                    <div class="meta">Dernière activité : <span class="mono">{{ device.last_path or 'n/a' }}</span></div>
+                    <form method="post" action="{{ url_for('main.claim_device', rabbit_id=rabbit.id) }}" style="margin-top: 12px;">
+                      <input type="hidden" name="observation_id" value="{{ device.id }}">
+                      <input type="hidden" name="next" value="provisioning">
+                      <button class="pill" type="submit">Associer manuellement</button>
+                    </form>
+                  </div>
+                {% endfor %}
+              </div>
+            {% endif %}
+          </div>
         </div>
       </article>
 
@@ -407,4 +414,87 @@
       </article>
     </section>
   </section>
+  <script>
+    (() => {
+      const liveContainer = document.getElementById("provisioning-live");
+      if (!liveContainer) return;
+
+      const liveUrl = liveContainer.dataset.url;
+      const claimUrl = liveContainer.dataset.claimUrl;
+      if (!liveUrl || !claimUrl) return;
+
+      const formatTimestamp = (value) => {
+        if (!value) return "n/a";
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? value : date.toLocaleString("fr-FR");
+      };
+
+      const claimFormHtml = (device, primary) => `
+        <form method="post" action="${claimUrl}" style="margin-top: 12px;">
+          <input type="hidden" name="observation_id" value="${device.id}">
+          <input type="hidden" name="next" value="provisioning">
+          <button class="${primary ? "button primary" : "pill"}" type="submit">
+            ${primary ? "Associer ce Nabaztag" : "Associer manuellement"}
+          </button>
+        </form>
+      `;
+
+      const renderDeviceCard = (device, { primary = false } = {}) => `
+        <div class="rabbit-card" style="margin-top: 16px;">
+          <strong>${primary ? "Nabaztag détecté après appui bouton" : `<span class="mono">${device.serial}</span>`}</strong>
+          ${primary ? `<div class="meta">Serial : <span class="mono">${device.serial}</span></div>` : ""}
+          <div class="meta">Dernière activité : ${formatTimestamp(device.last_seen_at)}</div>
+          <div class="meta">Chemin : <span class="mono">${device.last_path || "n/a"}</span></div>
+          ${claimFormHtml(device, primary)}
+        </div>
+      `;
+
+      const renderLiveState = (data) => {
+        if (data.linked_device) {
+          liveContainer.innerHTML = `
+            <div class="notice" style="margin-top: 12px;">
+              Ce lapin est déjà rattaché au Nabaztag <span class="mono">${data.linked_device.serial}</span>.
+            </div>
+          `;
+          return;
+        }
+
+        const parts = [];
+        if (data.button_candidate) {
+          parts.push(renderDeviceCard(data.button_candidate, { primary: true }));
+        } else {
+          parts.push(`
+            <div class="notice" style="margin-top: 12px;">
+              Aucun appui bouton non rattaché détecté pour l’instant. Appuie sur le bouton du lapin et la page se mettra à jour automatiquement.
+            </div>
+          `);
+        }
+
+        const others = (data.recent_unclaimed_devices || []).filter((device) => {
+          return !data.button_candidate || device.id !== data.button_candidate.id;
+        });
+        if (others.length) {
+          parts.push(`<div class="stack" style="margin-top: 16px;"><div class="meta">Lapins non rattachés vus récemment :</div>${others.map((device) => renderDeviceCard(device)).join("")}</div>`);
+        }
+
+        liveContainer.innerHTML = parts.join("");
+      };
+
+      const refreshProvisioning = async () => {
+        try {
+          const response = await fetch(liveUrl, {
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+            credentials: "same-origin",
+          });
+          if (!response.ok) return;
+          const data = await response.json();
+          renderLiveState(data);
+        } catch (error) {
+          console.error("provisioning live refresh failed", error);
+        }
+      };
+
+      window.setInterval(refreshProvisioning, 2000);
+    })();
+  </script>
 {% endblock %}
