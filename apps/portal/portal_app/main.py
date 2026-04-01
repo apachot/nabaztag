@@ -938,6 +938,125 @@ def _queue_sleep_or_wakeup_sequence(rabbit: Rabbit, *, api_key: str, action: str
     }
 
 
+def _rabbit_pair_messages_for_speaker(
+    speaker_id: int,
+    transcript: list[dict[str, str | int]],
+) -> list[dict[str, str]]:
+    messages: list[dict[str, str]] = []
+    for item in transcript[-6:]:
+        role = "assistant" if item["speaker_id"] == speaker_id else "user"
+        messages.append({"role": role, "content": str(item["text"])})
+    return messages
+
+
+def _run_rabbit_pair_conversation(
+    app,
+    *,
+    rabbit_a_id: int,
+    rabbit_b_id: int,
+    topic: str,
+    total_turns: int,
+) -> None:
+    with app.app_context():
+        rabbit_a = db.session.get(Rabbit, rabbit_a_id)
+        rabbit_b = db.session.get(Rabbit, rabbit_b_id)
+        if rabbit_a is None or rabbit_b is None:
+            return
+        owner = rabbit_a.owner
+        if owner is None or not owner.mistral_api_key:
+            return
+
+        transcript: list[dict[str, str | int]] = []
+        rabbits = [rabbit_a, rabbit_b]
+
+        for turn_index in range(total_turns):
+            speaker = rabbits[turn_index % 2]
+            listener = rabbits[(turn_index + 1) % 2]
+            try:
+                llm_model = _normalize_rabbit_llm_model(speaker, _build_rabbit_llm_model_options())
+                if transcript:
+                    instruction = (
+                        f"Tu es en conversation avec ton ami {listener.name}. "
+                        f"Sujet general : {topic}. Reponds maintenant a sa derniere replique, "
+                        "de facon courte, vivante et expressive."
+                    )
+                else:
+                    instruction = (
+                        f"Tu engages une conversation avec ton ami {listener.name}. "
+                        f"Sujet general : {topic}. Lance l'echange de facon vive, legere et amusante."
+                    )
+                performance = _generate_mistral_rabbit_performance(
+                    api_key=owner.mistral_api_key,
+                    model=llm_model,
+                    rabbit_name=speaker.name,
+                    personality_prompt=speaker.personality_prompt or DEFAULT_RABBIT_PERSONALITY_PROMPT,
+                    conversation_messages=_rabbit_pair_messages_for_speaker(speaker.id, transcript),
+                    user_prompt_override=instruction,
+                )
+                _queue_generated_performance(
+                    speaker,
+                    api_key=owner.mistral_api_key,
+                    performance=performance,
+                    source="rabbit-pair",
+                    mode="rabbit-pair",
+                )
+                _append_conversation_turn(
+                    speaker,
+                    role="assistant",
+                    text=performance["text"],
+                    source="rabbit-pair",
+                    payload={"with_rabbit_id": listener.id, "topic": topic, **performance},
+                )
+                _append_conversation_turn(
+                    listener,
+                    role="user",
+                    text=performance["text"],
+                    source="rabbit-pair",
+                    payload={"from_rabbit_id": speaker.id, "topic": topic},
+                )
+                _append_rabbit_event(
+                    speaker,
+                    source="portal",
+                    event_type="rabbit.pair_conversation.turn.queued",
+                    payload={
+                        "with_rabbit_id": listener.id,
+                        "with_rabbit_name": listener.name,
+                        "topic": topic,
+                        "turn_index": turn_index + 1,
+                        "total_turns": total_turns,
+                        **_performance_event_payload(performance),
+                    },
+                )
+                db.session.commit()
+                transcript.append(
+                    {
+                        "speaker_id": speaker.id,
+                        "speaker_name": speaker.name,
+                        "text": performance["text"],
+                    }
+                )
+            except Exception as exc:
+                app.logger.exception("rabbit pair conversation failed turn=%s", turn_index + 1)
+                _append_rabbit_event(
+                    speaker,
+                    source="portal",
+                    event_type="rabbit.pair_conversation.failed",
+                    payload={
+                        "with_rabbit_id": listener.id,
+                        "topic": topic,
+                        "turn_index": turn_index + 1,
+                        "error": str(exc),
+                    },
+                    level="error",
+                )
+                db.session.commit()
+                break
+
+            if turn_index < total_turns - 1:
+                pause_seconds = max(6, min(18, 5 + len(performance["text"]) // 18))
+                time.sleep(pause_seconds)
+
+
 def _build_rabbit_tts_voice_options(saved_voices: list[dict] | None = None) -> list[tuple[str, str]]:
     options: list[tuple[str, str]] = list(RABBIT_TTS_VOICE_PRESETS)
     if not saved_voices:
@@ -1861,6 +1980,53 @@ def dashboard():
     for rabbit in rabbits:
         rabbit.photo_url = _rabbit_photo_url(rabbit) or url_for("main.default_rabbit_photo")
     return render_template("dashboard.html", rabbits=rabbits)
+
+
+@main_bp.post("/dashboard/rabbit-conversations")
+@login_required
+def dashboard_rabbit_conversations():
+    if not current_user.mistral_api_key:
+        flash("Ajoute d'abord ton token Mistral dans Mon compte.", "error")
+        return redirect(url_for("main.dashboard"))
+
+    rabbit_a_id = request.form.get("rabbit_a_id", "").strip()
+    rabbit_b_id = request.form.get("rabbit_b_id", "").strip()
+    topic = " ".join(request.form.get("topic", "").split()).strip() or "une discussion drole a la maison"
+    turns_raw = request.form.get("turns", "").strip()
+
+    if not rabbit_a_id.isdigit() or not rabbit_b_id.isdigit():
+        flash("Choisis deux lapins.", "error")
+        return redirect(url_for("main.dashboard"))
+
+    rabbit_a = Rabbit.query.filter_by(id=int(rabbit_a_id), owner_id=current_user.id).first()
+    rabbit_b = Rabbit.query.filter_by(id=int(rabbit_b_id), owner_id=current_user.id).first()
+    if rabbit_a is None or rabbit_b is None or rabbit_a.id == rabbit_b.id:
+        flash("Choisis deux lapins différents.", "error")
+        return redirect(url_for("main.dashboard"))
+
+    turns = int(turns_raw) if turns_raw.isdigit() else 4
+    turns = max(2, min(8, turns))
+
+    app = current_app._get_current_object()
+    worker = threading.Thread(
+        target=_run_rabbit_pair_conversation,
+        kwargs={
+            "app": app,
+            "rabbit_a_id": rabbit_a.id,
+            "rabbit_b_id": rabbit_b.id,
+            "topic": topic,
+            "total_turns": turns,
+        },
+        name=f"rabbit-pair-{rabbit_a.id}-{rabbit_b.id}",
+        daemon=True,
+    )
+    worker.start()
+
+    flash(
+        f"Conversation entre {rabbit_a.name} et {rabbit_b.name} lancée sur le thème `{topic}`.",
+        "success",
+    )
+    return redirect(url_for("main.dashboard"))
 
 
 @main_bp.route("/account", methods=["GET", "POST"])

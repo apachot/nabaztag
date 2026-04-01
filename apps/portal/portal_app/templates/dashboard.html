@@ -34,6 +34,46 @@
       </div>
     </section>
 
+    <section class="panel" style="max-width: 920px;">
+      <h2>Conversations entre les lapins</h2>
+      {% if rabbits|length >= 2 %}
+        <form method="post" action="{{ url_for('main.dashboard_rabbit_conversations') }}">
+          <div class="grid">
+            <div class="field">
+              <label for="rabbit_a_id">Premier lapin</label>
+              <select id="rabbit_a_id" name="rabbit_a_id">
+                {% for rabbit in rabbits %}
+                  <option value="{{ rabbit.id }}">{{ rabbit.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field">
+              <label for="rabbit_b_id">Deuxième lapin</label>
+              <select id="rabbit_b_id" name="rabbit_b_id">
+                {% for rabbit in rabbits %}
+                  <option value="{{ rabbit.id }}" {% if loop.index == 2 %}selected{% endif %}>{{ rabbit.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field">
+              <label for="topic">Sujet</label>
+              <input id="topic" name="topic" value="une petite discussion absurde a la maison">
+            </div>
+            <div class="field">
+              <label for="turns">Nombre de répliques</label>
+              <input id="turns" name="turns" type="number" min="2" max="8" value="4">
+            </div>
+          </div>
+          <div class="meta" style="margin-top: 8px;">Chaque lapin parle à tour de rôle avec sa propre voix, ses oreilles et ses LEDs.</div>
+          <div class="actions" style="margin-top: 18px;">
+            <button class="button primary" type="submit">Lancer la conversation</button>
+          </div>
+        </form>
+      {% else %}
+        <p>Ajoute au moins deux lapins pour paramétrer une conversation entre eux.</p>
+      {% endif %}
+    </section>
+
     <section class="app-grid">
       {% for rabbit in rabbits %}
         <article class="panel">
