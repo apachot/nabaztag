@@ -127,6 +127,16 @@
               non rattaché
             {% endif %}
           </div>
+          <div class="meta">
+            Amis:
+            {% if friends %}
+              {% for friend in friends %}
+                <a class="pill" href="{{ url_for('main.rabbit_detail', rabbit_id=friend.id) }}">{{ friend.name }}</a>
+              {% endfor %}
+            {% else %}
+              aucun
+            {% endif %}
+          </div>
           {% if rabbit.notes %}
             <p>{{ rabbit.notes }}</p>
           {% endif %}

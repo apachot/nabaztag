@@ -45,6 +45,7 @@ from .models import (
     DeviceObservation,
     ProvisioningSession,
     Rabbit,
+    RabbitFriendship,
     RabbitConversationTurn,
     RabbitDeviceCommand,
     RabbitEventLog,
@@ -63,6 +64,26 @@ LIVE_EVENT_TYPES = {
     "rabbit.conversation.reply.generated",
     "rabbit.auto_performance.generated",
 }
+
+
+def _friend_ids_for_rabbit(rabbit_id: int) -> list[int]:
+    friendships = RabbitFriendship.query.filter(
+        (RabbitFriendship.rabbit_low_id == rabbit_id) | (RabbitFriendship.rabbit_high_id == rabbit_id)
+    ).all()
+    friend_ids: list[int] = []
+    for friendship in friendships:
+        friend_ids.append(
+            friendship.rabbit_high_id if friendship.rabbit_low_id == rabbit_id else friendship.rabbit_low_id
+        )
+    return sorted(friend_ids)
+
+
+def _friends_for_rabbit(rabbit: Rabbit) -> list[Rabbit]:
+    friend_ids = _friend_ids_for_rabbit(rabbit.id)
+    if not friend_ids:
+        return []
+    friends = Rabbit.query.filter(Rabbit.id.in_(friend_ids)).order_by(Rabbit.name.asc()).all()
+    return [friend for friend in friends if friend.owner_id == rabbit.owner_id]
 
 LED_COLOR_PRESETS = {
     "off": "#000000",
@@ -1999,6 +2020,7 @@ def rabbit_detail(rabbit_id: int):
         .all()
     )
     ztamps = _latest_ztamps_for_rabbit(rabbit.id)
+    friends = _friends_for_rabbit(rabbit)
     latest_live_event_id = _latest_live_event_id(rabbit.id)
     initial_live_event_cursor = max(rabbit.alerts_last_seen_event_id or 0, latest_live_event_id)
     return render_template(
@@ -2015,6 +2037,7 @@ def rabbit_detail(rabbit_id: int):
         conversation_turns=list(reversed(conversation_turns)),
         queued_commands=queued_commands,
         ztamps=ztamps,
+        friends=friends,
         initial_live_event_cursor=initial_live_event_cursor,
         led_color_presets=LED_COLOR_PRESETS,
         DEFAULT_RABBIT_PERSONALITY_PROMPT=DEFAULT_RABBIT_PERSONALITY_PROMPT,
@@ -2269,6 +2292,12 @@ def rabbit_live_summary(rabbit_id: int):
 @login_required
 def edit_rabbit(rabbit_id: int):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    available_friend_rabbits = (
+        Rabbit.query.filter(Rabbit.owner_id == current_user.id, Rabbit.id != rabbit.id)
+        .order_by(Rabbit.name.asc())
+        .all()
+    )
+    current_friend_ids = set(_friend_ids_for_rabbit(rabbit.id))
 
     if request.method == "POST":
         rabbit.name = request.form.get("name", "").strip() or rabbit.name
@@ -2277,6 +2306,32 @@ def edit_rabbit(rabbit_id: int):
         target_port = request.form.get("target_port", "").strip()
         rabbit.target_port = int(target_port) if target_port else 10543
         rabbit.notes = request.form.get("notes", "").strip() or None
+        selected_friend_ids = {
+            int(friend_id)
+            for friend_id in request.form.getlist("friend_ids")
+            if friend_id.isdigit() and int(friend_id) != rabbit.id
+        }
+        allowed_friend_ids = {candidate.id for candidate in available_friend_rabbits}
+        selected_friend_ids &= allowed_friend_ids
+
+        removed_friend_ids = current_friend_ids - selected_friend_ids
+        added_friend_ids = selected_friend_ids - current_friend_ids
+
+        if removed_friend_ids:
+            RabbitFriendship.query.filter(
+                (
+                    (RabbitFriendship.rabbit_low_id == rabbit.id)
+                    & (RabbitFriendship.rabbit_high_id.in_(removed_friend_ids))
+                )
+                | (
+                    (RabbitFriendship.rabbit_high_id == rabbit.id)
+                    & (RabbitFriendship.rabbit_low_id.in_(removed_friend_ids))
+                )
+            ).delete(synchronize_session=False)
+
+        for friend_id in sorted(added_friend_ids):
+            low_id, high_id = sorted((rabbit.id, friend_id))
+            db.session.add(RabbitFriendship(rabbit_low_id=low_id, rabbit_high_id=high_id))
 
         if rabbit.target_host and rabbit.remote_rabbit_id:
             try:
@@ -2294,6 +2349,22 @@ def edit_rabbit(rabbit_id: int):
             except NabaztagApiError as exc:
                 flash(f"Mise à jour locale enregistrée, mais cible non synchronisée à l'API: {exc}", "error")
 
+        if added_friend_ids or removed_friend_ids:
+            db.session.add(
+                RabbitEventLog(
+                    rabbit_id=rabbit.id,
+                    source="portal",
+                    event_type="rabbit.friends.updated",
+                    payload=json.dumps(
+                        {
+                            "friends": sorted(selected_friend_ids),
+                            "added": sorted(added_friend_ids),
+                            "removed": sorted(removed_friend_ids),
+                        }
+                    ),
+                )
+            )
+
         db.session.commit()
         flash("Lapin mis à jour.", "success")
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
@@ -2301,6 +2372,8 @@ def edit_rabbit(rabbit_id: int):
     return render_template(
         "rabbits/edit.html",
         rabbit=rabbit,
+        available_friend_rabbits=available_friend_rabbits,
+        current_friend_ids=current_friend_ids,
         rabbit_photo_url=_rabbit_photo_url(rabbit),
     )
 

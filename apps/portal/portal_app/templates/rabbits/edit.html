@@ -29,6 +29,22 @@
           <label for="notes">Notes</label>
           <textarea id="notes" name="notes" rows="5">{{ rabbit.notes or '' }}</textarea>
         </div>
+        <div class="field">
+          <label>Amis</label>
+          <div class="stack">
+            {% if available_friend_rabbits %}
+              {% for candidate in available_friend_rabbits %}
+                <label style="display: flex; align-items: center; gap: 10px;">
+                  <input type="checkbox" name="friend_ids" value="{{ candidate.id }}" {% if candidate.id in current_friend_ids %}checked{% endif %}>
+                  <span>{{ candidate.name }}</span>
+                  <span class="meta mono">{{ candidate.slug }}</span>
+                </label>
+              {% endfor %}
+            {% else %}
+              <div class="meta">Aucun autre lapin disponible sur ce compte.</div>
+            {% endif %}
+          </div>
+        </div>
         <div class="actions">
           <button class="button primary" type="submit">Enregistrer</button>
           <a class="pill" href="{{ url_for('main.rabbit_detail', rabbit_id=rabbit.id) }}">Retour</a>

@@ -93,6 +93,17 @@ class Rabbit(db.Model):
     )
 
 
+class RabbitFriendship(db.Model):
+    __table_args__ = (
+        UniqueConstraint("rabbit_low_id", "rabbit_high_id", name="uq_rabbit_friendship_pair"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    rabbit_low_id = db.Column(db.Integer, db.ForeignKey("rabbit.id"), nullable=False, index=True)
+    rabbit_high_id = db.Column(db.Integer, db.ForeignKey("rabbit.id"), nullable=False, index=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+
+
 class DeviceObservation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     serial = db.Column(db.String(32), unique=True, nullable=False, index=True)
