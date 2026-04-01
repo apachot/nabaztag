@@ -208,6 +208,7 @@
       let shouldAutoSend = false;
       let restartTimer = null;
       let recognition = null;
+      let pendingTranscriptSeed = "";
 
       const refreshStatus = (message) => {
         status.textContent = message;
@@ -298,6 +299,50 @@
         return hasWakeToken && (tokenMatch || joinedMatch);
       };
 
+      const extractMessageAfterWakeWord = (value) => {
+        const raw = `${value || ""}`.trim();
+        if (!raw) return "";
+        const normalizedWords = normalizeText(raw).split(" ").filter(Boolean);
+        if (!normalizedWords.length) return "";
+
+        const rabbitTokens = normalizeText(rabbitName).split(" ").filter(Boolean);
+        const rabbitPhoneticTokens = rabbitTokens.map((token) => phoneticKey(token));
+        const wakeTokens = new Set(["ok", "okay", "okey", "oke", "oki"]);
+        const fillerTokens = new Set(["euh", "heu", "hum", "bonjour", "salut", "stp", "svp", "please"]);
+
+        let wakeIndex = -1;
+        let rabbitIndex = -1;
+        for (let index = 0; index < normalizedWords.length; index += 1) {
+          const token = normalizedWords[index];
+          const phoneticToken = phoneticKey(token);
+          if (wakeIndex === -1 && wakeTokens.has(token)) {
+            wakeIndex = index;
+            continue;
+          }
+          if (wakeIndex !== -1) {
+            const matchesRabbit = rabbitTokens.some((rabbitToken) => similarEnough(token, rabbitToken))
+              || rabbitPhoneticTokens.some((rabbitToken) => similarEnough(phoneticToken, rabbitToken));
+            if (matchesRabbit) {
+              rabbitIndex = index;
+              break;
+            }
+          }
+        }
+        if (wakeIndex === -1 || rabbitIndex === -1) return "";
+
+        const originalWords = raw.split(/\s+/).filter(Boolean);
+        let messageStartIndex = Math.min(rabbitIndex + 1, originalWords.length);
+        while (messageStartIndex < originalWords.length) {
+          const candidate = normalizeText(originalWords[messageStartIndex]);
+          if (!candidate || fillerTokens.has(candidate)) {
+            messageStartIndex += 1;
+            continue;
+          }
+          break;
+        }
+        return originalWords.slice(messageStartIndex).join(" ").trim();
+      };
+
       const clearRestartTimer = () => {
         if (restartTimer) {
           window.clearTimeout(restartTimer);
@@ -337,6 +382,12 @@
           if (waitForWakeWord) {
             refreshStatus(`J'écoute… dis “Ok ${rabbitName}”.`);
           } else {
+            if (pendingTranscriptSeed) {
+              finalTranscript = pendingTranscriptSeed;
+              input.value = pendingTranscriptSeed;
+              updateTranscript(pendingTranscriptSeed);
+              pendingTranscriptSeed = "";
+            }
             refreshStatus("Mot-clé détecté. Parle maintenant.");
           }
         };
@@ -371,14 +422,15 @@
           const normalized = input.value.trim();
           if (waitForWakeWord) {
             if (hasWakeWord(normalized)) {
+              pendingTranscriptSeed = extractMessageAfterWakeWord(normalized);
               playCue(1046, 140);
               void triggerRabbitWakeAck();
               waitForWakeWord = false;
               finalTranscript = "";
               clearRestartTimer();
               shouldAutoSend = true;
-              input.value = "";
-              updateTranscript("");
+              input.value = pendingTranscriptSeed;
+              updateTranscript(pendingTranscriptSeed);
               scheduleRecognitionRestart(250);
               return;
             }
@@ -488,6 +540,7 @@
             recognition.stop();
           }
           recognition = null;
+          pendingTranscriptSeed = "";
           shouldAutoSend = false;
           waitForWakeWord = true;
           refreshStatus("Micro arrêté.");
@@ -495,6 +548,7 @@
         }
         waitForWakeWord = true;
         finalTranscript = "";
+        pendingTranscriptSeed = "";
         input.value = "";
         updateTranscript("");
         shouldAutoSend = false;
