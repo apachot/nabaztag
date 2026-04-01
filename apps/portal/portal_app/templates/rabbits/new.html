@@ -66,6 +66,16 @@
       margin-bottom: 6px;
     }
 
+    .assistant-shot {
+      display: block;
+      width: 100%;
+      max-width: 760px;
+      height: auto;
+      border: 1px solid rgba(24, 23, 21, 0.08);
+      box-shadow: var(--shadow);
+      background: white;
+    }
+
     .rabbit-visual {
       position: relative;
       width: 180px;
@@ -268,12 +278,7 @@
           <h2>Ouvrir l’interface locale</h2>
           <p>Dans ton navigateur, tape <a class="mono" href="http://192.168.0.1/" target="_blank" rel="noopener noreferrer">http://192.168.0.1/</a>.</p>
           <div class="assistant-visual">
-            <div class="browser-visual">
-              <div class="browser-bar">http://192.168.0.1/</div>
-              <div class="browser-body">
-                <div class="field-preview">Nabaztag configuration</div>
-              </div>
-            </div>
+            <img class="assistant-shot" src="{{ url_for('static', filename='setup-step-1.png') }}" alt="Capture de l'interface locale Nabaztag">
           </div>
         </div>
       </article>
@@ -284,12 +289,7 @@
           <h2>Paramétrer le Wi‑Fi du lapin</h2>
           <p>Renseigne le Wi‑Fi maison dans l’interface du Nabaztag.</p>
           <div class="assistant-visual">
-            <div class="browser-visual">
-              <div class="browser-body">
-                <div class="field-preview">SSID : ton Wi‑Fi maison</div>
-                <div class="field-preview">Password : ton mot de passe Wi‑Fi</div>
-              </div>
-            </div>
+            <img class="assistant-shot" src="{{ url_for('static', filename='setup-step-2.png') }}" alt="Capture de configuration Wi-Fi Nabaztag">
           </div>
         </div>
       </article>
@@ -300,12 +300,11 @@
           <h2>Configurer Violet Platform</h2>
           <p>Dans le champ <span class="mono">Violet Platform</span>, saisis :</p>
           <div class="assistant-visual">
-            <div class="browser-visual">
-              <div class="browser-body">
-                <div class="field-preview">
-                  <strong>Violet Platform</strong><br>
-                  <span class="mono">{{ violet_platform_value }}</span>
-                </div>
+            <div style="display: grid; gap: 12px; width: 100%; justify-items: center;">
+              <img class="assistant-shot" src="{{ url_for('static', filename='setup-step-3.png') }}" alt="Capture de configuration avancée Nabaztag">
+              <div class="field-preview" style="max-width: 760px; width: 100%;">
+                <strong>Valeur à saisir</strong><br>
+                <span class="mono">{{ violet_platform_value }}</span>
               </div>
             </div>
           </div>
