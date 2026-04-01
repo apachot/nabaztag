@@ -105,6 +105,10 @@ def _ensure_portal_schema() -> None:
         statements.append("ALTER TABLE user ADD COLUMN openai_api_key TEXT")
     if "mistral_api_key" not in user_columns:
         statements.append("ALTER TABLE user ADD COLUMN mistral_api_key TEXT")
+    if "home_assistant_url" not in user_columns:
+        statements.append("ALTER TABLE user ADD COLUMN home_assistant_url TEXT")
+    if "home_assistant_token" not in user_columns:
+        statements.append("ALTER TABLE user ADD COLUMN home_assistant_token TEXT")
     if "content_sha1" not in recording_columns:
         statements.append("ALTER TABLE rabbit_recording ADD COLUMN content_sha1 VARCHAR(40)")
 
