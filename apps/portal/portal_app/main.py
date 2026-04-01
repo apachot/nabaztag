@@ -2196,16 +2196,22 @@ def mobile_rabbit(rabbit_id: int):
 def mobile_rabbit_talk(rabbit_id: int):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
     return_to = request.form.get("return_to", "").strip()
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
     try:
         performance = _queue_mobile_conversation_for_rabbit(
             rabbit,
             user_text=request.form.get("message", ""),
         )
     except RuntimeError as exc:
+        if is_ajax:
+            return jsonify({"ok": False, "message": str(exc)}), 400
         flash(str(exc), "error")
         if return_to.startswith("/mobile"):
             return redirect(return_to)
         return redirect(url_for("main.mobile_rabbit", rabbit_id=rabbit.id))
+
+    if is_ajax:
+        return jsonify({"ok": True, "reply": performance["text"]})
 
     rabbits = _mobile_rabbits_for_current_user()
     selected_rabbit = next((item for item in rabbits if item.id == rabbit.id), rabbit)

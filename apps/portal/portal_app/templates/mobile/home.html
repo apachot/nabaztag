@@ -60,32 +60,28 @@
       padding: 16px;
       background: rgba(255, 255, 255, 0.82);
       border: 1px solid rgba(24, 23, 21, 0.08);
-    }
-
-    .mobile-talk textarea {
-      min-height: 140px;
+      justify-items: center;
+      text-align: center;
     }
 
     .mobile-compose {
       display: grid;
-      gap: 10px;
-    }
-
-    .mobile-compose-toolbar {
-      display: flex;
-      justify-content: flex-end;
+      gap: 14px;
+      justify-items: center;
+      width: 100%;
     }
 
     .mobile-mic {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 54px;
-      height: 54px;
+      width: 164px;
+      height: 164px;
+      border-radius: 999px;
       border: 1px solid rgba(24, 23, 21, 0.08);
       background: rgba(184, 99, 62, 0.12);
       color: var(--text);
-      font-size: 1.45rem;
+      font-size: 4rem;
       line-height: 1;
     }
 
@@ -96,13 +92,25 @@
 
     .mobile-mic-status {
       color: var(--muted);
-      font-size: 0.95rem;
+      font-size: 1rem;
+      max-width: 280px;
+    }
+
+    .mobile-transcript {
+      width: 100%;
+      padding: 14px;
+      border: 1px solid rgba(24, 23, 21, 0.08);
+      background: rgba(255, 255, 255, 0.7);
+      text-align: left;
+      min-height: 72px;
     }
 
     .mobile-reply {
+      width: 100%;
       padding: 14px;
       background: rgba(255, 246, 232, 0.72);
       border: 1px solid rgba(184, 99, 62, 0.12);
+      text-align: left;
     }
   </style>
 
@@ -147,28 +155,21 @@
         <div>
           <p class="section-kicker">Lui parler</p>
           <h2 style="margin: 0;">{{ selected_rabbit.name }}</h2>
-          <div class="meta">Le lapin répondra avec sa voix, ses oreilles et ses lumières.</div>
+          <div class="meta">Touchez le micro, parlez, puis laissez le silence envoyer le message au lapin.</div>
         </div>
-        <form method="post" action="{{ url_for('main.mobile_rabbit_talk', rabbit_id=selected_rabbit.id) }}" class="stack">
-          <input type="hidden" name="auto_send" value="1">
+        <form method="post" action="{{ url_for('main.mobile_rabbit_talk', rabbit_id=selected_rabbit.id) }}" class="stack" id="mobile-talk-form">
           <div class="mobile-compose">
-            <div class="mobile-compose-toolbar">
-              <button type="button" class="mobile-mic" id="mobile-mic-button" aria-label="Enregistrer un message">🎙</button>
-            </div>
-            <textarea id="mobile-message-input" name="message" placeholder="Écris ton message ici..." required></textarea>
+            <button type="button" class="mobile-mic" id="mobile-mic-button" aria-label="Enregistrer un message">🎙</button>
+            <div class="mobile-transcript" id="mobile-transcript">Votre message apparaîtra ici.</div>
             <div class="mobile-mic-status" id="mobile-mic-status">Touchez le micro pour dicter un message.</div>
           </div>
+          <textarea id="mobile-message-input" name="message" style="display:none;" required></textarea>
           <input type="hidden" name="return_to" value="{{ request.path }}">
-          <div class="actions">
-            <button class="button primary" type="submit">Lui parler</button>
-          </div>
         </form>
-        {% if mobile_reply %}
-          <div class="mobile-reply">
-            <strong>Réponse</strong>
-            <div style="margin-top: 8px;">{{ mobile_reply }}</div>
-          </div>
-        {% endif %}
+        <div class="mobile-reply" id="mobile-reply" {% if not mobile_reply %}style="display:none;"{% endif %}>
+          <strong>Réponse</strong>
+          <div style="margin-top: 8px;" id="mobile-reply-text">{{ mobile_reply or "" }}</div>
+        </div>
       </section>
     {% endif %}
   </section>
@@ -176,8 +177,11 @@
     (() => {
       const button = document.getElementById("mobile-mic-button");
       const input = document.getElementById("mobile-message-input");
+      const transcript = document.getElementById("mobile-transcript");
       const status = document.getElementById("mobile-mic-status");
-      if (!button || !input || !status) return;
+      const reply = document.getElementById("mobile-reply");
+      const replyText = document.getElementById("mobile-reply-text");
+      if (!button || !input || !status || !transcript || !reply || !replyText) return;
 
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRecognition) {
@@ -195,18 +199,62 @@
       let listening = false;
       let finalTranscript = "";
       let shouldAutoSend = false;
+      let autoResume = false;
 
       const refreshStatus = (message) => {
         status.textContent = message;
         button.classList.toggle("is-recording", listening);
       };
 
+      const updateTranscript = (value) => {
+        const normalized = value.trim();
+        transcript.textContent = normalized || "Votre message apparaîtra ici.";
+      };
+
+      const sendMessage = async () => {
+        const normalized = input.value.trim();
+        if (!normalized || !form) {
+          refreshStatus("Touchez le micro pour dicter un message.");
+          return;
+        }
+        refreshStatus("Message envoyé au lapin…");
+        try {
+          const response = await fetch(form.action, {
+            method: "POST",
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+            body: new FormData(form),
+            credentials: "same-origin",
+          });
+          const data = await response.json();
+          if (!response.ok || !data.ok) {
+            throw new Error(data.message || "Le lapin n'a pas répondu.");
+          }
+          reply.style.display = "block";
+          replyText.textContent = data.reply || "";
+          input.value = "";
+          updateTranscript("");
+          refreshStatus("Réponse reçue. Reprise de l'écoute…");
+          autoResume = true;
+          window.setTimeout(() => {
+            if (!listening) {
+              recognition.start();
+            }
+          }, 900);
+        } catch (error) {
+          refreshStatus(error instanceof Error ? error.message : "Erreur d'envoi.");
+          autoResume = false;
+        }
+      };
+
       button.addEventListener("click", () => {
         if (listening) {
+          autoResume = false;
           recognition.stop();
           return;
         }
-        finalTranscript = input.value ? `${input.value.trim()} ` : "";
+        finalTranscript = "";
+        input.value = "";
+        updateTranscript("");
         shouldAutoSend = true;
         recognition.start();
       });
@@ -227,21 +275,26 @@
           }
         }
         input.value = `${finalTranscript}${interim}`.trim();
+        updateTranscript(input.value);
       };
 
       recognition.onerror = () => {
         listening = false;
         shouldAutoSend = false;
+        autoResume = false;
         refreshStatus("Impossible d'utiliser le micro pour le moment.");
       };
 
       recognition.onend = () => {
         listening = false;
         const normalized = input.value.trim();
-        if (shouldAutoSend && normalized && form) {
-          refreshStatus("Message envoyé au lapin…");
+        if (shouldAutoSend && normalized) {
           shouldAutoSend = false;
-          form.requestSubmit();
+          void sendMessage();
+          return;
+        }
+        if (autoResume) {
+          autoResume = false;
           return;
         }
         shouldAutoSend = false;
