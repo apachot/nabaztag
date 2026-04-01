@@ -224,12 +224,26 @@
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
         .toLowerCase()
+        .replace(/[^\p{L}\p{N}\s]/gu, " ")
         .replace(/\s+/g, " ")
         .trim();
 
       const hasWakeWord = (value) => {
         const normalized = normalizeText(value);
-        return normalized.includes("ok nabaztag") || normalized.includes("okay nabaztag");
+        const wakeTokens = ["ok", "okay", "okey", "oke", "oki"];
+        const rabbitTokens = [
+          "nabaztag",
+          "naba ztag",
+          "naba tag",
+          "nabaz tag",
+          "nabastag",
+          "nabatag",
+          "nabaztak",
+          "nabaztac",
+        ];
+        const hasWakeToken = wakeTokens.some((token) => normalized.includes(token));
+        const hasRabbitToken = rabbitTokens.some((token) => normalized.includes(token));
+        return hasRabbitToken && (hasWakeToken || normalized.startsWith("nab"));
       };
 
       const clearRestartTimer = () => {
