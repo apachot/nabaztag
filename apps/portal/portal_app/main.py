@@ -203,9 +203,10 @@ RABBIT_ACTION_CATALOG = [
     },
     {
         "name": "audio.stream",
-        "description": "Lancer un stream audio ou une radio a partir d'une URL explicite compatible.",
+        "description": "Lancer un stream audio ou une radio connue.",
         "parameters": {
-            "url": "http(s)://...",
+            "station": "identifiant de station connue",
+            "url": "http(s)://... optionnel si la station n'est pas connue",
         },
     },
     {
@@ -219,6 +220,13 @@ RABBIT_ACTION_CATALOG = [
         "parameters": {},
     },
 ]
+KNOWN_RADIO_STREAMS = {
+    "rfi_monde": {
+        "label": "RFI Monde",
+        "aliases": ["rfi", "rfi monde", "radio france internationale"],
+        "url": "http://live02.rfi.fr/rfimonde-64.mp3",
+    },
+}
 CONVERSATION_MAX_EXCHANGES = 4
 CONVERSATION_MAX_TURNS = CONVERSATION_MAX_EXCHANGES * 2
 CONVERSATION_RECENT_TURNS_LIMIT = CONVERSATION_MAX_TURNS
@@ -884,6 +892,26 @@ def _normalize_generated_action(action_payload: object) -> dict | None:
         return {"name": action_name, **command}
 
     if action_name == "audio.stream":
+        station = " ".join(str(action_payload.get("station") or "").split()).strip().lower()
+        if station:
+            stream = KNOWN_RADIO_STREAMS.get(station)
+            if stream is None:
+                normalized_station = re.sub(r"[^a-z0-9]+", "_", station).strip("_")
+                stream = KNOWN_RADIO_STREAMS.get(normalized_station)
+            if stream is None:
+                for station_id, metadata in KNOWN_RADIO_STREAMS.items():
+                    aliases = [station_id, metadata["label"].lower(), *metadata.get("aliases", [])]
+                    if station in aliases:
+                        stream = metadata
+                        station = station_id
+                        break
+            if stream is not None:
+                return {
+                    "name": action_name,
+                    "station": station,
+                    "url": stream["url"],
+                    "label": stream["label"],
+                }
         url = " ".join(str(action_payload.get("url") or "").split()).strip()
         if not url or not url.startswith(("http://", "https://", "broadcast/")):
             return None
@@ -1747,10 +1775,18 @@ def _generate_mistral_rabbit_performance(
     user_prompt_override: str | None = None,
 ) -> dict:
     action_catalog_json = json.dumps(RABBIT_ACTION_CATALOG, ensure_ascii=False)
+    radio_catalog_json = json.dumps(
+        [
+            {"id": station_id, "label": metadata["label"], "aliases": metadata.get("aliases", [])}
+            for station_id, metadata in KNOWN_RADIO_STREAMS.items()
+        ],
+        ensure_ascii=False,
+    )
     system_prompt = (
         f"{personality_prompt}\n\n"
         "Tu pilotes un lapin Nabaztag qui s'exprime avec la voix, les oreilles, les LEDs et quelques actions de maison. "
         f"Voici le catalogue d'actions autorisees que tu peux utiliser: {action_catalog_json}. "
+        f"Voici aussi les stations radio connues actuellement disponibles pour `audio.stream`: {radio_catalog_json}. "
         "Tu dois repondre uniquement avec un objet JSON valide, sans markdown ni commentaire. "
         "Le JSON doit avoir exactement cette structure generale: "
         '{"text":"...","actions":[{"name":"ears.move","left":{"action":"center"},"right":{"action":"center"}}]}. '
