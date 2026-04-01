@@ -298,50 +298,6 @@
         return hasWakeToken && (tokenMatch || joinedMatch);
       };
 
-      const extractMessageAfterWakeWord = (value) => {
-        const raw = `${value || ""}`.trim();
-        if (!raw) return "";
-        const normalizedWords = normalizeText(raw).split(" ").filter(Boolean);
-        if (!normalizedWords.length) return "";
-
-        const rabbitTokens = normalizeText(rabbitName).split(" ").filter(Boolean);
-        const rabbitPhoneticTokens = rabbitTokens.map((token) => phoneticKey(token));
-        const wakeTokens = new Set(["ok", "okay", "okey", "oke", "oki"]);
-
-        let wakeIndex = -1;
-        let rabbitIndex = -1;
-        for (let index = 0; index < normalizedWords.length; index += 1) {
-          const token = normalizedWords[index];
-          const phoneticToken = phoneticKey(token);
-          if (wakeIndex === -1 && wakeTokens.has(token)) {
-            wakeIndex = index;
-            continue;
-          }
-          if (wakeIndex !== -1) {
-            const matchesRabbit = rabbitTokens.some((rabbitToken) => similarEnough(token, rabbitToken))
-              || rabbitPhoneticTokens.some((rabbitToken) => similarEnough(phoneticToken, rabbitToken));
-            if (matchesRabbit) {
-              rabbitIndex = index;
-              break;
-            }
-          }
-        }
-        if (wakeIndex === -1 || rabbitIndex === -1) return "";
-
-        const fillerTokens = new Set(["euh", "heu", "hum", "bonjour", "salut", "stp", "svp", "please"]);
-        const originalWords = raw.split(/\s+/).filter(Boolean);
-        let messageStartIndex = Math.min(rabbitIndex + 1, originalWords.length);
-        while (messageStartIndex < originalWords.length) {
-          const candidate = normalizeText(originalWords[messageStartIndex]);
-          if (!candidate || fillerTokens.has(candidate)) {
-            messageStartIndex += 1;
-            continue;
-          }
-          break;
-        }
-        return originalWords.slice(messageStartIndex).join(" ").trim();
-      };
-
       const clearRestartTimer = () => {
         if (restartTimer) {
           window.clearTimeout(restartTimer);
@@ -415,21 +371,11 @@
           const normalized = input.value.trim();
           if (waitForWakeWord) {
             if (hasWakeWord(normalized)) {
-              const immediateMessage = extractMessageAfterWakeWord(normalized);
               playCue(1046, 140);
               void triggerRabbitWakeAck();
               waitForWakeWord = false;
               finalTranscript = "";
               clearRestartTimer();
-              if (immediateMessage) {
-                input.value = immediateMessage;
-                updateTranscript(immediateMessage);
-                shouldAutoSend = true;
-                playCue(784, 120);
-                finalTranscript = immediateMessage;
-                void sendMessage();
-                return;
-              }
               shouldAutoSend = true;
               input.value = "";
               updateTranscript("");
