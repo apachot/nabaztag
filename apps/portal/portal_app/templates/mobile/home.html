@@ -352,6 +352,23 @@
         }
       };
 
+      const scheduleRecognitionRestart = (delayMs) => {
+        clearRestartTimer();
+        restartTimer = window.setTimeout(() => {
+          restartTimer = null;
+          if (!sessionActive) return;
+          if (listening || sending) {
+            scheduleRecognitionRestart(300);
+            return;
+          }
+          try {
+            recognition.start();
+          } catch (_error) {
+            scheduleRecognitionRestart(300);
+          }
+        }, delayMs);
+      };
+
       const triggerRabbitWakeAck = async () => {
         const url = wakeAckEndpoint.dataset.url;
         if (!url) return;
@@ -413,14 +430,8 @@
           if (sessionActive) {
             waitForWakeWord = true;
             refreshStatus(`Message transmis. Dis de nouveau “Ok ${rabbitName}” dans 2 secondes…`);
-            clearRestartTimer();
-            restartTimer = window.setTimeout(() => {
-              restartTimer = null;
-              if (sessionActive && !listening && !sending) {
-                shouldAutoSend = false;
-                recognition.start();
-              }
-            }, 2000);
+            shouldAutoSend = false;
+            scheduleRecognitionRestart(2000);
           } else {
             refreshStatus("Touchez le micro pour dicter un message.");
           }
@@ -503,12 +514,7 @@
             shouldAutoSend = true;
             input.value = "";
             updateTranscript("");
-            restartTimer = window.setTimeout(() => {
-              restartTimer = null;
-              if (sessionActive && !listening && !sending) {
-                recognition.start();
-              }
-            }, 250);
+            scheduleRecognitionRestart(250);
             return;
           }
           finalTranscript = "";
@@ -523,13 +529,7 @@
         }
         if (sessionActive && !sending) {
           shouldAutoSend = !waitForWakeWord;
-          clearRestartTimer();
-          restartTimer = window.setTimeout(() => {
-            restartTimer = null;
-            if (sessionActive && !listening && !sending) {
-              recognition.start();
-            }
-          }, 400);
+          scheduleRecognitionRestart(400);
           return;
         }
         shouldAutoSend = false;
