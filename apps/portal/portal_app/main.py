@@ -226,6 +226,21 @@ KNOWN_RADIO_STREAMS = {
         "aliases": ["rfi", "rfi monde", "radio france internationale"],
         "url": "http://live02.rfi.fr/rfimonde-64.mp3",
     },
+    "radio_swiss_jazz": {
+        "label": "Radio Swiss Jazz",
+        "aliases": ["swiss jazz", "radio swiss jazz", "jazz suisse", "radio suisse jazz"],
+        "url": "https://stream.srg-ssr.ch/srgssr/rsj/mp3/128",
+    },
+    "groove_salad": {
+        "label": "SomaFM Groove Salad",
+        "aliases": ["groove salad", "soma groove salad"],
+        "url": "https://ice2.somafm.com/groovesalad-128-mp3",
+    },
+    "drone_zone": {
+        "label": "SomaFM Drone Zone",
+        "aliases": ["drone zone", "soma drone zone"],
+        "url": "https://ice2.somafm.com/dronezone-128-mp3",
+    },
 }
 CONVERSATION_MAX_EXCHANGES = 4
 CONVERSATION_MAX_TURNS = CONVERSATION_MAX_EXCHANGES * 2
