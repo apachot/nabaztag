@@ -521,8 +521,8 @@
           shouldAutoSend = false;
           clearRestartTimer();
           if (sessionActive) {
-            refreshStatus(`Message transmis. Dis de nouveau “Ok ${rabbitName}” dans 3 secondes…`);
-            scheduleRecognitionRestart(3000);
+            refreshStatus(`Message transmis. Dis de nouveau “Ok ${rabbitName}”.`);
+            scheduleRecognitionRestart(0);
           } else {
             refreshStatus("Touchez le micro pour dicter un message.");
           }
