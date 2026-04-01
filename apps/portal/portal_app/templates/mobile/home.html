@@ -66,6 +66,39 @@
       min-height: 140px;
     }
 
+    .mobile-compose {
+      display: grid;
+      gap: 10px;
+    }
+
+    .mobile-compose-toolbar {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .mobile-mic {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 54px;
+      height: 54px;
+      border: 1px solid rgba(24, 23, 21, 0.08);
+      background: rgba(184, 99, 62, 0.12);
+      color: var(--text);
+      font-size: 1.45rem;
+      line-height: 1;
+    }
+
+    .mobile-mic.is-recording {
+      background: rgba(166, 78, 23, 0.14);
+      border-color: rgba(166, 78, 23, 0.28);
+    }
+
+    .mobile-mic-status {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
     .mobile-reply {
       padding: 14px;
       background: rgba(255, 246, 232, 0.72);
@@ -117,7 +150,13 @@
           <div class="meta">Le lapin répondra avec sa voix, ses oreilles et ses lumières.</div>
         </div>
         <form method="post" action="{{ url_for('main.mobile_rabbit_talk', rabbit_id=selected_rabbit.id) }}" class="stack">
-          <textarea name="message" placeholder="Écris ton message ici..." required></textarea>
+          <div class="mobile-compose">
+            <div class="mobile-compose-toolbar">
+              <button type="button" class="mobile-mic" id="mobile-mic-button" aria-label="Enregistrer un message">🎙</button>
+            </div>
+            <textarea id="mobile-message-input" name="message" placeholder="Écris ton message ici..." required></textarea>
+            <div class="mobile-mic-status" id="mobile-mic-status">Touchez le micro pour dicter un message.</div>
+          </div>
           <input type="hidden" name="return_to" value="{{ request.path }}">
           <div class="actions">
             <button class="button primary" type="submit">Lui parler</button>
@@ -132,4 +171,69 @@
       </section>
     {% endif %}
   </section>
+  <script>
+    (() => {
+      const button = document.getElementById("mobile-mic-button");
+      const input = document.getElementById("mobile-message-input");
+      const status = document.getElementById("mobile-mic-status");
+      if (!button || !input || !status) return;
+
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        status.textContent = "La dictée vocale n'est pas disponible sur ce navigateur.";
+        button.disabled = true;
+        return;
+      }
+
+      const recognition = new SpeechRecognition();
+      recognition.lang = "fr-FR";
+      recognition.interimResults = true;
+      recognition.continuous = false;
+
+      let listening = false;
+      let finalTranscript = "";
+
+      const refreshStatus = (message) => {
+        status.textContent = message;
+        button.classList.toggle("is-recording", listening);
+      };
+
+      button.addEventListener("click", () => {
+        if (listening) {
+          recognition.stop();
+          return;
+        }
+        finalTranscript = input.value ? `${input.value.trim()} ` : "";
+        recognition.start();
+      });
+
+      recognition.onstart = () => {
+        listening = true;
+        refreshStatus("J'écoute… parle maintenant.");
+      };
+
+      recognition.onresult = (event) => {
+        let interim = "";
+        for (let index = event.resultIndex; index < event.results.length; index += 1) {
+          const transcript = event.results[index][0]?.transcript || "";
+          if (event.results[index].isFinal) {
+            finalTranscript += `${transcript.trim()} `;
+          } else {
+            interim += transcript;
+          }
+        }
+        input.value = `${finalTranscript}${interim}`.trim();
+      };
+
+      recognition.onerror = () => {
+        listening = false;
+        refreshStatus("Impossible d'utiliser le micro pour le moment.");
+      };
+
+      recognition.onend = () => {
+        listening = false;
+        refreshStatus("Touchez le micro pour dicter un message.");
+      };
+    })();
+  </script>
 {% endblock %}
