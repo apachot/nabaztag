@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Mobile | Nabaztag Portal{% endblock %}
+
+{% block content %}
+  <style>
+    .mobile-shell {
+      max-width: 560px;
+      margin: 0 auto;
+      display: grid;
+      gap: 16px;
+    }
+
+    .mobile-hero {
+      padding: 18px;
+      background: linear-gradient(180deg, rgba(255, 246, 232, 0.96), rgba(255, 255, 255, 0.7));
+      border: 1px solid rgba(184, 99, 62, 0.14);
+    }
+
+    .mobile-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .mobile-rabbit {
+      display: grid;
+      grid-template-columns: 84px minmax(0, 1fr);
+      gap: 14px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid rgba(24, 23, 21, 0.08);
+      background: rgba(255, 255, 255, 0.85);
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .mobile-rabbit.selected {
+      border-color: rgba(45, 138, 95, 0.35);
+      background: rgba(45, 138, 95, 0.08);
+    }
+
+    .mobile-rabbit img {
+      display: block;
+      width: 84px;
+      height: 84px;
+      object-fit: cover;
+      border: 1px solid rgba(24, 23, 21, 0.08);
+    }
+
+    .mobile-status {
+      display: inline-block;
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .mobile-talk {
+      display: grid;
+      gap: 12px;
+      padding: 16px;
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(24, 23, 21, 0.08);
+    }
+
+    .mobile-talk textarea {
+      min-height: 140px;
+    }
+
+    .mobile-reply {
+      padding: 14px;
+      background: rgba(255, 246, 232, 0.72);
+      border: 1px solid rgba(184, 99, 62, 0.12);
+    }
+  </style>
+
+  <section class="mobile-shell">
+    <section class="mobile-hero">
+      <p class="section-kicker">OK Nabaztag</p>
+      <h1 style="margin: 0 0 8px;">Mes lapins</h1>
+      <div class="meta">Choisis un lapin, puis parle-lui. L’interface mobile reste volontairement simple.</div>
+    </section>
+
+    <section class="mobile-list">
+      {% for rabbit in rabbits %}
+        <a
+          class="mobile-rabbit {% if selected_rabbit and rabbit.id == selected_rabbit.id %}selected{% endif %}"
+          href="{{ url_for('main.mobile_rabbit', rabbit_id=rabbit.id) }}"
+        >
+          <img src="{{ rabbit.photo_url }}" alt="Photo de {{ rabbit.name }}">
+          <div>
+            <strong>{{ rabbit.name }}</strong>
+            <div class="mobile-status">
+              {% if rabbit.connection_status == "online" %}
+                En ligne
+              {% else %}
+                Hors ligne
+              {% endif %}
+            </div>
+          </div>
+        </a>
+      {% else %}
+        <article class="panel">
+          <p>Aucun lapin rattaché à ce compte.</p>
+        </article>
+      {% endfor %}
+    </section>
+
+    {% if selected_rabbit %}
+      <section class="mobile-talk">
+        <div>
+          <p class="section-kicker">Lui parler</p>
+          <h2 style="margin: 0;">{{ selected_rabbit.name }}</h2>
+          <div class="meta">Le lapin répondra avec sa voix, ses oreilles et ses lumières.</div>
+        </div>
+        <form method="post" action="{{ url_for('main.mobile_rabbit_talk', rabbit_id=selected_rabbit.id) }}" class="stack">
+          <textarea name="message" placeholder="Écris ton message ici..." required></textarea>
+          <div class="actions">
+            <button class="button primary" type="submit">Lui parler</button>
+          </div>
+        </form>
+        {% if mobile_reply %}
+          <div class="mobile-reply">
+            <strong>Réponse</strong>
+            <div style="margin-top: 8px;">{{ mobile_reply }}</div>
+          </div>
+        {% endif %}
+      </section>
+    {% endif %}
+  </section>
+{% endblock %}

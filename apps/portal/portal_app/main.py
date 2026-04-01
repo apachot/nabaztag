@@ -2152,6 +2152,68 @@ def dashboard():
     return render_template("dashboard.html", rabbits=rabbits)
 
 
+def _mobile_rabbits_for_current_user() -> list[Rabbit]:
+    rabbits = (
+        Rabbit.query.filter_by(owner_id=current_user.id)
+        .order_by(Rabbit.created_at.desc())
+        .all()
+    )
+    for rabbit in rabbits:
+        rabbit.photo_url = _rabbit_photo_url(rabbit) or url_for("main.default_rabbit_photo")
+    return rabbits
+
+
+@main_bp.get("/mobile")
+@login_required
+def mobile_home():
+    rabbits = _mobile_rabbits_for_current_user()
+    selected_rabbit = rabbits[0] if rabbits else None
+    return render_template(
+        "mobile/home.html",
+        rabbits=rabbits,
+        selected_rabbit=selected_rabbit,
+        mobile_reply=None,
+    )
+
+
+@main_bp.get("/mobile/rabbits/<int:rabbit_id>")
+@login_required
+def mobile_rabbit(rabbit_id: int):
+    rabbits = _mobile_rabbits_for_current_user()
+    selected_rabbit = next((rabbit for rabbit in rabbits if rabbit.id == rabbit_id), None)
+    if selected_rabbit is None:
+        return redirect(url_for("main.mobile_home"))
+    return render_template(
+        "mobile/home.html",
+        rabbits=rabbits,
+        selected_rabbit=selected_rabbit,
+        mobile_reply=None,
+    )
+
+
+@main_bp.post("/mobile/rabbits/<int:rabbit_id>/talk")
+@login_required
+def mobile_rabbit_talk(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    try:
+        performance = _queue_mobile_conversation_for_rabbit(
+            rabbit,
+            user_text=request.form.get("message", ""),
+        )
+    except RuntimeError as exc:
+        flash(str(exc), "error")
+        return redirect(url_for("main.mobile_rabbit", rabbit_id=rabbit.id))
+
+    rabbits = _mobile_rabbits_for_current_user()
+    selected_rabbit = next((item for item in rabbits if item.id == rabbit.id), rabbit)
+    return render_template(
+        "mobile/home.html",
+        rabbits=rabbits,
+        selected_rabbit=selected_rabbit,
+        mobile_reply=performance["text"],
+    )
+
+
 @main_bp.post("/dashboard/rabbit-conversations")
 @login_required
 def dashboard_rabbit_conversations():
@@ -2261,7 +2323,7 @@ def mobile_app_pairing_bridge(token: str):
     if session.consumed_at is not None or session.status != "pending":
         if current_user.is_authenticated and getattr(current_user, "id", None) == session.user_id:
             flash("Session mobile déjà établie pour ce compte.", "success")
-            return redirect(url_for("main.dashboard"))
+            return redirect(url_for("main.mobile_home"))
         return render_template("mobile_pairing.html", status="used", pairing_token=token)
     expires_at = _utc_comparable(session.expires_at)
     if expires_at is not None and expires_at < _utc_comparable(utc_now()):
@@ -2272,7 +2334,7 @@ def mobile_app_pairing_bridge(token: str):
     session.consumed_at = utc_now()
     db.session.commit()
     flash("Session mobile sécurisée ouverte. Tu peux maintenant interagir avec tes lapins.", "success")
-    return redirect(url_for("main.dashboard"))
+    return redirect(url_for("main.mobile_home"))
 
 
 @main_bp.post("/mobile-api/v1/pairing/claim")
