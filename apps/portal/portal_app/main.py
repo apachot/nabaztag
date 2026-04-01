@@ -1858,6 +1858,8 @@ def dashboard():
         .order_by(Rabbit.created_at.desc())
         .all()
     )
+    for rabbit in rabbits:
+        rabbit.photo_url = _rabbit_photo_url(rabbit) or url_for("main.default_rabbit_photo")
     return render_template("dashboard.html", rabbits=rabbits)
 
 
