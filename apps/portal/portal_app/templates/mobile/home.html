@@ -160,7 +160,7 @@
         <div>
           <p class="section-kicker">Lui parler</p>
           <h2 style="margin: 0;">{{ selected_rabbit.name }}</h2>
-          <div class="meta">Touchez le micro, dites “Ok Nabaztag”, puis prononcez votre message. Le silence l’enverra automatiquement au lapin.</div>
+          <div class="meta">Touchez le micro, dites “Ok {{ selected_rabbit.name }}”, puis prononcez votre message. Le silence l’enverra automatiquement au lapin.</div>
         </div>
         <form method="post" action="{{ url_for('main.mobile_rabbit_talk', rabbit_id=selected_rabbit.id) }}" class="stack" id="mobile-talk-form">
           <div class="mobile-compose">
@@ -200,6 +200,7 @@
       recognition.interimResults = true;
       recognition.continuous = false;
       const form = button.closest("form");
+      const rabbitName = {{ selected_rabbit.name|tojson }};
 
       let listening = false;
       let sending = false;
@@ -228,22 +229,74 @@
         .replace(/\s+/g, " ")
         .trim();
 
+      const phoneticKey = (value) => normalizeText(value)
+        .replace(/qu/g, "k")
+        .replace(/ck/g, "k")
+        .replace(/ph/g, "f")
+        .replace(/gu/g, "g")
+        .replace(/ou/g, "u")
+        .replace(/eau/g, "o")
+        .replace(/au/g, "o")
+        .replace(/ai/g, "e")
+        .replace(/ei/g, "e")
+        .replace(/ay/g, "e")
+        .replace(/ey/g, "e")
+        .replace(/y/g, "i")
+        .replace(/z/g, "s")
+        .replace(/c(?=[eiy])/g, "s")
+        .replace(/c/g, "k")
+        .replace(/ch/g, "sh")
+        .replace(/(.)\1+/g, "$1")
+        .replace(/\b(h|e|es|s|t)\b/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      const levenshtein = (a, b) => {
+        if (a === b) return 0;
+        if (!a.length) return b.length;
+        if (!b.length) return a.length;
+        const rows = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
+        for (let i = 0; i <= a.length; i += 1) rows[i][0] = i;
+        for (let j = 0; j <= b.length; j += 1) rows[0][j] = j;
+        for (let i = 1; i <= a.length; i += 1) {
+          for (let j = 1; j <= b.length; j += 1) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            rows[i][j] = Math.min(
+              rows[i - 1][j] + 1,
+              rows[i][j - 1] + 1,
+              rows[i - 1][j - 1] + cost,
+            );
+          }
+        }
+        return rows[a.length][b.length];
+      };
+
+      const similarEnough = (candidate, reference) => {
+        if (!candidate || !reference) return false;
+        if (candidate.includes(reference) || reference.includes(candidate)) return true;
+        const distance = levenshtein(candidate, reference);
+        const maxLen = Math.max(candidate.length, reference.length);
+        return distance <= Math.max(2, Math.floor(maxLen * 0.35));
+      };
+
       const hasWakeWord = (value) => {
         const normalized = normalizeText(value);
         const wakeTokens = ["ok", "okay", "okey", "oke", "oki"];
-        const rabbitTokens = [
-          "nabaztag",
-          "naba ztag",
-          "naba tag",
-          "nabaz tag",
-          "nabastag",
-          "nabatag",
-          "nabaztak",
-          "nabaztac",
-        ];
+        const tokens = normalized.split(" ").filter(Boolean);
+        const rabbitTokens = normalizeText(rabbitName).split(" ").filter(Boolean);
+        const rabbitJoined = normalizeText(rabbitName).replace(/\s+/g, "");
+        const rabbitPhoneticTokens = rabbitTokens.map((token) => phoneticKey(token));
+        const rabbitJoinedPhonetic = phoneticKey(rabbitJoined);
         const hasWakeToken = wakeTokens.some((token) => normalized.includes(token));
-        const hasRabbitToken = rabbitTokens.some((token) => normalized.includes(token));
-        return hasRabbitToken && (hasWakeToken || normalized.startsWith("nab"));
+        const tokenMatch = tokens.some((token) => {
+          const phoneticToken = phoneticKey(token);
+          return rabbitTokens.some((rabbitToken) => similarEnough(token, rabbitToken))
+            || rabbitPhoneticTokens.some((rabbitToken) => similarEnough(phoneticToken, rabbitToken));
+        });
+        const joined = normalized.replace(/\s+/g, "");
+        const joinedPhonetic = phoneticKey(joined);
+        const joinedMatch = similarEnough(joined, rabbitJoined) || similarEnough(joinedPhonetic, rabbitJoinedPhonetic);
+        return hasWakeToken && (tokenMatch || joinedMatch);
       };
 
       const clearRestartTimer = () => {
@@ -251,6 +304,24 @@
           window.clearTimeout(restartTimer);
           restartTimer = null;
         }
+      };
+
+      const playCue = (frequency, durationMs) => {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const context = new AudioCtx();
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = "sine";
+        oscillator.frequency.value = frequency;
+        gain.gain.setValueAtTime(0.0001, context.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.12, context.currentTime + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + durationMs / 1000);
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start();
+        oscillator.stop(context.currentTime + durationMs / 1000);
+        oscillator.onended = () => context.close().catch(() => {});
       };
 
       const sendMessage = async () => {
@@ -281,7 +352,7 @@
           replyText.textContent = data.reply || "";
           if (sessionActive) {
             waitForWakeWord = true;
-            refreshStatus("Message transmis. Dis de nouveau “Ok Nabaztag” dans 2 secondes…");
+            refreshStatus(`Message transmis. Dis de nouveau “Ok ${rabbitName}” dans 2 secondes…`);
             clearRestartTimer();
             restartTimer = window.setTimeout(() => {
               restartTimer = null;
@@ -323,7 +394,7 @@
       recognition.onstart = () => {
         listening = true;
         if (waitForWakeWord) {
-          refreshStatus("J'écoute… dis “Ok Nabaztag”.");
+          refreshStatus(`J'écoute… dis “Ok ${rabbitName}”.`);
         } else {
           refreshStatus("Mot-clé détecté. Parle maintenant.");
         }
@@ -354,6 +425,7 @@
         const normalized = input.value.trim();
         if (waitForWakeWord) {
           if (hasWakeWord(normalized)) {
+            playCue(1046, 140);
             waitForWakeWord = false;
             shouldAutoSend = true;
             finalTranscript = "";
@@ -373,6 +445,7 @@
           updateTranscript("");
         }
         if (shouldAutoSend && normalized) {
+          playCue(784, 120);
           shouldAutoSend = false;
           void sendMessage();
           return;
