@@ -29,7 +29,6 @@ from .api_client import (
     link_remote_device,
     prepare_remote_bootstrap,
     send_remote_action,
-    set_remote_ears,
     start_remote_recording,
     stop_remote_recording,
     set_remote_target,
@@ -2631,28 +2630,12 @@ def rabbit_device_ears(rabbit_id: int):
             time.sleep(0.6)
         except NabaztagApiError:
             db.session.rollback()
-    try:
-        result = set_remote_ears(
-            rabbit.remote_rabbit_id,
-            left=left_value,
-            right=right_value,
-        )
-    except NabaztagApiError as exc:
-        message = str(exc)
-        flash(message, "error")
-        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            return jsonify({"ok": False, "message": message}), 400
-        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
-    db.session.add(
-        RabbitEventLog(
-            rabbit_id=rabbit.id,
-            source="api",
-            event_type="rabbit.ears.updated",
-            payload=json.dumps(result),
-        )
+    _enqueue_device_command(
+        rabbit,
+        command_type="ears",
+        payload={"left": left_value, "right": right_value},
     )
-    db.session.commit()
-    message = "Commande oreilles envoyée."
+    message = "Commande oreilles mise en file."
     if wakeup_message:
         message = f"{wakeup_message} {message}"
     flash(message, "success")
