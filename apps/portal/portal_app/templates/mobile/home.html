@@ -114,6 +114,7 @@
         </div>
         <form method="post" action="{{ url_for('main.mobile_rabbit_talk', rabbit_id=selected_rabbit.id) }}" class="stack">
           <textarea name="message" placeholder="Écris ton message ici..." required></textarea>
+          <input type="hidden" name="return_to" value="{{ request.path }}">
           <div class="actions">
             <button class="button primary" type="submit">Lui parler</button>
           </div>

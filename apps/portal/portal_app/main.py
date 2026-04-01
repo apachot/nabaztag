@@ -2195,6 +2195,7 @@ def mobile_rabbit(rabbit_id: int):
 @login_required
 def mobile_rabbit_talk(rabbit_id: int):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    return_to = request.form.get("return_to", "").strip()
     try:
         performance = _queue_mobile_conversation_for_rabbit(
             rabbit,
@@ -2202,6 +2203,8 @@ def mobile_rabbit_talk(rabbit_id: int):
         )
     except RuntimeError as exc:
         flash(str(exc), "error")
+        if return_to.startswith("/mobile"):
+            return redirect(return_to)
         return redirect(url_for("main.mobile_rabbit", rabbit_id=rabbit.id))
 
     rabbits = _mobile_rabbits_for_current_user()
