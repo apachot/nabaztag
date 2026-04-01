@@ -160,7 +160,7 @@
         <div>
           <p class="section-kicker">Lui parler</p>
           <h2 style="margin: 0;">{{ selected_rabbit.name }}</h2>
-          <div class="meta">Touchez le micro, parlez, puis laissez le silence envoyer le message au lapin.</div>
+          <div class="meta">Touchez le micro, dites “Ok Nabaztag”, puis prononcez votre message. Le silence l’enverra automatiquement au lapin.</div>
         </div>
         <form method="post" action="{{ url_for('main.mobile_rabbit_talk', rabbit_id=selected_rabbit.id) }}" class="stack" id="mobile-talk-form">
           <div class="mobile-compose">
