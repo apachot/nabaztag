@@ -80,9 +80,9 @@
           <img
             src="{{ rabbit.photo_url }}"
             alt="Photo de {{ rabbit.name }}"
-            style="display: block; width: 100%; height: 180px; object-fit: cover; border: 1px solid rgba(24, 23, 21, 0.08); margin-bottom: 18px;"
+            style="float: right; width: 150px; height: 150px; object-fit: cover; border: 1px solid rgba(24, 23, 21, 0.08); margin: 0 0 16px 18px;"
           >
-          <div class="panel-header-row">
+          <div class="panel-header-row" style="align-items: start;">
             <div>
               <p class="section-kicker">Lapin</p>
               <h3 style="margin: 0;">{{ rabbit.name }}</h3>
@@ -95,6 +95,7 @@
           <div class="actions" style="margin-top: 18px;">
             <a class="button primary" href="{{ url_for('main.rabbit_detail', rabbit_id=rabbit.id) }}">Ouvrir la fiche</a>
           </div>
+          <div style="clear: both;"></div>
         </article>
       {% else %}
         <article class="panel">
