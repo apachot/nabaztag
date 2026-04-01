@@ -18,7 +18,7 @@ from urllib import request as urllib_request
 from zoneinfo import ZoneInfo
 
 from flask import Blueprint, Response, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
-from flask_login import current_user, login_required
+from flask_login import current_user, login_required, login_user
 from werkzeug.utils import secure_filename
 
 from .api_client import (
@@ -2256,12 +2256,23 @@ def mobile_app_pairing_bridge(token: str):
     session = MobileAppPairingSession.query.filter_by(token=token).first()
     if session is None:
         return render_template("mobile_pairing.html", status="invalid", pairing_token=token), 404
+    if session.user is None:
+        return render_template("mobile_pairing.html", status="invalid", pairing_token=token), 404
     if session.consumed_at is not None or session.status != "pending":
+        if current_user.is_authenticated and getattr(current_user, "id", None) == session.user_id:
+            flash("Session mobile déjà établie pour ce compte.", "success")
+            return redirect(url_for("main.dashboard"))
         return render_template("mobile_pairing.html", status="used", pairing_token=token)
     expires_at = _utc_comparable(session.expires_at)
     if expires_at is not None and expires_at < _utc_comparable(utc_now()):
         return render_template("mobile_pairing.html", status="expired", pairing_token=token)
-    return render_template("mobile_pairing.html", status="ready", pairing_token=token)
+    login_user(session.user, remember=False, fresh=True)
+    session.status = "claimed"
+    session.device_name = session.device_name or "Lien magique mobile"
+    session.consumed_at = utc_now()
+    db.session.commit()
+    flash("Session mobile sécurisée ouverte. Tu peux maintenant interagir avec tes lapins.", "success")
+    return redirect(url_for("main.dashboard"))
 
 
 @main_bp.post("/mobile-api/v1/pairing/claim")
