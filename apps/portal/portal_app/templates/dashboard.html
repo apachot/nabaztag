@@ -49,17 +49,6 @@
             </div>
             <div class="meta">{{ rabbit.connection_status }}</div>
           </div>
-          <div class="subtle-grid">
-            <div class="meta">Slug: <span class="mono">{{ rabbit.slug }}</span></div>
-            <div class="meta">
-              Cible:
-              {% if rabbit.target_host %}
-                <span class="mono">{{ rabbit.target_host }}:{{ rabbit.target_port }}</span>
-              {% else %}
-                non renseignée
-              {% endif %}
-            </div>
-          </div>
           {% if rabbit.notes %}
             <p style="margin-top: 16px;">{{ rabbit.notes }}</p>
           {% endif %}
