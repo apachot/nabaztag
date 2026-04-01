@@ -22,6 +22,16 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
 
     rabbits = db.relationship("Rabbit", back_populates="owner", cascade="all, delete-orphan")
+    mobile_pairing_sessions = db.relationship(
+        "MobileAppPairingSession",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    mobile_api_tokens = db.relationship(
+        "MobileApiToken",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
     def set_password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)
@@ -129,6 +139,31 @@ class ProvisioningSession(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
 
     rabbit = db.relationship("Rabbit", back_populates="provisioning_sessions")
+
+
+class MobileAppPairingSession(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    token = db.Column(db.String(128), unique=True, nullable=False, index=True)
+    status = db.Column(db.String(32), default="pending", nullable=False)
+    device_name = db.Column(db.String(255))
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
+    consumed_at = db.Column(db.DateTime(timezone=True))
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+
+    user = db.relationship("User", back_populates="mobile_pairing_sessions")
+
+
+class MobileApiToken(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    label = db.Column(db.String(255))
+    token_hash = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    last_used_at = db.Column(db.DateTime(timezone=True))
+    revoked_at = db.Column(db.DateTime(timezone=True))
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+
+    user = db.relationship("User", back_populates="mobile_api_tokens")
 
 
 class RabbitEventLog(db.Model):

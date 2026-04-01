@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Appairage mobile | Nabaztag Portal{% endblock %}
+
+{% block content %}
+  <section class="stack" style="max-width: 720px;">
+    <section class="hero">
+      <h1>Appairage mobile</h1>
+      {% if status == "ready" %}
+        <p class="hero-text">
+          Ouvre l’application mobile Nabaztag et scanne ce QR code depuis l’écran d’appairage.
+          Si tu es arrivé ici dans un navigateur, reviens simplement à l’application.
+        </p>
+      {% elif status == "used" %}
+        <p class="hero-text">Ce code d’appairage a déjà été utilisé.</p>
+      {% elif status == "expired" %}
+        <p class="hero-text">Ce code d’appairage a expiré. Génère-en un nouveau depuis Mon compte.</p>
+      {% else %}
+        <p class="hero-text">Ce code d’appairage est invalide.</p>
+      {% endif %}
+    </section>
+
+    <article class="panel">
+      <div class="meta">Code : <span class="mono">{{ pairing_token }}</span></div>
+    </article>
+  </section>
+{% endblock %}

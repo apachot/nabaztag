@@ -13,6 +13,7 @@
 
     <article class="panel">
       <form method="post" class="stack">
+        <input type="hidden" name="form" value="mistral">
         <input type="hidden" name="provider" value="mistral">
         <div class="field">
           <label for="mistral_api_key">Token Mistral</label>
@@ -41,5 +42,50 @@
         </div>
       </form>
     </article>
+
+    <article class="panel stack">
+      <div>
+        <h2 style="margin-bottom: 8px;">Application mobile</h2>
+        <div class="meta">
+          Génère ici un QR code d'appairage pour l'application iPhone/Android. Le code est valable
+          {{ 10 }} minutes et permet à l'application d'accéder à tes lapins et à leur statut.
+        </div>
+      </div>
+
+      <form method="post" class="actions">
+        <input type="hidden" name="form" value="mobile_pairing">
+        <button class="button primary" type="submit" name="action" value="create">Générer un QR code</button>
+      </form>
+
+      {% if mobile_pairing and mobile_pairing_url %}
+        <div class="stack">
+          <div class="meta">
+            Code actif jusqu’au {{ mobile_pairing.expires_at.strftime("%d/%m/%Y %H:%M") if mobile_pairing.expires_at else "n/a" }}.
+            {{ mobile_tokens_count }} appareil{{ "s" if mobile_tokens_count != 1 else "" }} mobile{{ "s" if mobile_tokens_count != 1 else "" }} déjà appairé{{ "s" if mobile_tokens_count != 1 else "" }}.
+          </div>
+          <div id="mobile-pairing-qrcode" data-url="{{ mobile_pairing_url }}" style="padding: 16px; background: white; width: fit-content; border: 1px solid rgba(24, 23, 21, 0.08);"></div>
+          <div class="field">
+            <label>URL d'appairage</label>
+            <input value="{{ mobile_pairing_url }}" readonly onclick="this.select()">
+          </div>
+        </div>
+      {% else %}
+        <div class="meta">Aucun QR code d'appairage mobile actif pour l’instant.</div>
+      {% endif %}
+    </article>
   </section>
+  {% if mobile_pairing and mobile_pairing_url %}
+    <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+    <script>
+      (() => {
+        const root = document.getElementById("mobile-pairing-qrcode");
+        if (!root || !root.dataset.url || !window.QRCode) return;
+        const canvas = document.createElement("canvas");
+        window.QRCode.toCanvas(canvas, root.dataset.url, { width: 220, margin: 1 }, (error) => {
+          if (error || !canvas) return;
+          root.replaceChildren(canvas);
+        });
+      })();
+    </script>
+  {% endif %}
 {% endblock %}

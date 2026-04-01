@@ -72,6 +72,7 @@ def _ensure_portal_schema() -> None:
     rabbit_columns = {column["name"] for column in inspector.get_columns("rabbit")}
     user_columns = {column["name"] for column in inspector.get_columns("user")}
     recording_columns = {column["name"] for column in inspector.get_columns("rabbit_recording")}
+    existing_tables = set(inspector.get_table_names())
     statements: list[str] = []
 
     if "photo_filename" not in rabbit_columns:
@@ -111,4 +112,51 @@ def _ensure_portal_schema() -> None:
         db.session.execute(text(statement))
 
     if statements:
+        db.session.commit()
+
+    if "mobile_app_pairing_session" not in existing_tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE mobile_app_pairing_session (
+                    id INTEGER PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    token VARCHAR(128) NOT NULL UNIQUE,
+                    status VARCHAR(32) NOT NULL DEFAULT 'pending',
+                    device_name VARCHAR(255),
+                    expires_at DATETIME NOT NULL,
+                    consumed_at DATETIME,
+                    created_at DATETIME NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES user(id)
+                )
+                """
+            )
+        )
+        db.session.execute(
+            text("CREATE INDEX ix_mobile_app_pairing_session_user_id ON mobile_app_pairing_session(user_id)")
+        )
+        db.session.execute(
+            text("CREATE INDEX ix_mobile_app_pairing_session_token ON mobile_app_pairing_session(token)")
+        )
+        db.session.commit()
+
+    if "mobile_api_token" not in existing_tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE mobile_api_token (
+                    id INTEGER PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    label VARCHAR(255),
+                    token_hash VARCHAR(64) NOT NULL UNIQUE,
+                    last_used_at DATETIME,
+                    revoked_at DATETIME,
+                    created_at DATETIME NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES user(id)
+                )
+                """
+            )
+        )
+        db.session.execute(text("CREATE INDEX ix_mobile_api_token_user_id ON mobile_api_token(user_id)"))
+        db.session.execute(text("CREATE INDEX ix_mobile_api_token_token_hash ON mobile_api_token(token_hash)"))
         db.session.commit()

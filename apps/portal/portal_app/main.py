@@ -43,6 +43,8 @@ from .device_protocol import (
 from .extensions import db
 from .models import (
     DeviceObservation,
+    MobileApiToken,
+    MobileAppPairingSession,
     ProvisioningSession,
     Rabbit,
     RabbitFriendship,
@@ -165,6 +167,8 @@ MISTRAL_TTS_SPEECH_URL = "https://api.mistral.ai/v1/audio/speech"
 DEFAULT_RABBIT_LLM_MODEL = "mistral-small-2603"
 MISTRAL_MODELS_URL = "https://api.mistral.ai/v1/models"
 RECORDING_DEDUPLICATION_WINDOW_SECONDS = 30
+MOBILE_PAIRING_EXPIRY_MINUTES = 10
+MOBILE_TOKEN_PREFIX = "nzm_"
 BODY_LED_TARGETS = ("left", "center", "right")
 LED_TARGETS = ("left", "center", "right", "bottom", "nose")
 LED_MODE_TO_PRESET = {
@@ -243,6 +247,162 @@ RABBIT_USE_CASE_SCENES = {
 
 _auto_intervention_worker_lock = threading.Lock()
 _auto_intervention_worker_started = False
+
+
+def _mobile_token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _issue_mobile_api_token(user, *, label: str | None = None) -> str:
+    raw_token = f"{MOBILE_TOKEN_PREFIX}{secrets.token_urlsafe(32)}"
+    db.session.add(
+        MobileApiToken(
+            user_id=user.id,
+            label=label,
+            token_hash=_mobile_token_hash(raw_token),
+        )
+    )
+    db.session.commit()
+    return raw_token
+
+
+def _active_mobile_pairing_for_user(user) -> MobileAppPairingSession | None:
+    now = utc_now()
+    return (
+        MobileAppPairingSession.query.filter_by(user_id=user.id, status="pending")
+        .filter(MobileAppPairingSession.consumed_at.is_(None))
+        .filter(MobileAppPairingSession.expires_at >= now)
+        .order_by(MobileAppPairingSession.created_at.desc())
+        .first()
+    )
+
+
+def _create_mobile_pairing_session(user) -> MobileAppPairingSession:
+    now = utc_now()
+    MobileAppPairingSession.query.filter_by(user_id=user.id, status="pending").update(
+        {"status": "expired", "consumed_at": now}
+    )
+    session = MobileAppPairingSession(
+        user_id=user.id,
+        token=secrets.token_urlsafe(24),
+        expires_at=now + timedelta(minutes=MOBILE_PAIRING_EXPIRY_MINUTES),
+    )
+    db.session.add(session)
+    db.session.commit()
+    return session
+
+
+def _mobile_pairing_url(session: MobileAppPairingSession) -> str:
+    return url_for("main.mobile_app_pairing_bridge", token=session.token, _external=True)
+
+
+def _mobile_api_unauthorized(message: str = "Authentification mobile invalide."):
+    return jsonify({"ok": False, "message": message}), 401
+
+
+def _mobile_bearer_token() -> str:
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return ""
+    return auth_header.split(" ", 1)[1].strip()
+
+
+def _current_mobile_user() -> tuple[object | None, MobileApiToken | None]:
+    raw_token = _mobile_bearer_token()
+    if not raw_token:
+        return None, None
+    token_record = (
+        MobileApiToken.query.filter_by(token_hash=_mobile_token_hash(raw_token))
+        .filter(MobileApiToken.revoked_at.is_(None))
+        .first()
+    )
+    if token_record is None or token_record.user is None:
+        return None, None
+    token_record.last_used_at = utc_now()
+    db.session.commit()
+    return token_record.user, token_record
+
+
+def _absolute_url(relative_url: str | None) -> str | None:
+    if not relative_url:
+        return None
+    if relative_url.startswith("http://") or relative_url.startswith("https://"):
+        return relative_url
+    return f"{request.url_root.rstrip('/')}{relative_url}"
+
+
+def _serialize_mobile_rabbit(rabbit: Rabbit) -> dict:
+    linked_device = (
+        DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(DeviceObservation.last_seen_at.desc())
+        .first()
+    )
+    return {
+        "id": rabbit.id,
+        "name": rabbit.name,
+        "status": rabbit.connection_status,
+        "photo_url": _absolute_url(_rabbit_photo_url(rabbit) or url_for("main.default_rabbit_photo")),
+        "device_serial": linked_device.serial if linked_device else None,
+        "friends": [{"id": friend.id, "name": friend.name} for friend in _friends_for_rabbit(rabbit)],
+    }
+
+
+def _queue_mobile_conversation_for_rabbit(rabbit: Rabbit, *, user_text: str) -> dict:
+    normalized_text = " ".join(user_text.split()).strip()
+    if not normalized_text:
+        raise RuntimeError("Message vide.")
+    if len(normalized_text) > 500:
+        raise RuntimeError("Message trop long. Limite: 500 caractères.")
+    owner = rabbit.owner
+    if owner is None or not owner.mistral_api_key:
+        raise RuntimeError("Ajoute d'abord ton token Mistral dans Mon compte.")
+
+    _append_conversation_turn(
+        rabbit,
+        role="user",
+        text=normalized_text,
+        source="mobile",
+        payload={"transport": "mobile"},
+    )
+    llm_model = _normalize_rabbit_llm_model(rabbit, _build_rabbit_llm_model_options())
+    _maybe_compact_rabbit_conversation(
+        rabbit,
+        api_key=owner.mistral_api_key,
+        model=llm_model,
+    )
+    performance = _generate_mistral_rabbit_performance(
+        api_key=owner.mistral_api_key,
+        model=llm_model,
+        rabbit_name=rabbit.name,
+        personality_prompt=rabbit.personality_prompt or DEFAULT_RABBIT_PERSONALITY_PROMPT,
+        conversation_messages=_conversation_messages_for_generation(rabbit),
+        user_prompt_override="Reponds maintenant au dernier message de l'utilisateur dans cette conversation.",
+    )
+    _queue_generated_performance(
+        rabbit,
+        api_key=owner.mistral_api_key,
+        performance=performance,
+        source="mobile",
+        mode="conversation",
+    )
+    _append_conversation_turn(
+        rabbit,
+        role="assistant",
+        text=performance["text"],
+        source="mobile",
+        payload=performance,
+    )
+    _append_rabbit_event(
+        rabbit,
+        source="mobile",
+        event_type="rabbit.conversation.reply.generated",
+        payload={
+            "input_text": normalized_text,
+            **_performance_event_payload(performance),
+        },
+    )
+    db.session.commit()
+    return performance
 
 
 def _parse_clock_value(value: str | None, *, fallback: str) -> tuple[int, int]:
@@ -2036,9 +2196,18 @@ def dashboard_rabbit_conversations():
 @login_required
 def account():
     if request.method == "POST":
-        provider = request.form.get("provider", "mistral").strip().lower()
+        form_name = request.form.get("form", "mistral").strip().lower()
         action = request.form.get("action", "save").strip().lower()
 
+        if form_name == "mobile_pairing":
+            if action == "create":
+                _create_mobile_pairing_session(current_user)
+                flash("QR code d'appairage mobile généré.", "success")
+                return redirect(url_for("main.account"))
+            flash("Action mobile invalide.", "error")
+            return redirect(url_for("main.account"))
+
+        provider = request.form.get("provider", "mistral").strip().lower()
         if provider != "mistral":
             flash("Provider invalide.", "error")
             return redirect(url_for("main.account"))
@@ -2060,7 +2229,133 @@ def account():
             flash(f"Token {provider_label} enregistré.", "success")
             return redirect(url_for("main.account"))
 
-    return render_template("account.html")
+    mobile_pairing = _active_mobile_pairing_for_user(current_user)
+    mobile_pairing_url = _mobile_pairing_url(mobile_pairing) if mobile_pairing else None
+    mobile_tokens_count = (
+        MobileApiToken.query.filter_by(user_id=current_user.id)
+        .filter(MobileApiToken.revoked_at.is_(None))
+        .count()
+    )
+    return render_template(
+        "account.html",
+        mobile_pairing=mobile_pairing,
+        mobile_pairing_url=mobile_pairing_url,
+        mobile_tokens_count=mobile_tokens_count,
+    )
+
+
+@main_bp.get("/mobile-app/pair/<token>")
+def mobile_app_pairing_bridge(token: str):
+    session = MobileAppPairingSession.query.filter_by(token=token).first()
+    if session is None:
+        return render_template("mobile_pairing.html", status="invalid", pairing_token=token), 404
+    if session.consumed_at is not None or session.status != "pending":
+        return render_template("mobile_pairing.html", status="used", pairing_token=token)
+    if session.expires_at < utc_now():
+        return render_template("mobile_pairing.html", status="expired", pairing_token=token)
+    return render_template("mobile_pairing.html", status="ready", pairing_token=token)
+
+
+@main_bp.post("/mobile-api/v1/pairing/claim")
+def mobile_api_pairing_claim():
+    payload = request.get_json(silent=True) or {}
+    pairing_token = str(payload.get("pairing_token") or "").strip()
+    device_name = " ".join(str(payload.get("device_name") or "").split()).strip()
+    if not pairing_token:
+        return jsonify({"ok": False, "message": "pairing_token obligatoire."}), 400
+
+    session = MobileAppPairingSession.query.filter_by(token=pairing_token).first()
+    if session is None:
+        return jsonify({"ok": False, "message": "Code d'appairage invalide."}), 404
+    if session.consumed_at is not None or session.status != "pending":
+        return jsonify({"ok": False, "message": "Code d'appairage déjà utilisé."}), 409
+    if session.expires_at < utc_now():
+        session.status = "expired"
+        db.session.commit()
+        return jsonify({"ok": False, "message": "Code d'appairage expiré."}), 410
+    if session.user is None:
+        return jsonify({"ok": False, "message": "Compte introuvable."}), 404
+
+    api_token = _issue_mobile_api_token(session.user, label=device_name or "Téléphone")
+    session.status = "claimed"
+    session.device_name = device_name or session.device_name
+    session.consumed_at = utc_now()
+    db.session.commit()
+
+    rabbits = (
+        Rabbit.query.filter_by(owner_id=session.user.id)
+        .order_by(Rabbit.created_at.desc())
+        .all()
+    )
+    return jsonify(
+        {
+            "ok": True,
+            "api_token": api_token,
+            "user": {"email": session.user.email},
+            "rabbits": [_serialize_mobile_rabbit(rabbit) for rabbit in rabbits],
+        }
+    )
+
+
+@main_bp.get("/mobile-api/v1/rabbits")
+def mobile_api_rabbits():
+    user, _token_record = _current_mobile_user()
+    if user is None:
+        return _mobile_api_unauthorized()
+    rabbits = Rabbit.query.filter_by(owner_id=user.id).order_by(Rabbit.created_at.desc()).all()
+    return jsonify({"ok": True, "rabbits": [_serialize_mobile_rabbit(rabbit) for rabbit in rabbits]})
+
+
+@main_bp.get("/mobile-api/v1/rabbits/<int:rabbit_id>")
+def mobile_api_rabbit_detail(rabbit_id: int):
+    user, _token_record = _current_mobile_user()
+    if user is None:
+        return _mobile_api_unauthorized()
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=user.id).first()
+    if rabbit is None:
+        return jsonify({"ok": False, "message": "Lapin introuvable."}), 404
+    recent_turns = (
+        RabbitConversationTurn.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(RabbitConversationTurn.id.desc())
+        .limit(10)
+        .all()
+    )
+    recent_turns.reverse()
+    return jsonify(
+        {
+            "ok": True,
+            "rabbit": _serialize_mobile_rabbit(rabbit),
+            "conversation": [_serialize_conversation_turn(turn) for turn in recent_turns],
+        }
+    )
+
+
+@main_bp.post("/mobile-api/v1/rabbits/<int:rabbit_id>/conversation")
+def mobile_api_rabbit_conversation(rabbit_id: int):
+    user, _token_record = _current_mobile_user()
+    if user is None:
+        return _mobile_api_unauthorized()
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=user.id).first()
+    if rabbit is None:
+        return jsonify({"ok": False, "message": "Lapin introuvable."}), 404
+
+    payload = request.get_json(silent=True) or {}
+    text = str(payload.get("text") or "").strip()
+    if not text:
+        return jsonify({"ok": False, "message": "Texte obligatoire."}), 400
+    try:
+        performance = _queue_mobile_conversation_for_rabbit(rabbit, user_text=text)
+    except RuntimeError as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 400
+
+    return jsonify(
+        {
+            "ok": True,
+            "rabbit": _serialize_mobile_rabbit(rabbit),
+            "reply": performance["text"],
+            "performance": performance,
+        }
+    )
 
 
 @main_bp.post("/rabbits/<int:rabbit_id>/prompt")

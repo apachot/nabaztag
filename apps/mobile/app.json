@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "Nabaztag",
+    "slug": "nabaztag-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#f4f1eb"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#f4f1eb"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      "expo-camera"
+    ]
+  }
+}
