@@ -2223,6 +2223,23 @@ def mobile_rabbit_talk(rabbit_id: int):
     )
 
 
+@main_bp.post("/mobile/rabbits/<int:rabbit_id>/wake-ack")
+@login_required
+def mobile_rabbit_wake_ack(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    _enqueue_device_command(
+        rabbit,
+        command_type="audio",
+        payload={
+            "url": "broadcast/ojn_local/audio/sleep-chime.mp3",
+            "source": "mobile-wake-ack",
+            "filename": "sleep-chime.mp3",
+            "mode": "mobile-wake-ack",
+        },
+    )
+    return jsonify({"ok": True})
+
+
 @main_bp.post("/dashboard/rabbit-conversations")
 @login_required
 def dashboard_rabbit_conversations():

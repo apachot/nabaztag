@@ -171,6 +171,7 @@
           <textarea id="mobile-message-input" name="message" style="display:none;" required></textarea>
           <input type="hidden" name="return_to" value="{{ request.path }}">
         </form>
+        <div id="mobile-wake-ack-endpoint" data-url="{{ url_for('main.mobile_rabbit_wake_ack', rabbit_id=selected_rabbit.id) }}" hidden></div>
         <div class="mobile-reply" id="mobile-reply" {% if not mobile_reply %}style="display:none;"{% endif %}>
           <strong>Réponse</strong>
           <div style="margin-top: 8px;" id="mobile-reply-text">{{ mobile_reply or "" }}</div>
@@ -186,7 +187,8 @@
       const status = document.getElementById("mobile-mic-status");
       const reply = document.getElementById("mobile-reply");
       const replyText = document.getElementById("mobile-reply-text");
-      if (!button || !input || !status || !transcript || !reply || !replyText) return;
+      const wakeAckEndpoint = document.getElementById("mobile-wake-ack-endpoint");
+      if (!button || !input || !status || !transcript || !reply || !replyText || !wakeAckEndpoint) return;
 
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SpeechRecognition) {
@@ -303,6 +305,20 @@
         if (restartTimer) {
           window.clearTimeout(restartTimer);
           restartTimer = null;
+        }
+      };
+
+      const triggerRabbitWakeAck = async () => {
+        const url = wakeAckEndpoint.dataset.url;
+        if (!url) return;
+        try {
+          await fetch(url, {
+            method: "POST",
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+            credentials: "same-origin",
+          });
+        } catch (_error) {
+          // Ignore mobile ack failures: the local UI still continues.
         }
       };
 
@@ -426,6 +442,7 @@
         if (waitForWakeWord) {
           if (hasWakeWord(normalized)) {
             playCue(1046, 140);
+            void triggerRabbitWakeAck();
             waitForWakeWord = false;
             shouldAutoSend = true;
             finalTranscript = "";
