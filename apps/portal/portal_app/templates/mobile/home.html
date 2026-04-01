@@ -150,6 +150,7 @@
           <div class="meta">Le lapin répondra avec sa voix, ses oreilles et ses lumières.</div>
         </div>
         <form method="post" action="{{ url_for('main.mobile_rabbit_talk', rabbit_id=selected_rabbit.id) }}" class="stack">
+          <input type="hidden" name="auto_send" value="1">
           <div class="mobile-compose">
             <div class="mobile-compose-toolbar">
               <button type="button" class="mobile-mic" id="mobile-mic-button" aria-label="Enregistrer un message">🎙</button>
@@ -189,9 +190,11 @@
       recognition.lang = "fr-FR";
       recognition.interimResults = true;
       recognition.continuous = false;
+      const form = button.closest("form");
 
       let listening = false;
       let finalTranscript = "";
+      let shouldAutoSend = false;
 
       const refreshStatus = (message) => {
         status.textContent = message;
@@ -204,6 +207,7 @@
           return;
         }
         finalTranscript = input.value ? `${input.value.trim()} ` : "";
+        shouldAutoSend = true;
         recognition.start();
       });
 
@@ -227,11 +231,20 @@
 
       recognition.onerror = () => {
         listening = false;
+        shouldAutoSend = false;
         refreshStatus("Impossible d'utiliser le micro pour le moment.");
       };
 
       recognition.onend = () => {
         listening = false;
+        const normalized = input.value.trim();
+        if (shouldAutoSend && normalized && form) {
+          refreshStatus("Message envoyé au lapin…");
+          shouldAutoSend = false;
+          form.requestSubmit();
+          return;
+        }
+        shouldAutoSend = false;
         refreshStatus("Touchez le micro pour dicter un message.");
       };
     })();
