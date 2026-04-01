@@ -64,13 +64,10 @@
         align-items: center;
         gap: 12px;
       }
-      .brand::before {
-        content: "";
-        width: 18px;
-        height: 18px;
-        border-radius: 0;
-        background: linear-gradient(135deg, #243b37 0%, #2d8a5f 100%);
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25);
+      .brand img {
+        display: block;
+        height: 46px;
+        width: auto;
       }
       .nav {
         display: flex;
@@ -645,7 +642,9 @@
     <div id="toast-stack" class="toast-stack" aria-live="polite" aria-atomic="false"></div>
     <div class="page">
       <header class="topbar">
-        <a class="brand" href="{{ url_for('main.index') }}">nabaztag.org</a>
+        <a class="brand" href="{{ url_for('main.index') }}">
+          <img src="{{ url_for('static', filename='logo-nabaztag-org.png') }}" alt="nabaztag.org">
+        </a>
         <nav class="nav">
           {% if current_user.is_authenticated %}
             <a class="pill" href="{{ url_for('main.dashboard') }}">Mes lapins</a>
