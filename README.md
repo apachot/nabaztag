@@ -20,8 +20,9 @@ Concretement, cela signifie que le lapin ne repond pas seulement avec du texte. 
 - utiliser ses LEDs comme langage corporel
 - improviser de petites interventions expressives
 - tenir une conversation courte avec memoire recente
+- executer des actions explicites demandees en langage naturel
 
-Le LLM n'est donc pas utilise comme un moteur purement verbal. Il est sollicite pour produire une performance structuree: un texte a dire, un mouvement d'oreille gauche, un mouvement d'oreille droite, un etat des LEDs. Le lapin devient une interface expressive complete.
+Le LLM n'est donc pas utilise comme un moteur purement verbal. Il est sollicite pour produire une performance structuree et, desormais, pour choisir dans un catalogue d'actions compatibles avec le lapin. Il peut donc non seulement parler, mais aussi declencher des mouvements d'oreilles, des effets lumineux, une mise en veille, un reveil ou une radio connue quand la demande de l'utilisateur s'y prete. Le lapin devient une interface expressive complete.
 
 Nous cherchons a retrouver ce qui faisait la singularite du Nabaztag a l'epoque, tout en l'amenant beaucoup plus loin:
 
@@ -72,6 +73,7 @@ Chaque lapin peut disposer:
 - de son propre comportement expressif
 - de sa propre fenetre de conversation recente
 - de ses propres interventions aleatoires
+- de ses propres actions declenchees a la demande via un catalogue normalise
 
 Le but est d'arriver a des lapins qui ne sont pas des copies les uns des autres, mais de vrais personnages.
 
@@ -109,9 +111,13 @@ La plateforme couvre aujourd'hui les usages suivants:
 - selection du modele Mistral par lapin
 - selection de la voix Voxtral par lapin
 - generation de performances expressives structurees
+- catalogue d'actions compatible LLM pour les oreilles, LEDs, radio, sommeil et reveil
 - conversations courtes avec memoire recente
 - purge agressive du contexte conversationnel pour stabiliser le systeme
 - interventions aleatoires selon une frequence et une plage horaire
+- interface mobile web dediee avec micro, reveil vocal `Ok <nom du lapin>` et conversation continue
+- acquittement sonore local et sur le lapin lors du reveil vocal mobile
+- support de stations radio connues, dont `RFI Monde`
 - endpoint d'upload d'enregistrement compatible avec les usages Nabaztag historiques
 
 ## Architecture
@@ -158,14 +164,15 @@ Le projet utilise aujourd'hui principalement Mistral:
 
 - modeles de chat Mistral pour la generation des reponses et des performances
 - Voxtral TTS pour la synthese vocale
-- generation structuree en JSON pour coordonner la parole, les oreilles et les LEDs
+- generation structuree en JSON pour coordonner la parole et un catalogue d'actions du lapin
 
 L'idee n'est pas de demander au modele "dis quelque chose". L'idee est de demander:
 
 - quoi dire
-- comment le dire
-- quelle attitude corporelle adopter
-- quels signaux lumineux utiliser
+- quelles actions du lapin utiliser
+- dans quel ordre les utiliser
+- avec quels parametres compatibles
+- comment garder une reponse expressive et naturelle
 
 Cette structuration est essentielle pour que le lapin existe comme personnage physique, et pas seulement comme canal audio.
 
