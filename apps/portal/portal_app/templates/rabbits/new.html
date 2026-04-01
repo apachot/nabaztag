@@ -3,28 +3,195 @@
 {% block title %}Ajouter un lapin | Nabaztag Portal{% endblock %}
 
 {% block content %}
-  <section class="stack" style="max-width: 920px; margin: 0 auto;">
+  <style>
+    .assistant-flow {
+      display: grid;
+      gap: 18px;
+    }
+
+    .assistant-step {
+      display: grid;
+      grid-template-columns: 74px minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+      padding: 22px;
+      background: rgba(255, 255, 255, 0.5);
+      border: 1px solid rgba(24, 23, 21, 0.06);
+      box-shadow: var(--shadow);
+    }
+
+    .assistant-step.offline {
+      background: linear-gradient(180deg, rgba(255, 248, 236, 0.9), rgba(255, 255, 255, 0.5));
+      border-color: rgba(184, 99, 62, 0.18);
+    }
+
+    .assistant-step.success {
+      background: linear-gradient(180deg, rgba(237, 252, 244, 0.92), rgba(255, 255, 255, 0.5));
+      border-color: rgba(31, 119, 79, 0.18);
+    }
+
+    .step-index {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 54px;
+      height: 54px;
+      background: var(--accent);
+      color: white;
+      font-family: "Manrope", sans-serif;
+      font-size: 1.25rem;
+      font-weight: 800;
+    }
+
+    .assistant-step.offline .step-index { background: var(--accent-2); }
+    .assistant-step.success .step-index { background: var(--ok); }
+
+    .assistant-step h2, .assistant-step h3 { margin: 0 0 8px; }
+
+    .assistant-visual {
+      margin-top: 14px;
+      padding: 18px;
+      border: 1px solid rgba(24, 23, 21, 0.06);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(244, 241, 235, 0.85));
+      min-height: 130px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .assistant-visual strong {
+      display: block;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .rabbit-visual {
+      position: relative;
+      width: 180px;
+      height: 110px;
+    }
+
+    .rabbit-visual .head {
+      position: absolute;
+      left: 38px;
+      top: 22px;
+      width: 104px;
+      height: 72px;
+      background: #fff;
+      border: 2px solid rgba(24, 23, 21, 0.12);
+      border-radius: 50% 50% 46% 46%;
+    }
+
+    .rabbit-visual .ear {
+      position: absolute;
+      top: 0;
+      width: 22px;
+      height: 54px;
+      background: #fff;
+      border: 2px solid rgba(24, 23, 21, 0.12);
+      border-bottom: 0;
+    }
+
+    .rabbit-visual .ear.left { left: 60px; transform: rotate(-8deg); }
+    .rabbit-visual .ear.right { right: 60px; transform: rotate(8deg); }
+    .rabbit-visual .button {
+      position: absolute;
+      left: 82px;
+      top: 72px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #243b37;
+    }
+
+    .rabbit-visual .led-row {
+      position: absolute;
+      left: 62px;
+      top: 60px;
+      display: flex;
+      gap: 10px;
+    }
+
+    .rabbit-visual .led {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #60a5fa;
+      box-shadow: 0 0 12px rgba(96, 165, 250, 0.7);
+    }
+
+    .wifi-visual {
+      display: grid;
+      gap: 10px;
+      width: 100%;
+      max-width: 360px;
+      text-align: left;
+    }
+
+    .wifi-network {
+      padding: 12px 14px;
+      border: 1px solid rgba(24, 23, 21, 0.08);
+      background: rgba(255, 255, 255, 0.82);
+    }
+
+    .wifi-network.active {
+      border-color: rgba(36, 59, 55, 0.26);
+      background: rgba(36, 59, 55, 0.08);
+    }
+
+    .browser-visual {
+      width: 100%;
+      max-width: 420px;
+      border: 1px solid rgba(24, 23, 21, 0.08);
+      background: rgba(255, 255, 255, 0.92);
+    }
+
+    .browser-bar {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(24, 23, 21, 0.06);
+      background: rgba(244, 241, 235, 0.85);
+      font-family: "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+    }
+
+    .browser-body {
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .field-preview {
+      padding: 10px 12px;
+      border: 1px solid rgba(24, 23, 21, 0.08);
+      background: rgba(255, 255, 255, 0.95);
+      text-align: left;
+    }
+
+    .offline-banner {
+      padding: 14px 16px;
+      background: rgba(184, 99, 62, 0.12);
+      border: 1px solid rgba(184, 99, 62, 0.2);
+      color: var(--text);
+      margin: 14px 0 0;
+    }
+  </style>
+
+  <section class="stack" style="max-width: 1080px; margin: 0 auto;">
     <section class="hero">
       <p class="section-kicker">Mise en service</p>
       <h1 class="hero-title">Ajouter un lapin.</h1>
       <p class="hero-text">
-        Commence par créer la fiche du lapin ici. Tu seras ensuite redirigé vers un assistant
-        pas à pas de mise en service pour le faire rejoindre ton Wi‑Fi et le rattacher au bon
-        Nabaztag physique.
+        Cette page te donne toute la procédure de mise en service. Commence par créer la fiche du lapin,
+        puis suis les étapes dans l’ordre.
       </p>
       <div class="notice">
-        <strong>Important :</strong> sur un Nabaztag d’origine, la configuration se fait
-        depuis le Wi-Fi émis par le lapin, puis via son interface locale sur
-        <span class="mono">http://192.168.0.1/</span>.
-      </div>
-      <div class="notice" style="margin-top: 12px;">
-        La valeur à mettre dans <span class="mono">Violet Platform</span> est
-        <span class="mono">{{ violet_platform_value }}</span>, sans <span class="mono">https://</span>.
+        Valeur à saisir dans <span class="mono">Violet Platform</span> :
+        <span class="mono">{{ violet_platform_value }}</span>
       </div>
     </section>
 
     <section class="panel">
-      <h2>1. Créer la fiche du lapin</h2>
+      <h2>Créer la fiche du lapin</h2>
       <form method="post">
         <div class="grid">
           <div class="field">
@@ -47,65 +214,163 @@
         </div>
         <div class="field">
           <label for="notes">Notes</label>
-          <textarea id="notes" name="notes" rows="5" placeholder="Provisioning, Wi-Fi, modèle, état..."></textarea>
+          <textarea id="notes" name="notes" rows="5" placeholder="Provisioning, Wi‑Fi, état du lapin..."></textarea>
         </div>
         <div class="actions">
-          <button class="button primary" type="submit">Créer le lapin</button>
+          <button class="button primary" type="submit">Créer le lapin et ouvrir l’assistant</button>
           <a class="pill" href="{{ url_for('main.dashboard') }}">Retour</a>
         </div>
       </form>
     </section>
 
-    <section class="panel">
-      <h2>2. Manipulation sur le lapin</h2>
-      <ol class="steps">
-        <li>Débranche le Nabaztag.</li>
-        <li>Maintiens le bouton appuyé pendant que tu le rebranches.</li>
-        <li>Attends qu’il passe en mode configuration, généralement avec une lumière bleue.</li>
-        <li>Depuis ton ordinateur, cherche le réseau Wi-Fi émis par le lapin, par exemple <span class="mono">Nabaztag8E</span>.</li>
-        <li>Connecte-toi à ce réseau Wi-Fi temporaire.</li>
-        <li>Ouvre ensuite <span class="mono">http://192.168.0.1/</span> dans ton navigateur.</li>
-        <li>Va dans <strong>Advanced configuration</strong> ou l’écran de configuration avancée équivalent.</li>
-      </ol>
-    </section>
-
-    <section class="panel">
-      <h2>3. Valeurs à saisir dans l’interface web du lapin</h2>
-      <p class="meta">
-        Les libellés exacts peuvent varier légèrement selon la version du lapin, mais on
-        retrouve en général <span class="mono">SSID</span>, la clé Wi-Fi, puis
-        <span class="mono">Violet Platform</span>.
-      </p>
-      <div class="value-table">
-        <div class="value-row">
-          <div class="value-label">SSID</div>
-          <div class="value-body">Le nom de ton Wi-Fi maison</div>
-        </div>
-        <div class="value-row">
-          <div class="value-label">Mot de passe / clé Wi-Fi</div>
-          <div class="value-body">Le mot de passe de ton Wi-Fi maison</div>
-        </div>
-        <div class="value-row">
-          <div class="value-label">Violet Platform</div>
-          <div class="value-body">
-            <span class="mono">{{ violet_platform_value }}</span>
-            <div class="meta">C’est cette valeur qu’il faut saisir dans le champ <span class="mono">Violet Platform</span> du Nabaztag, sans <span class="mono">https://</span>.</div>
+    <section class="assistant-flow">
+      <article class="assistant-step">
+        <div class="step-index">1</div>
+        <div>
+          <h2>Maintenir le bouton pendant le branchement</h2>
+          <p>Maintiens le bouton du Nabaztag appuyé pendant que tu le branches pour le faire démarrer en mode paramétrage.</p>
+          <div class="assistant-visual">
+            <div>
+              <strong>Maintenir le bouton pendant le branchement</strong>
+              <div class="rabbit-visual">
+                <div class="ear left"></div>
+                <div class="ear right"></div>
+                <div class="head"></div>
+                <div class="button"></div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="notice">
-        Si l’écran du lapin affiche un bouton comme <strong>Update and Start</strong>,
-        c’est celui qu’il faut utiliser une fois les champs remplis.
-      </div>
-    </section>
+      </article>
 
-    <section class="panel">
-      <h2>4. Après validation</h2>
-      <ol class="steps">
-        <li>Le lapin redémarre et tente de rejoindre ton Wi-Fi maison.</li>
-        <li>Reviens sur ce portail et ouvre la fiche du lapin.</li>
-        <li>Utilise ensuite la page <strong>Provisioning</strong> ou les actions de connexion pour finaliser les tests.</li>
-      </ol>
+      <article class="assistant-step">
+        <div class="step-index">2</div>
+        <div>
+          <h2>Vérifier les LEDs bleues</h2>
+          <p>Le Nabaztag doit afficher ses LEDs bleues, signe qu’il attend sa configuration.</p>
+          <div class="assistant-visual">
+            <div>
+              <strong>Toutes les LEDs en bleu</strong>
+              <div class="rabbit-visual">
+                <div class="ear left"></div>
+                <div class="ear right"></div>
+                <div class="head"></div>
+                <div class="led-row">
+                  <div class="led"></div>
+                  <div class="led"></div>
+                  <div class="led"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="assistant-step offline">
+        <div class="step-index">3</div>
+        <div>
+          <h2>Se connecter au Wi‑Fi du Nabaztag</h2>
+          <p>Depuis les réseaux Wi‑Fi de ton ordinateur, sélectionne le réseau du lapin.</p>
+          <div class="assistant-visual">
+            <div class="wifi-visual">
+              <div class="wifi-network">Wi‑Fi maison</div>
+              <div class="wifi-network active">NabaztagXX</div>
+              <div class="wifi-network">Téléphone</div>
+            </div>
+          </div>
+          <div class="offline-banner">
+            À partir d’ici et jusqu’au redémarrage du lapin, tu n’auras plus accès à ce portail.
+          </div>
+        </div>
+      </article>
+
+      <article class="assistant-step offline">
+        <div class="step-index">4</div>
+        <div>
+          <h2>Ouvrir l’interface locale</h2>
+          <p>Dans ton navigateur, tape <span class="mono">http://192.168.0.1/</span>.</p>
+          <div class="assistant-visual">
+            <div class="browser-visual">
+              <div class="browser-bar">http://192.168.0.1/</div>
+              <div class="browser-body">
+                <div class="field-preview">Nabaztag configuration</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="assistant-step offline">
+        <div class="step-index">5</div>
+        <div>
+          <h2>Paramétrer le Wi‑Fi du lapin</h2>
+          <p>Renseigne le Wi‑Fi maison dans l’interface du Nabaztag.</p>
+          <div class="assistant-visual">
+            <div class="browser-visual">
+              <div class="browser-body">
+                <div class="field-preview">SSID : ton Wi‑Fi maison</div>
+                <div class="field-preview">Password : ton mot de passe Wi‑Fi</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="assistant-step offline">
+        <div class="step-index">6</div>
+        <div>
+          <h2>Configurer Violet Platform</h2>
+          <p>Dans le champ <span class="mono">Violet Platform</span>, saisis :</p>
+          <div class="assistant-visual">
+            <div class="browser-visual">
+              <div class="browser-body">
+                <div class="field-preview">
+                  <strong>Violet Platform</strong><br>
+                  <span class="mono">{{ violet_platform_value }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="assistant-step offline">
+        <div class="step-index">7</div>
+        <div>
+          <h2>Redémarrage puis reconnexion à ton Wi‑Fi</h2>
+          <p>Valide la configuration. Le lapin redémarre. Ensuite, reconnecte bien ton ordinateur à ton Wi‑Fi d’origine pour reprendre l’installation.</p>
+          <div class="assistant-visual">
+            <div>
+              <strong>Revenir sur le Wi‑Fi maison après redémarrage</strong>
+              <div class="wifi-visual">
+                <div class="wifi-network active">Wi‑Fi maison</div>
+                <div class="wifi-network">NabaztagXX</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="assistant-step">
+        <div class="step-index">8</div>
+        <div>
+          <h2>Appuyer sur le bouton du Nabaztag</h2>
+          <p>Une fois revenu sur ton Wi‑Fi, appuie sur le bouton du lapin. Cela permettra de l’identifier automatiquement parmi les Nabaztag qui ont pingé le serveur et ne sont pas encore rattachés à un compte.</p>
+          <div class="assistant-visual">
+            <div>
+              <strong>Le portail proposera ensuite le bon lapin à associer</strong>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="assistant-step success">
+        <div class="step-index">9</div>
+        <div>
+          <h2>Confirmer l’association puis lancer un test</h2>
+          <p>Le portail te montrera les informations du Nabaztag identifié. Tu pourras confirmer l’association, puis lancer une chorégraphie de validation pour vérifier qu’il est opérationnel.</p>
+        </div>
+      </article>
     </section>
   </section>
 {% endblock %}
