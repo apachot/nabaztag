@@ -2231,9 +2231,9 @@ def mobile_rabbit_wake_ack(rabbit_id: int):
         rabbit,
         command_type="audio",
         payload={
-            "url": "broadcast/ojn_local/audio/sleep-chime.mp3",
+            "url": "broadcast/ojn_local/audio/wake-ack-chime.mp3",
             "source": "mobile-wake-ack",
-            "filename": "sleep-chime.mp3",
+            "filename": "wake-ack-chime.mp3",
             "mode": "mobile-wake-ack",
         },
     )
