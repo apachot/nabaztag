@@ -516,12 +516,16 @@
           }
           reply.style.display = "block";
           replyText.textContent = data.reply || "";
-          sessionActive = false;
           listening = false;
           waitForWakeWord = true;
           shouldAutoSend = false;
           clearRestartTimer();
-          refreshStatus("Message transmis. Touchez de nouveau le micro pour recommencer.");
+          if (sessionActive) {
+            refreshStatus(`Message transmis. Dis de nouveau “Ok ${rabbitName}” dans 3 secondes…`);
+            scheduleRecognitionRestart(3000);
+          } else {
+            refreshStatus("Touchez le micro pour dicter un message.");
+          }
         } catch (error) {
           refreshStatus(error instanceof Error ? error.message : "Erreur d'envoi.");
         } finally {
