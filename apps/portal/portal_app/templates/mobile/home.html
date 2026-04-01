@@ -201,6 +201,7 @@
       let sessionActive = false;
       let finalTranscript = "";
       let shouldAutoSend = false;
+      let restartTimer = null;
 
       const refreshStatus = (message) => {
         status.textContent = message;
@@ -210,6 +211,13 @@
       const updateTranscript = (value) => {
         const normalized = value.trim();
         transcript.textContent = normalized || "Votre message apparaîtra ici.";
+      };
+
+      const clearRestartTimer = () => {
+        if (restartTimer) {
+          window.clearTimeout(restartTimer);
+          restartTimer = null;
+        }
       };
 
       const sendMessage = async () => {
@@ -239,12 +247,14 @@
           reply.style.display = "block";
           replyText.textContent = data.reply || "";
           if (sessionActive) {
-            refreshStatus("Réponse reçue. J'écoute de nouveau…");
-            window.setTimeout(() => {
+            refreshStatus("Message transmis. Reprise du micro dans 2 secondes…");
+            clearRestartTimer();
+            restartTimer = window.setTimeout(() => {
+              restartTimer = null;
               if (sessionActive && !listening && !sending) {
                 recognition.start();
               }
-            }, 900);
+            }, 2000);
           } else {
             refreshStatus("Touchez le micro pour dicter un message.");
           }
@@ -258,6 +268,7 @@
       button.addEventListener("click", () => {
         sessionActive = !sessionActive;
         if (!sessionActive) {
+          clearRestartTimer();
           recognition.stop();
           shouldAutoSend = false;
           refreshStatus("Micro arrêté.");
@@ -306,7 +317,9 @@
         }
         if (sessionActive && !sending) {
           shouldAutoSend = true;
-          window.setTimeout(() => {
+          clearRestartTimer();
+          restartTimer = window.setTimeout(() => {
+            restartTimer = null;
             if (sessionActive && !listening && !sending) {
               recognition.start();
             }
