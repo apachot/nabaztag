@@ -2378,6 +2378,29 @@ def edit_rabbit(rabbit_id: int):
     )
 
 
+@main_bp.post("/rabbits/<int:rabbit_id>/delete")
+@login_required
+def delete_rabbit(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    rabbit_name = rabbit.name
+
+    RabbitFriendship.query.filter(
+        (RabbitFriendship.rabbit_low_id == rabbit.id) | (RabbitFriendship.rabbit_high_id == rabbit.id)
+    ).delete(synchronize_session=False)
+
+    if rabbit.photo_filename:
+        photo_path = _rabbit_photo_storage_path(rabbit.photo_filename)
+        try:
+            photo_path.unlink(missing_ok=True)
+        except OSError as exc:
+            current_app.logger.warning("unable to delete rabbit photo %s: %s", photo_path, exc)
+
+    db.session.delete(rabbit)
+    db.session.commit()
+    flash(f"Lapin `{rabbit_name}` supprimé.", "success")
+    return redirect(url_for("main.dashboard"))
+
+
 @main_bp.route("/rabbits/<int:rabbit_id>/ztamps/<int:ztamp_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit_ztamp(rabbit_id: int, ztamp_id: int):

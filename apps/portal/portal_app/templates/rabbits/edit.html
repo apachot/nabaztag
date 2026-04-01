@@ -50,6 +50,16 @@
           <a class="pill" href="{{ url_for('main.rabbit_detail', rabbit_id=rabbit.id) }}">Retour</a>
         </div>
       </form>
+      <form
+        method="post"
+        action="{{ url_for('main.delete_rabbit', rabbit_id=rabbit.id) }}"
+        onsubmit="return confirm('Supprimer définitivement ce lapin ?');"
+        style="margin-top: 18px;"
+      >
+        <button class="pill" type="submit" style="border-color: rgba(166, 78, 23, 0.24); color: var(--error);">
+          Supprimer ce lapin
+        </button>
+      </form>
     </section>
 
     <aside class="panel">
