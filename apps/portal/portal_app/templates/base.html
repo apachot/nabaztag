@@ -641,26 +641,26 @@
   <body>
     <div id="toast-stack" class="toast-stack" aria-live="polite" aria-atomic="false"></div>
     <div class="page">
-      <header class="topbar">
-        <a class="brand" href="{{ url_for('main.index') }}">
-          <img src="{{ url_for('static', filename='logo-nabaztag-org.png') }}" alt="nabaztag.org">
-        </a>
-        <nav class="nav">
-          {% if current_user.is_authenticated %}
-            <a class="pill" href="{{ url_for('main.dashboard') }}">Mes lapins</a>
-            {% if not request.path.startswith('/mobile') %}
+      {% if not request.path.startswith('/mobile') %}
+        <header class="topbar">
+          <a class="brand" href="{{ url_for('main.index') }}">
+            <img src="{{ url_for('static', filename='logo-nabaztag-org.png') }}" alt="nabaztag.org">
+          </a>
+          <nav class="nav">
+            {% if current_user.is_authenticated %}
+              <a class="pill" href="{{ url_for('main.dashboard') }}">Mes lapins</a>
               <a class="pill" href="{{ url_for('main.create_rabbit') }}">Ajouter un lapin</a>
               <a class="pill" href="{{ url_for('main.account') }}">Mon compte</a>
+              <form method="post" action="{{ url_for('auth.logout') }}">
+                <button class="button inline-form" type="submit">Se déconnecter</button>
+              </form>
+            {% else %}
+              <a class="pill" href="{{ url_for('auth.login') }}">Connexion</a>
+              <a class="button primary" href="{{ url_for('auth.register') }}">Créer un compte</a>
             {% endif %}
-            <form method="post" action="{{ url_for('auth.logout') }}">
-              <button class="button inline-form" type="submit">Se déconnecter</button>
-            </form>
-          {% else %}
-            <a class="pill" href="{{ url_for('auth.login') }}">Connexion</a>
-            <a class="button primary" href="{{ url_for('auth.register') }}">Créer un compte</a>
-          {% endif %}
-        </nav>
-      </header>
+          </nav>
+        </header>
+      {% endif %}
 
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
