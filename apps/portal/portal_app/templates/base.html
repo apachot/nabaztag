@@ -648,8 +648,10 @@
         <nav class="nav">
           {% if current_user.is_authenticated %}
             <a class="pill" href="{{ url_for('main.dashboard') }}">Mes lapins</a>
-            <a class="pill" href="{{ url_for('main.create_rabbit') }}">Ajouter un lapin</a>
-            <a class="pill" href="{{ url_for('main.account') }}">Mon compte</a>
+            {% if not request.path.startswith('/mobile') %}
+              <a class="pill" href="{{ url_for('main.create_rabbit') }}">Ajouter un lapin</a>
+              <a class="pill" href="{{ url_for('main.account') }}">Mon compte</a>
+            {% endif %}
             <form method="post" action="{{ url_for('auth.logout') }}">
               <button class="button inline-form" type="submit">Se déconnecter</button>
             </form>
