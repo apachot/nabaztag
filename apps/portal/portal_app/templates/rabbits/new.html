@@ -193,28 +193,10 @@
     <section class="panel">
       <h2>Créer la fiche du lapin</h2>
       <form method="post">
-        <div class="grid">
-          <div class="field">
-            <label for="name">Nom</label>
-            <input id="name" name="name" required placeholder="Lapin salon">
-          </div>
-          <div class="field">
-            <label for="slug">Slug</label>
-            <input id="slug" name="slug" required placeholder="lapin-salon">
-          </div>
-          <div class="field">
-            <label for="target_host">Hôte cible</label>
-            <input id="target_host" name="target_host" placeholder="192.168.1.25">
-            <div class="meta">Optionnel au départ. Tu pourras le renseigner après le provisioning si besoin.</div>
-          </div>
-          <div class="field">
-            <label for="target_port">Port cible</label>
-            <input id="target_port" name="target_port" type="number" value="10543">
-          </div>
-        </div>
         <div class="field">
-          <label for="notes">Notes</label>
-          <textarea id="notes" name="notes" rows="5" placeholder="Provisioning, Wi‑Fi, état du lapin..."></textarea>
+          <label for="name">Nom</label>
+          <input id="name" name="name" value="{{ default_rabbit_name }}" required>
+          <div class="meta">Le nom peut être changé plus tard. L’identifiant technique est généré automatiquement.</div>
         </div>
         <div class="actions">
           <button class="button primary" type="submit">Créer le lapin et ouvrir l’assistant</button>

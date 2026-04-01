@@ -66,6 +66,19 @@ LIVE_EVENT_TYPES = {
 }
 
 
+def _default_rabbit_name() -> str:
+    next_index = Rabbit.query.filter_by(owner_id=current_user.id).count() + 1
+    return f"Lapin {next_index}"
+
+
+def _slugify_rabbit_name(name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", name.strip().lower())
+    slug = slug.strip("-")
+    if not slug:
+        slug = "lapin"
+    return f"{slug}-{secrets.token_hex(2)}"
+
+
 def _friend_ids_for_rabbit(rabbit_id: int) -> list[int]:
     friendships = RabbitFriendship.query.filter(
         (RabbitFriendship.rabbit_low_id == rabbit_id) | (RabbitFriendship.rabbit_high_id == rabbit_id)
@@ -2532,63 +2545,44 @@ def rabbit_provisioning(rabbit_id: int):
 @main_bp.route("/rabbits/new", methods=["GET", "POST"])
 @login_required
 def create_rabbit():
+    default_name = _default_rabbit_name()
     if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        slug = request.form.get("slug", "").strip().lower()
-        target_host = request.form.get("target_host", "").strip()
-        target_port = request.form.get("target_port", "").strip()
-        notes = request.form.get("notes", "").strip()
+        name = request.form.get("name", "").strip() or default_name
+        slug = _slugify_rabbit_name(name)
 
-        if not name or not slug:
-            flash("Le nom et le slug sont obligatoires.", "error")
-        else:
-            remote_payload = None
-            try:
-                remote_payload = create_remote_rabbit(name=name, slug=slug)
-            except NabaztagApiError as exc:
-                flash(f"Lapin créé localement sans enregistrement API: {exc}", "error")
-            rabbit = Rabbit(
-                name=name,
-                slug=slug,
-                owner_id=current_user.id,
-                target_host=target_host or None,
-                target_port=int(target_port) if target_port else 10543,
-                notes=notes or None,
-                personality_prompt=DEFAULT_RABBIT_PERSONALITY_PROMPT,
-                llm_model=DEFAULT_RABBIT_LLM_MODEL,
-                tts_voice=DEFAULT_RABBIT_TTS_VOICE,
-                provisioning_state="registered",
-                remote_rabbit_id=remote_payload["id"] if remote_payload else None,
+        remote_payload = None
+        try:
+            remote_payload = create_remote_rabbit(name=name, slug=slug)
+        except NabaztagApiError as exc:
+            flash(f"Lapin créé localement sans enregistrement API: {exc}", "error")
+        rabbit = Rabbit(
+            name=name,
+            slug=slug,
+            owner_id=current_user.id,
+            target_port=10543,
+            personality_prompt=DEFAULT_RABBIT_PERSONALITY_PROMPT,
+            llm_model=DEFAULT_RABBIT_LLM_MODEL,
+            tts_voice=DEFAULT_RABBIT_TTS_VOICE,
+            provisioning_state="registered",
+            remote_rabbit_id=remote_payload["id"] if remote_payload else None,
+        )
+        db.session.add(rabbit)
+        db.session.flush()
+        db.session.add(
+            RabbitEventLog(
+                rabbit_id=rabbit.id,
+                source="portal",
+                event_type="rabbit.created",
+                payload=json.dumps({"remote_rabbit_id": rabbit.remote_rabbit_id}),
             )
-            db.session.add(rabbit)
-            db.session.flush()
-            db.session.add(
-                RabbitEventLog(
-                    rabbit_id=rabbit.id,
-                    source="portal",
-                    event_type="rabbit.created",
-                    payload=json.dumps({"remote_rabbit_id": rabbit.remote_rabbit_id}),
-                )
-            )
-            if target_host and rabbit.remote_rabbit_id:
-                try:
-                    set_remote_target(rabbit.remote_rabbit_id, target_host, rabbit.target_port or 10543)
-                    db.session.add(
-                        RabbitEventLog(
-                            rabbit_id=rabbit.id,
-                            source="portal",
-                            event_type="rabbit.target.synced",
-                            payload=json.dumps({"host": target_host, "port": rabbit.target_port or 10543}),
-                        )
-                    )
-                except NabaztagApiError as exc:
-                    flash(f"Cible locale enregistrée mais non synchronisée à l'API: {exc}", "error")
-            db.session.commit()
-            flash("Lapin ajouté.", "success")
-            return redirect(url_for("main.rabbit_provisioning", rabbit_id=rabbit.id))
+        )
+        db.session.commit()
+        flash("Lapin ajouté.", "success")
+        return redirect(url_for("main.rabbit_provisioning", rabbit_id=rabbit.id))
 
     return render_template(
         "rabbits/new.html",
+        default_rabbit_name=default_name,
         portal_base_url=_portal_base_url(),
         violet_platform_value=_violet_platform_value(),
     )
