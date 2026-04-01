@@ -132,6 +132,32 @@
       box-shadow: 0 0 12px rgba(96, 165, 250, 0.7);
     }
 
+    .diagnostic-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .diagnostic-item {
+      padding: 12px 14px;
+      border: 1px solid rgba(24, 23, 21, 0.08);
+      background: rgba(255, 255, 255, 0.82);
+    }
+
+    .diagnostic-item strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .color-chip {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin-right: 8px;
+      vertical-align: middle;
+      border: 1px solid rgba(24, 23, 21, 0.12);
+    }
+
     .wifi-visual {
       display: grid;
       gap: 10px;
@@ -351,6 +377,21 @@
         <div>
           <h2>Identifier automatiquement le bon Nabaztag</h2>
           <p>Une fois revenu sur ton Wi‑Fi d’origine, appuie sur le bouton du lapin. Cela nous aide à retrouver automatiquement, parmi les lapins non encore rattachés, celui qui vient de se manifester.</p>
+          <div class="diagnostic-list">
+            <div class="diagnostic-item">
+              <strong>Si aucun lapin n’est détecté</strong>
+              Vérifie d’abord le paramétrage du lapin : bon Wi‑Fi maison, bon mot de passe Wi‑Fi et
+              bonne valeur de <span class="mono">Violet Platform</span> (`{{ violet_platform_value }}`).
+              Si rien n’a pingé le serveur, le problème est côté configuration du lapin.
+            </div>
+            <div class="diagnostic-item">
+              <strong>Repères LED utiles pendant le démarrage</strong>
+              <div><span class="color-chip" style="background:#60a5fa;"></span>Bleu : mode paramétrage du lapin</div>
+              <div><span class="color-chip" style="background:#f59e0b;"></span>Orange : tentative de connexion réseau / démarrage</div>
+              <div><span class="color-chip" style="background:#22c55e;"></span>Vert : connexion réussie, le lapin devrait pouvoir joindre le serveur</div>
+              <div><span class="color-chip" style="background:#ef4444;"></span>Rouge ou comportement anormal : probable erreur de paramétrage ou de réseau</div>
+            </div>
+          </div>
           <div
             id="provisioning-live"
             data-url="{{ url_for('main.rabbit_provisioning_live', rabbit_id=rabbit.id) }}"
@@ -373,9 +414,16 @@
                   <button class="button primary" type="submit">Associer ce Nabaztag</button>
                 </form>
               </div>
+            {% elif recent_unclaimed_devices %}
+              <div class="notice" style="margin-top: 12px;">
+                Un ou plusieurs Nabaztag ont bien pingé le serveur, mais aucun appui bouton n’a encore été détecté.
+                Appuie une fois sur le bouton du lapin pour le faire remonter automatiquement en tête.
+              </div>
             {% else %}
               <div class="notice" style="margin-top: 12px;">
-                Aucun appui bouton non rattaché détecté pour l’instant. Appuie sur le bouton du lapin et la page se mettra à jour automatiquement.
+                Aucun Nabaztag non rattaché n’a encore pingé le serveur. Cela indique en général un
+                problème de configuration côté lapin : Wi‑Fi maison, mot de passe Wi‑Fi ou mauvaise
+                valeur de <span class="mono">Violet Platform</span>.
               </div>
             {% endif %}
 
@@ -462,10 +510,19 @@
         const parts = [];
         if (data.button_candidate) {
           parts.push(renderDeviceCard(data.button_candidate, { primary: true }));
+        } else if ((data.recent_unclaimed_devices || []).length) {
+          parts.push(`
+            <div class="notice" style="margin-top: 12px;">
+              Un ou plusieurs Nabaztag ont bien pingé le serveur, mais aucun appui bouton n’a encore été détecté.
+              Appuie une fois sur le bouton du lapin pour le faire remonter automatiquement en tête.
+            </div>
+          `);
         } else {
           parts.push(`
             <div class="notice" style="margin-top: 12px;">
-              Aucun appui bouton non rattaché détecté pour l’instant. Appuie sur le bouton du lapin et la page se mettra à jour automatiquement.
+              Aucun Nabaztag non rattaché n’a encore pingé le serveur. Cela indique en général un
+              problème de configuration côté lapin : Wi‑Fi maison, mot de passe Wi‑Fi ou mauvaise
+              valeur de <span class="mono">Violet Platform</span>.
             </div>
           `);
         }
