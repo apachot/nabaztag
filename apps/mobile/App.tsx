@@ -135,12 +135,12 @@ export default function App() {
     return (
       <SafeAreaView style={styles.screen}>
         <StatusBar style="dark" />
-        <View style={styles.section}>
-          <Text style={styles.title}>Scanner le QR code</Text>
-          <Text style={styles.meta}>Scanne le QR généré dans Mon compte sur nabaztag.org.</Text>
+        <View style={styles.scanHeader}>
+          <Text style={styles.title}>Scanne le lapin</Text>
+          <Text style={styles.meta}>Scanne le QR code affiché dans Mon compte sur nabaztag.org.</Text>
         </View>
         {!permission ? (
-          <ActivityIndicator />
+          <ActivityIndicator style={{ marginTop: 24 }} />
         ) : !permission.granted ? (
           <View style={styles.section}>
             <Pressable style={styles.button} onPress={requestPermission}>
@@ -170,33 +170,25 @@ export default function App() {
     <SafeAreaView style={styles.screen}>
       <StatusBar style="dark" />
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.section}>
-          <Text style={styles.title}>OK Nabaztag</Text>
-          <Text style={styles.meta}>
-            MVP mobile : scan du QR, liste des lapins, statut, et envoi de texte vers le pipeline de conversation existant.
-          </Text>
+        <View style={styles.heroCard}>
+          <Text style={styles.eyebrow}>OK Nabaztag</Text>
+          <Text style={styles.title}>Parler à mes lapins</Text>
         </View>
 
         {!apiToken ? (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Appairer l’application</Text>
-            <TextInput
-              style={styles.input}
-              value={apiBaseUrl}
-              onChangeText={setApiBaseUrl}
-              autoCapitalize="none"
-              placeholder="https://nabaztag.org"
-            />
+            <Text style={styles.cardTitle}>Connecter l’application</Text>
+            <Text style={styles.meta}>Scanne le QR code d’appairage affiché par le portail.</Text>
+            <Pressable style={styles.button} onPress={() => setScanMode(true)}>
+              <Text style={styles.buttonText}>Scanner le QR code</Text>
+            </Pressable>
             <TextInput
               style={styles.input}
               value={pairingToken}
               onChangeText={setPairingToken}
               autoCapitalize="none"
-              placeholder="Code d'appairage ou URL scannée"
+              placeholder="Coller un lien d'appairage si besoin"
             />
-            <Pressable style={styles.button} onPress={() => setScanMode(true)}>
-              <Text style={styles.buttonText}>Scanner le QR code</Text>
-            </Pressable>
             <Pressable
               style={styles.secondaryButton}
               onPress={() => {
@@ -206,13 +198,14 @@ export default function App() {
                 }
               }}
             >
-              <Text style={styles.secondaryButtonText}>Appairer manuellement</Text>
+              <Text style={styles.secondaryButtonText}>Utiliser ce lien</Text>
             </Pressable>
           </View>
         ) : (
           <>
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Mes lapins</Text>
+              <Text style={styles.meta}>Choisis simplement le lapin avec qui tu veux parler.</Text>
               <FlatList
                 data={rabbits}
                 keyExtractor={(item) => String(item.id)}
@@ -222,36 +215,32 @@ export default function App() {
                     style={[styles.rabbitRow, item.id === selectedRabbitId && styles.rabbitRowSelected]}
                     onPress={() => setSelectedRabbitId(item.id)}
                   >
-                    <Text style={styles.rabbitName}>{item.name}</Text>
-                    <Text style={styles.rabbitStatus}>{item.status}</Text>
+                    <View>
+                      <Text style={styles.rabbitName}>{item.name}</Text>
+                      <Text style={styles.rabbitStatus}>{item.status === "online" ? "En ligne" : "Hors ligne"}</Text>
+                    </View>
+                    <Text style={styles.rabbitChevron}>{item.id === selectedRabbitId ? "●" : "○"}</Text>
                   </Pressable>
                 )}
               />
-              <Pressable style={styles.secondaryButton} onPress={() => void refreshRabbits()}>
-                <Text style={styles.secondaryButtonText}>Actualiser le statut</Text>
-              </Pressable>
             </View>
 
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>
-                {selectedRabbit ? `Parler à ${selectedRabbit.name}` : "Choisis un lapin"}
-              </Text>
+            <View style={styles.talkCard}>
+              <Text style={styles.cardTitle}>{selectedRabbit ? selectedRabbit.name : "Choisis un lapin"}</Text>
+              <Text style={styles.meta}>Écris une phrase. Le lapin répondra avec sa voix, ses oreilles et ses lumières.</Text>
               <TextInput
-                style={[styles.input, styles.multiline]}
+                style={[styles.input, styles.multiline, styles.talkInput]}
                 value={message}
                 onChangeText={setMessage}
                 multiline
-                placeholder="Dis quelque chose au lapin…"
+                placeholder="Lui parler..."
               />
               <Pressable style={styles.button} onPress={() => void sendConversation()}>
-                <Text style={styles.buttonText}>Envoyer au lapin</Text>
+                <Text style={styles.buttonText}>Lui parler</Text>
               </Pressable>
-              <Text style={styles.meta}>
-                Étape suivante : remplacer cette zone par une vraie reconnaissance vocale locale et un wake phrase `OK Nabaztag`.
-              </Text>
               {!!reply && (
                 <View style={styles.replyBox}>
-                  <Text style={styles.replyTitle}>Réponse générée</Text>
+                  <Text style={styles.replyTitle}>Réponse</Text>
                   <Text>{reply}</Text>
                 </View>
               )}
@@ -270,10 +259,32 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "#f4f1eb" },
   container: { padding: 20, gap: 16 },
   section: { gap: 8 },
+  scanHeader: { paddingHorizontal: 20, paddingTop: 12, gap: 8 },
+  heroCard: {
+    backgroundColor: "#fff6e8",
+    borderWidth: 1,
+    borderColor: "rgba(184,99,62,0.14)",
+    padding: 18,
+    gap: 6,
+  },
+  eyebrow: {
+    color: "#b8633e",
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    fontSize: 12,
+  },
   title: { fontSize: 28, fontWeight: "800", color: "#181715" },
   meta: { color: "#6f695f", lineHeight: 20 },
   card: {
     backgroundColor: "rgba(255,255,255,0.82)",
+    borderWidth: 1,
+    borderColor: "rgba(24,23,21,0.08)",
+    padding: 16,
+    gap: 12,
+  },
+  talkCard: {
+    backgroundColor: "#fefcf8",
     borderWidth: 1,
     borderColor: "rgba(24,23,21,0.08)",
     padding: 16,
@@ -288,6 +299,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   multiline: { minHeight: 110, textAlignVertical: "top" },
+  talkInput: { backgroundColor: "#ffffff" },
   button: {
     backgroundColor: "#2d8a5f",
     paddingHorizontal: 14,
@@ -318,6 +330,7 @@ const styles = StyleSheet.create({
   rabbitRowSelected: { borderColor: "#2d8a5f", backgroundColor: "rgba(45,138,95,0.08)" },
   rabbitName: { fontWeight: "700", color: "#181715" },
   rabbitStatus: { color: "#6f695f" },
+  rabbitChevron: { fontSize: 18, color: "#2d8a5f", fontWeight: "700" },
   replyBox: {
     marginTop: 8,
     padding: 12,
