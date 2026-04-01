@@ -96,6 +96,11 @@
       max-width: 280px;
     }
 
+    .mobile-mic-status.is-busy {
+      color: #a64e17;
+      font-weight: 600;
+    }
+
     .mobile-transcript {
       width: 100%;
       padding: 14px;
@@ -206,6 +211,7 @@
       const refreshStatus = (message) => {
         status.textContent = message;
         button.classList.toggle("is-recording", listening);
+        status.classList.toggle("is-busy", sending);
       };
 
       const updateTranscript = (value) => {
@@ -232,7 +238,7 @@
         input.value = "";
         finalTranscript = "";
         updateTranscript("");
-        refreshStatus("Message envoyé au lapin…");
+        refreshStatus("Transmission en cours… le message part vers le lapin.");
         try {
           const response = await fetch(form.action, {
             method: "POST",
@@ -262,6 +268,7 @@
           refreshStatus(error instanceof Error ? error.message : "Erreur d'envoi.");
         } finally {
           sending = false;
+          status.classList.remove("is-busy");
         }
       };
 
