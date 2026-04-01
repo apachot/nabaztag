@@ -145,7 +145,7 @@
               <span aria-hidden="true">⚑</span>
               <span>Alertes</span>
             </a>
-            <a class="pill" href="{{ url_for('main.edit_rabbit', rabbit_id=rabbit.id) }}">Modifier</a>
+            <a class="pill" href="{{ url_for('main.edit_rabbit', rabbit_id=rabbit.id) }}">Paramétrage</a>
             <a class="pill" href="{{ url_for('main.rabbit_details', rabbit_id=rabbit.id) }}">Détails</a>
             <form method="post" action="{{ url_for('main.rabbit_action', rabbit_id=rabbit.id) }}" style="display: inline-flex; margin: 0;">
               <input type="hidden" name="action" value="reset-connection">
