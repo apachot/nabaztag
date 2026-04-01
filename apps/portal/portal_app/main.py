@@ -183,6 +183,42 @@ EAR_ACTION_TO_POSITION = {
     "center": 8,
     "backward": 16,
 }
+RABBIT_ACTION_CATALOG = [
+    {
+        "name": "ears.move",
+        "description": "Bouger les oreilles du lapin.",
+        "parameters": {
+            "left": {"action": "keep|forward|center|backward|position", "position": "0..16 optional"},
+            "right": {"action": "keep|forward|center|backward|position", "position": "0..16 optional"},
+        },
+    },
+    {
+        "name": "led.set",
+        "description": "Changer l'etat d'une LED.",
+        "parameters": {
+            "target": "left|center|right|bottom|nose",
+            "mode": "off|steady|blink|double_blink",
+            "color": "red|green|blue|cyan|violet|yellow|white",
+        },
+    },
+    {
+        "name": "audio.stream",
+        "description": "Lancer un stream audio ou une radio a partir d'une URL explicite compatible.",
+        "parameters": {
+            "url": "http(s)://...",
+        },
+    },
+    {
+        "name": "sleep",
+        "description": "Mettre le lapin en sommeil.",
+        "parameters": {},
+    },
+    {
+        "name": "wakeup",
+        "description": "Reveiller le lapin.",
+        "parameters": {},
+    },
+]
 CONVERSATION_MAX_EXCHANGES = 4
 CONVERSATION_MAX_TURNS = CONVERSATION_MAX_EXCHANGES * 2
 CONVERSATION_RECENT_TURNS_LIMIT = CONVERSATION_MAX_TURNS
@@ -820,6 +856,98 @@ def _normalize_generated_led_instruction(target: str, instruction: object) -> di
     return None
 
 
+def _normalize_generated_action(action_payload: object) -> dict | None:
+    if not isinstance(action_payload, dict):
+        return None
+    action_name = " ".join(str(action_payload.get("name") or action_payload.get("type") or "").split()).strip().lower()
+    if not action_name:
+        return None
+
+    if action_name == "ears.move":
+        left_position = _normalize_generated_ear_instruction(action_payload.get("left"))
+        right_position = _normalize_generated_ear_instruction(action_payload.get("right"))
+        if left_position is None and right_position is None:
+            return None
+        return {"name": action_name, "left": left_position, "right": right_position}
+
+    if action_name == "led.set":
+        target = str(action_payload.get("target") or "").strip().lower()
+        command = _normalize_generated_led_instruction(
+            target,
+            {
+                "mode": action_payload.get("mode"),
+                "color": action_payload.get("color"),
+            },
+        )
+        if command is None:
+            return None
+        return {"name": action_name, **command}
+
+    if action_name == "audio.stream":
+        url = " ".join(str(action_payload.get("url") or "").split()).strip()
+        if not url or not url.startswith(("http://", "https://", "broadcast/")):
+            return None
+        return {"name": action_name, "url": url}
+
+    if action_name in {"sleep", "wakeup"}:
+        return {"name": action_name}
+
+    return None
+
+
+def _legacy_actions_from_generated_payload(payload: dict) -> list[dict]:
+    actions: list[dict] = []
+    ears_payload = payload.get("ears")
+    if isinstance(ears_payload, dict):
+        left_position = _normalize_generated_ear_instruction(ears_payload.get("left"))
+        right_position = _normalize_generated_ear_instruction(ears_payload.get("right"))
+        if left_position is not None or right_position is not None:
+            actions.append(
+                {
+                    "name": "ears.move",
+                    "left": left_position,
+                    "right": right_position,
+                }
+            )
+
+    leds_payload = payload.get("leds")
+    if isinstance(leds_payload, dict):
+        for target in LED_TARGETS:
+            led_command = _normalize_generated_led_instruction(target, leds_payload.get(target))
+            if led_command is not None:
+                actions.append({"name": "led.set", **led_command})
+
+    stream_url = " ".join(str(payload.get("stream_url") or "").split()).strip()
+    if stream_url.startswith(("http://", "https://", "broadcast/")):
+        actions.append({"name": "audio.stream", "url": stream_url})
+
+    if payload.get("sleep") is True:
+        actions.append({"name": "sleep"})
+    if payload.get("wakeup") is True:
+        actions.append({"name": "wakeup"})
+    return actions
+
+
+def _derived_performance_state_from_actions(actions: list[dict]) -> tuple[dict, list[dict]]:
+    ears = {"left": None, "right": None}
+    led_commands: list[dict] = []
+    for action in actions:
+        if action.get("name") == "ears.move":
+            if action.get("left") is not None:
+                ears["left"] = action["left"]
+            if action.get("right") is not None:
+                ears["right"] = action["right"]
+        elif action.get("name") == "led.set":
+            led_commands.append(
+                {
+                    "target": action["target"],
+                    "color": action["color"],
+                    "preset": action["preset"],
+                }
+            )
+    return ears, led_commands
+
+
 def _normalize_generated_performance(payload: dict) -> dict:
     payload = _maybe_unwrap_nested_performance_payload(payload)
     text = " ".join(str(payload.get("text") or "").split()).strip()
@@ -830,27 +958,22 @@ def _normalize_generated_performance(payload: dict) -> dict:
     if not text:
         raise RuntimeError("Le modele n'a pas fourni de texte a lire.")
 
-    ears_payload = payload.get("ears")
-    left_position = None
-    right_position = None
-    if isinstance(ears_payload, dict):
-        left_position = _normalize_generated_ear_instruction(ears_payload.get("left"))
-        right_position = _normalize_generated_ear_instruction(ears_payload.get("right"))
+    raw_actions = payload.get("actions")
+    actions: list[dict] = []
+    if isinstance(raw_actions, list):
+        for raw_action in raw_actions:
+            normalized_action = _normalize_generated_action(raw_action)
+            if normalized_action is not None:
+                actions.append(normalized_action)
+    if not actions:
+        actions = _legacy_actions_from_generated_payload(payload)
 
-    led_commands: list[dict] = []
-    leds_payload = payload.get("leds")
-    if isinstance(leds_payload, dict):
-        for target in LED_TARGETS:
-            led_command = _normalize_generated_led_instruction(target, leds_payload.get(target))
-            if led_command is not None:
-                led_commands.append(led_command)
+    ears, led_commands = _derived_performance_state_from_actions(actions)
 
     return {
         "text": text,
-        "ears": {
-            "left": left_position,
-            "right": right_position,
-        },
+        "actions": actions,
+        "ears": ears,
         "led_commands": led_commands,
     }
 
@@ -956,6 +1079,15 @@ def _queue_generated_performance(
 ) -> tuple[Path, str]:
     text = performance["text"]
     voice = _normalize_rabbit_tts_voice(rabbit, _build_rabbit_tts_voice_options())
+
+    for action in performance.get("actions") or []:
+        if action.get("name") == "wakeup" and rabbit.remote_rabbit_id:
+            try:
+                send_remote_action(rabbit.remote_rabbit_id, "wakeup", {})
+                time.sleep(0.6)
+            except NabaztagApiError:
+                pass
+
     asset_path, asset_name = _synthesize_tts_asset(
         api_key=api_key,
         rabbit_slug=rabbit.slug,
@@ -1004,6 +1136,25 @@ def _queue_generated_performance(
             "mode": mode,
         },
     )
+
+    for action in performance.get("actions") or []:
+        action_name = action.get("name")
+        if action_name == "audio.stream":
+            _enqueue_device_command(
+                rabbit,
+                command_type="audio",
+                payload={
+                    "url": action["url"],
+                    "source": source,
+                    "mode": "stream",
+                },
+            )
+        elif action_name == "sleep" and rabbit.remote_rabbit_id:
+            try:
+                time.sleep(0.8)
+                send_remote_action(rabbit.remote_rabbit_id, "sleep", {})
+            except NabaztagApiError:
+                pass
     return asset_path, asset_name
 
 
@@ -1034,6 +1185,7 @@ def _queue_use_case_scene(
 def _performance_event_payload(performance: dict) -> dict:
     return {
         "text": performance["text"],
+        "actions": performance.get("actions") or [],
         "ears": performance.get("ears") or {"left": None, "right": None},
         "led_commands": performance.get("led_commands") or [],
         "performance": performance,
@@ -1594,29 +1746,28 @@ def _generate_mistral_rabbit_performance(
     conversation_messages: list[dict[str, str]] | None = None,
     user_prompt_override: str | None = None,
 ) -> dict:
+    action_catalog_json = json.dumps(RABBIT_ACTION_CATALOG, ensure_ascii=False)
     system_prompt = (
         f"{personality_prompt}\n\n"
-        "Tu pilotes un lapin Nabaztag qui s'exprime avec la voix, les oreilles et les LEDs. "
+        "Tu pilotes un lapin Nabaztag qui s'exprime avec la voix, les oreilles, les LEDs et quelques actions de maison. "
+        f"Voici le catalogue d'actions autorisees que tu peux utiliser: {action_catalog_json}. "
         "Tu dois repondre uniquement avec un objet JSON valide, sans markdown ni commentaire. "
         "Le JSON doit avoir exactement cette structure generale: "
-        '{"text":"...",'
-        '"ears":{"left":{"action":"keep|forward|center|backward|position","position":8},'
-        '"right":{"action":"keep|forward|center|backward|position","position":8}},'
-        '"leds":{"left":{"mode":"off|steady","color":"red|green|blue|cyan|violet|yellow|white"},'
-        '"center":{"mode":"off|steady","color":"red|green|blue|cyan|violet|yellow|white"},'
-        '"right":{"mode":"off|steady","color":"red|green|blue|cyan|violet|yellow|white"},'
-        '"bottom":{"mode":"off|steady","color":"blue|green|cyan|red|violet|yellow|white"},'
-        '"nose":{"mode":"off|blink|double_blink"}}}. '
+        '{"text":"...","actions":[{"name":"ears.move","left":{"action":"center"},"right":{"action":"center"}}]}. '
         "Contraintes: "
         "1. `text` est obligatoire, en francais, 1 a 3 phrases courtes, droles et naturelles a lire a voix haute. "
-        "2. Pour les oreilles, utilise `keep` si tu ne veux rien changer. "
-        "3. Pour les LEDs du corps `left/center/right`, seul `steady` ou `off` est autorise. "
-        "4. Pour `bottom`, seul `steady` ou `off` est autorise. "
-        "5. Pour `nose`, seuls `off`, `blink` et `double_blink` sont autorises. "
-        "6. Le champ `text` doit contenir uniquement la phrase prononcee par le lapin, sans didascalie, "
+        "2. `actions` est obligatoire, meme si la liste est vide. "
+        "3. Utilise uniquement des actions presentes dans le catalogue, avec uniquement les parametres documentes. "
+        "4. Si la demande utilisateur implique une action compatible, ajoute-la dans `actions`. "
+        "5. Pour les oreilles, utilise `keep` si tu ne veux rien changer. "
+        "6. Pour les LEDs du corps `left/center/right`, seul `steady` ou `off` est autorise. "
+        "7. Pour `bottom`, seul `steady` ou `off` est autorise. "
+        "8. Pour `nose`, seuls `off`, `blink` et `double_blink` sont autorises. "
+        "9. Le champ `text` doit contenir uniquement la phrase prononcee par le lapin, sans didascalie, "
         "sans description de geste, sans mention des oreilles, sans mention des LEDs, sans asterisques. "
-        "7. Reponds avec un JSON strict valide, avec des doubles guillemets JSON, jamais avec des quotes simples. "
-        "8. Ne mets jamais de texte hors JSON."
+        "10. Si l'utilisateur demande une action non compatible avec le catalogue, n'invente rien: garde l'action absente et reponds verbalement. "
+        "11. Reponds avec un JSON strict valide, avec des doubles guillemets JSON, jamais avec des quotes simples. "
+        "12. Ne mets jamais de texte hors JSON."
     )
     user_prompt = user_prompt_override or (
         f"Genere maintenant une petite performance originale pour {rabbit_name}. "
