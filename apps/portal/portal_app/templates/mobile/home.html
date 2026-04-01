@@ -258,6 +258,7 @@
             restartTimer = window.setTimeout(() => {
               restartTimer = null;
               if (sessionActive && !listening && !sending) {
+                shouldAutoSend = true;
                 recognition.start();
               }
             }, 2000);
