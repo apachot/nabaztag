@@ -118,7 +118,7 @@ def _ensure_portal_schema() -> None:
         db.session.execute(
             text(
                 """
-                CREATE TABLE mobile_app_pairing_session (
+                CREATE TABLE IF NOT EXISTS mobile_app_pairing_session (
                     id INTEGER PRIMARY KEY,
                     user_id INTEGER NOT NULL,
                     token VARCHAR(128) NOT NULL UNIQUE,
@@ -133,10 +133,10 @@ def _ensure_portal_schema() -> None:
             )
         )
         db.session.execute(
-            text("CREATE INDEX ix_mobile_app_pairing_session_user_id ON mobile_app_pairing_session(user_id)")
+            text("CREATE INDEX IF NOT EXISTS ix_mobile_app_pairing_session_user_id ON mobile_app_pairing_session(user_id)")
         )
         db.session.execute(
-            text("CREATE INDEX ix_mobile_app_pairing_session_token ON mobile_app_pairing_session(token)")
+            text("CREATE INDEX IF NOT EXISTS ix_mobile_app_pairing_session_token ON mobile_app_pairing_session(token)")
         )
         db.session.commit()
 
@@ -144,7 +144,7 @@ def _ensure_portal_schema() -> None:
         db.session.execute(
             text(
                 """
-                CREATE TABLE mobile_api_token (
+                CREATE TABLE IF NOT EXISTS mobile_api_token (
                     id INTEGER PRIMARY KEY,
                     user_id INTEGER NOT NULL,
                     label VARCHAR(255),
@@ -157,6 +157,6 @@ def _ensure_portal_schema() -> None:
                 """
             )
         )
-        db.session.execute(text("CREATE INDEX ix_mobile_api_token_user_id ON mobile_api_token(user_id)"))
-        db.session.execute(text("CREATE INDEX ix_mobile_api_token_token_hash ON mobile_api_token(token_hash)"))
+        db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_mobile_api_token_user_id ON mobile_api_token(user_id)"))
+        db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_mobile_api_token_token_hash ON mobile_api_token(token_hash)"))
         db.session.commit()

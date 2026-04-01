@@ -253,6 +253,14 @@ def _mobile_token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+def _utc_comparable(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=ZoneInfo("UTC"))
+    return value.astimezone(ZoneInfo("UTC"))
+
+
 def _issue_mobile_api_token(user, *, label: str | None = None) -> str:
     raw_token = f"{MOBILE_TOKEN_PREFIX}{secrets.token_urlsafe(32)}"
     db.session.add(
@@ -267,11 +275,10 @@ def _issue_mobile_api_token(user, *, label: str | None = None) -> str:
 
 
 def _active_mobile_pairing_for_user(user) -> MobileAppPairingSession | None:
-    now = utc_now()
+    now = _utc_comparable(utc_now())
     return (
         MobileAppPairingSession.query.filter_by(user_id=user.id, status="pending")
         .filter(MobileAppPairingSession.consumed_at.is_(None))
-        .filter(MobileAppPairingSession.expires_at >= now)
         .order_by(MobileAppPairingSession.created_at.desc())
         .first()
     )
@@ -2251,7 +2258,8 @@ def mobile_app_pairing_bridge(token: str):
         return render_template("mobile_pairing.html", status="invalid", pairing_token=token), 404
     if session.consumed_at is not None or session.status != "pending":
         return render_template("mobile_pairing.html", status="used", pairing_token=token)
-    if session.expires_at < utc_now():
+    expires_at = _utc_comparable(session.expires_at)
+    if expires_at is not None and expires_at < _utc_comparable(utc_now()):
         return render_template("mobile_pairing.html", status="expired", pairing_token=token)
     return render_template("mobile_pairing.html", status="ready", pairing_token=token)
 
@@ -2269,7 +2277,8 @@ def mobile_api_pairing_claim():
         return jsonify({"ok": False, "message": "Code d'appairage invalide."}), 404
     if session.consumed_at is not None or session.status != "pending":
         return jsonify({"ok": False, "message": "Code d'appairage déjà utilisé."}), 409
-    if session.expires_at < utc_now():
+    expires_at = _utc_comparable(session.expires_at)
+    if expires_at is not None and expires_at < _utc_comparable(utc_now()):
         session.status = "expired"
         db.session.commit()
         return jsonify({"ok": False, "message": "Code d'appairage expiré."}), 410
