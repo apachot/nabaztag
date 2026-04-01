@@ -10,10 +10,10 @@
           <p class="section-kicker">Projet communautaire en cours</p>
           <h1 class="hero-title">Offrir une intelligence émotionnelle à nos Nabaztag.</h1>
           <p class="hero-text">
-            nabaztag.org reconstruit un serveur compatible, documente les protocoles des lapins
-            et remet en circulation un objet connecté emblématique du web des années 2000.
-            Le projet avance par primitives concrètes: connexion, oreilles, LEDs, audio,
-            événements, RFID et interactions vocales.
+            nabaztag.org remet en service des Nabaztag d'origine avec un serveur moderne,
+            sans refit materiel. Les lapins peuvent deja parler avec Mistral, bouger les
+            oreilles, piloter leurs LEDs, reagir aux Ztamp's, converser, dormir, se reveiller
+            et meme echanger entre eux.
           </p>
           <div class="actions" style="margin-top: 22px;">
             {% if current_user.is_authenticated %}
@@ -40,9 +40,9 @@
         <p class="section-kicker">Cap</p>
         <h3>Un compagnon ouvert, pas une boîte noire.</h3>
         <p>
-          L’objectif n’est pas seulement de rallumer des lapins, mais de leur redonner une place
-          utile: interface web, historique, primitives de contrôle, voix synthétique, transcription
-          et à terme intégration de modèles open source.
+          L’objectif n’est pas seulement de rallumer des lapins, mais de leur redonner une vraie
+          presence domestique: une personnalite, une voix, des gestes, des lumieres, une memoire
+          conversationnelle et une interface simple pour les parametrer.
         </p>
       </article>
       <article class="panel">
@@ -50,16 +50,44 @@
         <h3>Partir du protocole, pas du storytelling.</h3>
         <p>
           Le projet progresse en partant des briques bas niveau: bootcode, XMPP, audio, oreilles,
-          RFID, événements live. Chaque avancée produit un comportement vérifiable sur un vrai lapin.
+          RFID, sommeil, evenements live et provisioning. Chaque avancee est verifiee sur de vrais
+          lapins, pas seulement dans une interface de demonstration.
         </p>
       </article>
       <article class="panel">
         <p class="section-kicker">État actuel</p>
         <h3>Une base déjà exploitable.</h3>
         <p>
-          Le portail permet déjà de créer un compte, rattacher un lapin, suivre ses événements,
-          piloter oreilles et LEDs, jouer de l’audio, transcrire les enregistrements et gérer les Ztamp's.
+          Le portail permet deja de rattacher un lapin, suivre ses alertes, piloter oreilles et
+          LEDs, faire parler le lapin, lui faire generer des performances avec Mistral, tester un
+          stream radio, gerer les Ztamp's, configurer ses interventions aleatoires et orchestrer
+          des conversations entre plusieurs lapins.
         </p>
+      </article>
+    </section>
+
+    <section class="app-grid">
+      <article class="panel">
+        <p class="section-kicker">Ce qui fonctionne deja</p>
+        <h3>Des lapins vraiment expressifs.</h3>
+        <ul class="steps">
+          <li>voix TTS Mistral Voxtral avec choix de plusieurs voix</li>
+          <li>generation de reponses et de micro-performances avec Mistral</li>
+          <li>mouvements d’oreilles et pilotage visuel des cinq LEDs</li>
+          <li>historique d’alertes, evenements bouton, RFID et conversation</li>
+          <li>mode sommeil / reveil et scenes expressives de test</li>
+        </ul>
+      </article>
+      <article class="panel">
+        <p class="section-kicker">Vie a la maison</p>
+        <h3>Un compagnon qui prend l’initiative.</h3>
+        <ul class="steps">
+          <li>interventions aleatoires dans une plage horaire definie</li>
+          <li>prompt de personnalite editable pour chaque lapin</li>
+          <li>conversations entre lapins sur un sujet choisi</li>
+          <li>gestion des amis et scenarios a plusieurs lapins</li>
+          <li>provisionnement guide pas a pas pour rattacher un nouveau lapin</li>
+        </ul>
       </article>
     </section>
 
@@ -104,8 +132,9 @@
         <p class="section-kicker">Communauté</p>
         <h3>Un projet à plusieurs mains.</h3>
         <p>
-          Archivistes du web, bidouilleurs hardware, développeurs Python, frontend, audio, XMPP
-          ou LLM: le projet a besoin d’une communauté capable de partager ses trouvailles.
+          Archivistes du web, bidouilleurs hardware, developpeurs Python, frontend, audio, XMPP
+          ou IA: le projet a besoin d’une communaute capable de fiabiliser les lapins, enrichir
+          leurs comportements et documenter ce qu’ils savent encore faire.
         </p>
         <div class="link-list">
           <a class="link-tile" href="https://github.com/apachot/nabaztag" target="_blank" rel="noreferrer">
@@ -129,10 +158,10 @@
         <p class="section-kicker">Roadmap</p>
         <h3>La suite immédiate.</h3>
         <ul class="steps">
-          <li>stabiliser complètement la pile de contrôle réel sur les lapins d’origine</li>
-          <li>renforcer le provisioning et la pédagogie de remise en service</li>
-          <li>outiller les scénarios RFID, bouton, voix et automatisations</li>
-          <li>ouvrir ensuite la voie à des interactions basées sur des modèles open source</li>
+          <li>fiabiliser encore la pile audio, les oreilles et le comportement a chaud</li>
+          <li>enrichir les interactions entre lapins amis et les routines de maison</li>
+          <li>developper des usages tangibles autour des Ztamp's, du bouton et des alertes</li>
+          <li>ouvrir progressivement de nouveaux connecteurs utiles sans perdre la simplicite du produit</li>
         </ul>
       </article>
     </section>
