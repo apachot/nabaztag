@@ -139,12 +139,15 @@ DEFAULT_RABBIT_PERSONALITY_PROMPT = (
 
 DEFAULT_RABBIT_TTS_VOICE = "e0580ce5-e63c-4cbe-88c8-a983b80c5f1f"
 RABBIT_TTS_VOICE_PRESETS = [
-    ("e0580ce5-e63c-4cbe-88c8-a983b80c5f1f", "Marie - Curious"),
-    ("2f62b1af-aea3-4079-9d10-7ca665ee7243", "Marie - Excited"),
-    ("49d024dd-981b-4462-bb17-74d381eb8fd7", "Marie - Happy"),
-    ("5a271406-039d-46fe-835b-fbbb00eaf08d", "Marie - Neutral"),
-    ("4adeb2c6-25a3-44bc-8100-5234dfc1193b", "Marie - Sad"),
-    ("a7c07cdc-1c35-4d87-a938-c610a654f600", "Marie - Angry"),
+    ("e0580ce5-e63c-4cbe-88c8-a983b80c5f1f", "Marie - Curious (FR)"),
+    ("2f62b1af-aea3-4079-9d10-7ca665ee7243", "Marie - Excited (FR)"),
+    ("49d024dd-981b-4462-bb17-74d381eb8fd7", "Marie - Happy (FR)"),
+    ("5a271406-039d-46fe-835b-fbbb00eaf08d", "Marie - Neutral (FR)"),
+    ("4adeb2c6-25a3-44bc-8100-5234dfc1193b", "Marie - Sad (FR)"),
+    ("a7c07cdc-1c35-4d87-a938-c610a654f600", "Marie - Angry (FR)"),
+    ("5de47977-6e47-4266-a938-3bc1d76b4676", "Jane - Curious (EN-GB)"),
+    ("a3e41ea8-020b-44c0-8d8b-f6cc03524e31", "Jane - Sarcasm (EN-GB)"),
+    ("390c8a2b-60a6-4882-8437-c49a8bd33b63", "Oliver - Curious (EN-GB)"),
 ]
 LEGACY_RABBIT_TTS_VOICES = {
     "Curious",
