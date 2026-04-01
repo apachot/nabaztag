@@ -85,6 +85,23 @@ def _friends_for_rabbit(rabbit: Rabbit) -> list[Rabbit]:
     friends = Rabbit.query.filter(Rabbit.id.in_(friend_ids)).order_by(Rabbit.name.asc()).all()
     return [friend for friend in friends if friend.owner_id == rabbit.owner_id]
 
+
+def _recent_provisioning_candidates(*, limit: int = 8) -> tuple[DeviceObservation | None, list[DeviceObservation]]:
+    cutoff = datetime.utcnow() - timedelta(minutes=15)
+    devices = (
+        DeviceObservation.query.filter(DeviceObservation.rabbit_id.is_(None))
+        .filter(DeviceObservation.last_seen_at >= cutoff)
+        .order_by(DeviceObservation.last_seen_at.desc())
+        .limit(limit)
+        .all()
+    )
+    button_candidates = [
+        device
+        for device in devices
+        if (device.last_path or "") == "xmpp:rabbit.button"
+    ]
+    return (button_candidates[0] if button_candidates else None, devices)
+
 LED_COLOR_PRESETS = {
     "off": "#000000",
     "red": "#ff0000",
@@ -995,6 +1012,20 @@ def _ensure_stream_interrupt_choreography() -> tuple[str, dict[str, str]]:
         "left": "#00ffff",
         "center": "#ffffff",
         "right": "#00ffff",
+    }
+    path = choreography_storage_path(_choreographies_dir(), filename)
+    if not path.exists():
+        _packet, chor_bytes = build_choreography_packet(states=states, filename=filename)
+        path.write_bytes(chor_bytes)
+    return filename, states
+
+
+def _ensure_provisioning_test_choreography() -> tuple[str, dict[str, str]]:
+    filename = "provisioning-test.chor"
+    states = {
+        "left": "#2dd4bf",
+        "center": "#ffffff",
+        "right": "#60a5fa",
     }
     path = choreography_storage_path(_choreographies_dir(), filename)
     if not path.exists():
@@ -2421,6 +2452,11 @@ def edit_ztamp(rabbit_id: int, ztamp_id: int):
 @login_required
 def rabbit_provisioning(rabbit_id: int):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    linked_device = (
+        DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(DeviceObservation.last_seen_at.desc())
+        .first()
+    )
 
     if request.method == "POST":
         setup_ssid = request.form.get("setup_ssid", "").strip() or "NabaztagXX"
@@ -2480,10 +2516,14 @@ def rabbit_provisioning(rabbit_id: int):
         .order_by(ProvisioningSession.created_at.desc())
         .first()
     )
+    button_candidate, recent_unclaimed_devices = _recent_provisioning_candidates()
     return render_template(
         "rabbits/provisioning.html",
         rabbit=rabbit,
         latest_session=latest_session,
+        linked_device=linked_device,
+        button_candidate=button_candidate,
+        recent_unclaimed_devices=recent_unclaimed_devices,
         portal_base_url=_portal_base_url(),
         violet_platform_value=_violet_platform_value(),
     )
@@ -2545,13 +2585,39 @@ def create_rabbit():
                     flash(f"Cible locale enregistrée mais non synchronisée à l'API: {exc}", "error")
             db.session.commit()
             flash("Lapin ajouté.", "success")
-            return redirect(url_for("main.dashboard"))
+            return redirect(url_for("main.rabbit_provisioning", rabbit_id=rabbit.id))
 
     return render_template(
         "rabbits/new.html",
         portal_base_url=_portal_base_url(),
         violet_platform_value=_violet_platform_value(),
     )
+
+
+@main_bp.post("/rabbits/<int:rabbit_id>/provisioning/test")
+@login_required
+def rabbit_provisioning_test(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    filename, states = _ensure_provisioning_test_choreography()
+    _enqueue_device_command(
+        rabbit,
+        command_type="ears",
+        payload={"left": 6, "right": 10},
+    )
+    _enqueue_device_command(
+        rabbit,
+        command_type="choreography",
+        payload={"filename": filename, "states": states, "purpose": "provisioning-test"},
+    )
+    _append_rabbit_event(
+        rabbit,
+        source="portal",
+        event_type="rabbit.provisioning.test.queued",
+        payload={"animation": "provisioning-test"},
+    )
+    db.session.commit()
+    flash("Chorégraphie de validation mise en file.", "success")
+    return redirect(url_for("main.rabbit_provisioning", rabbit_id=rabbit.id))
 
 
 @main_bp.post("/rabbits/<int:rabbit_id>/status")
@@ -3260,4 +3326,7 @@ def claim_device(rabbit_id: int):
 
     db.session.commit()
     flash(f"Lapin physique {observation.serial} rattaché.", "success")
+    next_page = request.form.get("next", "").strip().lower()
+    if next_page == "provisioning":
+        return redirect(url_for("main.rabbit_provisioning", rabbit_id=rabbit.id))
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))

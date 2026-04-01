@@ -3,54 +3,410 @@
 {% block title %}Provisioning {{ rabbit.name }} | Nabaztag Portal{% endblock %}
 
 {% block content %}
+  <style>
+    .assistant-flow {
+      display: grid;
+      gap: 18px;
+      max-width: 1080px;
+    }
+
+    .assistant-step {
+      display: grid;
+      grid-template-columns: 74px minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+      padding: 22px;
+      background: rgba(255, 255, 255, 0.5);
+      border: 1px solid rgba(24, 23, 21, 0.06);
+      box-shadow: var(--shadow);
+    }
+
+    .assistant-step.offline {
+      background: linear-gradient(180deg, rgba(255, 248, 236, 0.9), rgba(255, 255, 255, 0.5));
+      border-color: rgba(184, 99, 62, 0.18);
+    }
+
+    .assistant-step.success {
+      background: linear-gradient(180deg, rgba(237, 252, 244, 0.92), rgba(255, 255, 255, 0.5));
+      border-color: rgba(31, 119, 79, 0.18);
+    }
+
+    .step-index {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 54px;
+      height: 54px;
+      background: var(--accent);
+      color: white;
+      font-family: "Manrope", sans-serif;
+      font-size: 1.25rem;
+      font-weight: 800;
+    }
+
+    .assistant-step.offline .step-index {
+      background: var(--accent-2);
+    }
+
+    .assistant-step.success .step-index {
+      background: var(--ok);
+    }
+
+    .assistant-step h2,
+    .assistant-step h3 {
+      margin: 0 0 8px;
+    }
+
+    .assistant-visual {
+      margin-top: 14px;
+      padding: 18px;
+      border: 1px solid rgba(24, 23, 21, 0.06);
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(244, 241, 235, 0.85));
+      min-height: 130px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .assistant-visual strong {
+      display: block;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .rabbit-visual {
+      position: relative;
+      width: 180px;
+      height: 110px;
+    }
+
+    .rabbit-visual .head {
+      position: absolute;
+      left: 38px;
+      top: 22px;
+      width: 104px;
+      height: 72px;
+      background: #fff;
+      border: 2px solid rgba(24, 23, 21, 0.12);
+      border-radius: 50% 50% 46% 46%;
+    }
+
+    .rabbit-visual .ear {
+      position: absolute;
+      top: 0;
+      width: 22px;
+      height: 54px;
+      background: #fff;
+      border: 2px solid rgba(24, 23, 21, 0.12);
+      border-bottom: 0;
+    }
+
+    .rabbit-visual .ear.left { left: 60px; transform: rotate(-8deg); }
+    .rabbit-visual .ear.right { right: 60px; transform: rotate(8deg); }
+
+    .rabbit-visual .button {
+      position: absolute;
+      left: 82px;
+      top: 72px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #243b37;
+    }
+
+    .rabbit-visual .led-row {
+      position: absolute;
+      left: 62px;
+      top: 60px;
+      display: flex;
+      gap: 10px;
+    }
+
+    .rabbit-visual .led {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #60a5fa;
+      box-shadow: 0 0 12px rgba(96, 165, 250, 0.7);
+    }
+
+    .wifi-visual {
+      display: grid;
+      gap: 10px;
+      width: 100%;
+      max-width: 360px;
+      text-align: left;
+    }
+
+    .wifi-network {
+      padding: 12px 14px;
+      border: 1px solid rgba(24, 23, 21, 0.08);
+      background: rgba(255, 255, 255, 0.82);
+    }
+
+    .wifi-network.active {
+      border-color: rgba(36, 59, 55, 0.26);
+      background: rgba(36, 59, 55, 0.08);
+    }
+
+    .browser-visual {
+      width: 100%;
+      max-width: 420px;
+      border: 1px solid rgba(24, 23, 21, 0.08);
+      background: rgba(255, 255, 255, 0.92);
+    }
+
+    .browser-bar {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(24, 23, 21, 0.06);
+      background: rgba(244, 241, 235, 0.85);
+      font-family: "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+    }
+
+    .browser-body {
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .field-preview {
+      padding: 10px 12px;
+      border: 1px solid rgba(24, 23, 21, 0.08);
+      background: rgba(255, 255, 255, 0.95);
+      text-align: left;
+    }
+
+    .offline-banner {
+      padding: 14px 16px;
+      background: rgba(184, 99, 62, 0.12);
+      border: 1px solid rgba(184, 99, 62, 0.2);
+      color: var(--text);
+      margin: 14px 0 0;
+    }
+  </style>
+
   <section class="stack">
     <section class="hero">
-      <h1>Provisioning de {{ rabbit.name }}</h1>
-      <p>
-        Cette page prépare le paramétrage historique du lapin : Wi-Fi maison et valeur
-        `Violet Platform` vers ton serveur.
+      <p class="section-kicker">Mise en service</p>
+      <h1 class="hero-title">Assistant de provisioning pour {{ rabbit.name }}.</h1>
+      <p class="hero-text">
+        Suis les étapes dans l’ordre. À partir du moment où tu te connectes au Wi‑Fi du lapin,
+        tu n’auras plus accès à ce portail jusqu’à ce qu’il redémarre et que tu reviennes sur ton
+        Wi‑Fi d’origine.
       </p>
       <div class="meta">Remote ID: <span class="mono">{{ rabbit.remote_rabbit_id or 'non synchronisé' }}</span></div>
+      <div class="meta">Violet Platform à saisir : <span class="mono">{{ violet_platform_value }}</span></div>
+      <div class="actions" style="margin-top: 18px;">
+        <a class="pill" href="{{ url_for('main.rabbit_detail', rabbit_id=rabbit.id) }}">Retour à la fiche</a>
+        <a class="pill" href="{{ url_for('main.edit_rabbit', rabbit_id=rabbit.id) }}">Modifier le lapin</a>
+      </div>
     </section>
 
-    <section class="panel" style="max-width: 760px;">
-      <h2>Préparer la session</h2>
-      <div class="notice" style="margin-bottom: 16px;">
-        Valeur attendue dans le champ <span class="mono">Violet Platform</span> du lapin :
-        <span class="mono">{{ violet_platform_value }}</span>
-      </div>
-      <form method="post">
-        <div class="grid">
-          <div class="field">
-            <label for="setup_ssid">SSID du lapin en mode config</label>
-            <input id="setup_ssid" name="setup_ssid" value="{{ latest_session.setup_ssid if latest_session else 'NabaztagXX' }}">
-          </div>
-          <div class="field">
-            <label for="home_wifi_ssid">Wi-Fi maison</label>
-            <input id="home_wifi_ssid" name="home_wifi_ssid" value="{{ latest_session.home_wifi_ssid if latest_session else '' }}" required>
-          </div>
-          <div class="field">
-            <label for="home_wifi_password">Mot de passe Wi-Fi</label>
-            <input id="home_wifi_password" name="home_wifi_password" type="password" required>
-          </div>
-          <div class="field">
-            <label for="server_base_url">Portail web</label>
-            <input id="server_base_url" name="server_base_url" value="{{ latest_session.server_base_url if latest_session else portal_base_url }}" placeholder="{{ portal_base_url }}" required>
-            <div class="meta">URL du portail web. La valeur à saisir dans <span class="mono">Violet Platform</span> reste <span class="mono">{{ violet_platform_value }}</span>, sans <span class="mono">https://</span>.</div>
+    <section class="assistant-flow">
+      <article class="assistant-step">
+        <div class="step-index">1</div>
+        <div>
+          <h2>Démarrer le lapin en mode paramétrage</h2>
+          <p>Maintiens le bouton du Nabaztag appuyé pendant que tu le branches.</p>
+          <div class="assistant-visual">
+            <div>
+              <strong>Maintenir le bouton pendant le branchement</strong>
+              <div class="rabbit-visual">
+                <div class="ear left"></div>
+                <div class="ear right"></div>
+                <div class="head"></div>
+                <div class="button"></div>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="actions">
-          <button class="button primary" type="submit">Préparer le provisioning</button>
-          <a class="pill" href="{{ url_for('main.rabbit_detail', rabbit_id=rabbit.id) }}">Retour</a>
+      </article>
+
+      <article class="assistant-step">
+        <div class="step-index">2</div>
+        <div>
+          <h2>Vérifier l’entrée en mode configuration</h2>
+          <p>Le lapin doit afficher ses LEDs bleues, signe qu’il attend sa configuration réseau.</p>
+          <div class="assistant-visual">
+            <div>
+              <strong>Toutes les LEDs en bleu</strong>
+              <div class="rabbit-visual">
+                <div class="ear left"></div>
+                <div class="ear right"></div>
+                <div class="head"></div>
+                <div class="led-row">
+                  <div class="led"></div>
+                  <div class="led"></div>
+                  <div class="led"></div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </form>
-      <ol class="steps" style="margin-top: 18px;">
-        <li>Branche le lapin en gardant le bouton appuyé pour le faire entrer en mode configuration.</li>
-        <li>Connecte ton ordinateur au Wi-Fi du lapin, par exemple <span class="mono">{{ latest_session.setup_ssid if latest_session else 'NabaztagXX' }}</span>.</li>
-        <li>Ouvre <span class="mono">http://192.168.0.1/</span>.</li>
-        <li>Dans l’écran avancé, saisis ton SSID maison, ton mot de passe Wi-Fi et <span class="mono">{{ violet_platform_value }}</span> dans <span class="mono">Violet Platform</span>.</li>
-        <li>Valide avec <strong>Update and Start</strong>, puis attends le redémarrage du lapin.</li>
-      </ol>
+      </article>
+
+      <article class="assistant-step offline">
+        <div class="step-index">3</div>
+        <div>
+          <h2>Connecter ton ordinateur au Wi‑Fi du lapin</h2>
+          <p>Ouvre la liste des réseaux Wi‑Fi et sélectionne le réseau du Nabaztag, par exemple <span class="mono">{{ latest_session.setup_ssid if latest_session else 'NabaztagXX' }}</span>.</p>
+          <div class="assistant-visual">
+            <div class="wifi-visual">
+              <div class="wifi-network">Wi‑Fi maison</div>
+              <div class="wifi-network active">{{ latest_session.setup_ssid if latest_session else 'NabaztagXX' }}</div>
+              <div class="wifi-network">Téléphone</div>
+            </div>
+          </div>
+          <div class="offline-banner">
+            À partir d’ici, tu quittes temporairement ton réseau habituel. Le portail ne sera plus accessible jusqu’au redémarrage du lapin.
+          </div>
+        </div>
+      </article>
+
+      <article class="assistant-step offline">
+        <div class="step-index">4</div>
+        <div>
+          <h2>Ouvrir l’interface locale du lapin</h2>
+          <p>Dans ton navigateur, tape <span class="mono">http://192.168.0.1/</span>.</p>
+          <div class="assistant-visual">
+            <div class="browser-visual">
+              <div class="browser-bar">http://192.168.0.1/</div>
+              <div class="browser-body">
+                <div class="field-preview">Nabaztag configuration</div>
+                <div class="field-preview">Wi‑Fi settings</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="assistant-step offline">
+        <div class="step-index">5</div>
+        <div>
+          <h2>Renseigner le Wi‑Fi du lapin</h2>
+          <p>Configure le Wi‑Fi maison du lapin dans son interface locale.</p>
+          <form method="post" class="stack">
+            <div class="grid">
+              <div class="field">
+                <label for="setup_ssid">SSID du lapin en mode config</label>
+                <input id="setup_ssid" name="setup_ssid" value="{{ latest_session.setup_ssid if latest_session else 'NabaztagXX' }}">
+              </div>
+              <div class="field">
+                <label for="home_wifi_ssid">Wi‑Fi maison</label>
+                <input id="home_wifi_ssid" name="home_wifi_ssid" value="{{ latest_session.home_wifi_ssid if latest_session else '' }}" required>
+              </div>
+              <div class="field">
+                <label for="home_wifi_password">Mot de passe Wi‑Fi</label>
+                <input id="home_wifi_password" name="home_wifi_password" type="password" required>
+              </div>
+              <div class="field">
+                <label for="server_base_url">Portail web</label>
+                <input id="server_base_url" name="server_base_url" value="{{ latest_session.server_base_url if latest_session else portal_base_url }}" placeholder="{{ portal_base_url }}" required>
+              </div>
+            </div>
+            <div class="actions">
+              <button class="button primary" type="submit">Préparer le provisioning</button>
+            </div>
+          </form>
+        </div>
+      </article>
+
+      <article class="assistant-step offline">
+        <div class="step-index">6</div>
+        <div>
+          <h2>Configurer Violet Platform</h2>
+          <p>Dans le champ <span class="mono">Violet Platform</span>, saisis exactement :</p>
+          <div class="assistant-visual">
+            <div class="browser-visual">
+              <div class="browser-body">
+                <div class="field-preview">
+                  <strong>Violet Platform</strong><br>
+                  <span class="mono">{{ violet_platform_value }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="assistant-step offline">
+        <div class="step-index">7</div>
+        <div>
+          <h2>Redémarrer le lapin puis revenir sur ton Wi‑Fi</h2>
+          <p>Valide la configuration du Nabaztag. Il redémarre, relance son cycle de démarrage, puis tu dois reconnecter ton ordinateur à ton Wi‑Fi d’origine pour continuer l’installation ici.</p>
+          <div class="assistant-visual">
+            <div>
+              <strong>Après redémarrage, reconnecte-toi au Wi‑Fi maison</strong>
+              <div class="wifi-visual">
+                <div class="wifi-network active">Wi‑Fi maison</div>
+                <div class="wifi-network">{{ latest_session.setup_ssid if latest_session else 'NabaztagXX' }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="assistant-step">
+        <div class="step-index">8</div>
+        <div>
+          <h2>Identifier automatiquement le bon Nabaztag</h2>
+          <p>Une fois revenu sur ton Wi‑Fi d’origine, appuie sur le bouton du lapin. Cela nous aide à retrouver automatiquement, parmi les lapins non encore rattachés, celui qui vient de se manifester.</p>
+          {% if linked_device %}
+            <div class="notice" style="margin-top: 12px;">
+              Ce lapin est déjà rattaché au Nabaztag <span class="mono">{{ linked_device.serial }}</span>.
+            </div>
+          {% elif button_candidate %}
+            <div class="rabbit-card" style="margin-top: 16px;">
+              <strong>Nabaztag détecté après appui bouton</strong>
+              <div class="meta">Serial : <span class="mono">{{ button_candidate.serial }}</span></div>
+              <div class="meta">Dernière activité : {{ button_candidate.last_seen_at }}</div>
+              <div class="meta">Chemin : <span class="mono">{{ button_candidate.last_path or 'n/a' }}</span></div>
+              <form method="post" action="{{ url_for('main.claim_device', rabbit_id=rabbit.id) }}" style="margin-top: 14px;">
+                <input type="hidden" name="observation_id" value="{{ button_candidate.id }}">
+                <input type="hidden" name="next" value="provisioning">
+                <button class="button primary" type="submit">Associer ce Nabaztag</button>
+              </form>
+            </div>
+          {% else %}
+            <div class="notice" style="margin-top: 12px;">
+              Aucun appui bouton non rattaché détecté pour l’instant. Appuie sur le bouton du lapin puis recharge cette page.
+            </div>
+          {% endif %}
+
+          {% if recent_unclaimed_devices %}
+            <div class="stack" style="margin-top: 16px;">
+              <div class="meta">Lapins non rattachés vus récemment :</div>
+              {% for device in recent_unclaimed_devices %}
+                <div class="rabbit-card">
+                  <strong><span class="mono">{{ device.serial }}</span></strong>
+                  <div class="meta">Dernière vue : {{ device.last_seen_at }}</div>
+                  <div class="meta">Dernière activité : <span class="mono">{{ device.last_path or 'n/a' }}</span></div>
+                  <form method="post" action="{{ url_for('main.claim_device', rabbit_id=rabbit.id) }}" style="margin-top: 12px;">
+                    <input type="hidden" name="observation_id" value="{{ device.id }}">
+                    <input type="hidden" name="next" value="provisioning">
+                    <button class="pill" type="submit">Associer manuellement</button>
+                  </form>
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      </article>
+
+      <article class="assistant-step success">
+        <div class="step-index">9</div>
+        <div>
+          <h2>Valider que le lapin est opérationnel</h2>
+          <p>Lance une petite chorégraphie de test pour confirmer que le Nabaztag répond bien.</p>
+          <form method="post" action="{{ url_for('main.rabbit_provisioning_test', rabbit_id=rabbit.id) }}">
+            <div class="actions">
+              <button class="button primary" type="submit">Lancer la chorégraphie de validation</button>
+            </div>
+          </form>
+        </div>
+      </article>
     </section>
   </section>
 {% endblock %}
