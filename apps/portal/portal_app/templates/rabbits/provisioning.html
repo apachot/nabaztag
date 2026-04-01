@@ -196,8 +196,6 @@
         tu n’auras plus accès à ce portail jusqu’à ce qu’il redémarre et que tu reviennes sur ton
         Wi‑Fi d’origine.
       </p>
-      <div class="meta">Remote ID: <span class="mono">{{ rabbit.remote_rabbit_id or 'non synchronisé' }}</span></div>
-      <div class="meta">Violet Platform à saisir : <span class="mono">{{ violet_platform_value }}</span></div>
       <div class="actions" style="margin-top: 18px;">
         <a class="pill" href="{{ url_for('main.rabbit_detail', rabbit_id=rabbit.id) }}">Retour à la fiche</a>
         <a class="pill" href="{{ url_for('main.edit_rabbit', rabbit_id=rabbit.id) }}">Modifier le lapin</a>
