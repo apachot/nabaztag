@@ -77,6 +77,88 @@ Chaque lapin peut disposer:
 
 Le but est d'arriver a des lapins qui ne sont pas des copies les uns des autres, mais de vrais personnages.
 
+## Cas d'usage cibles
+
+Le projet ne vise pas seulement a faire "parler" le lapin. L'ambition est de lui donner un vrai role dans la maison, avec plusieurs familles d'usages coherentes.
+
+### 1. Nabaztag comme telecommande incarnee
+
+Le lapin peut servir d'interface vocale et expressive vers d'autres systemes:
+
+- domotique locale: lampes, prises, volets, chauffage
+- TV, hifi, ampli, scenes multimedia
+- routines domestiques: `bonne nuit`, `on mange`, `mode film`, `reveil`
+- services numeriques: agenda, mails, musique, rappels
+
+Dans ce mode, le Nabaztag n'est pas l'appareil final qui fait tout. Il capte l'intention, la traduit en action, puis la restitue avec une voix, des oreilles, des LEDs ou une petite reaction sonore.
+
+### 2. Nabaztag comme terminal audio
+
+Le lapin peut aussi agir comme un petit endpoint sonore reseau:
+
+- lancer une radio
+- jouer une ambiance ou un son court
+- servir de point de sortie pour des contenus audio simples et compatibles
+
+Il ne faut pas le penser comme un Chromecast, un AirPlay ou une enceinte Bluetooth moderne. Il faut plutot le penser comme un client de flux audio simple, pilote par le portail.
+
+### 3. Nabaztag comme agent ambiant
+
+Le lapin ne fait pas que reagir. Il peut aussi habiter la maison:
+
+- interventions aleatoires
+- commentaires contextuels
+- notifications de la maison
+- conversations entre lapins
+- scenarios RFID, heure, presence, routines
+
+Cette couche est celle de la personnalite: un lapin qui n'est pas seulement une interface, mais une presence.
+
+## Architecture cible a moyen terme
+
+Pour les integrations de maison connectee, l'objectif n'est pas de devenir dependant d'un service cloud proprietaire ou d'un abonnement mensuel. La direction privilegiee est une architecture generique, securisee et open source.
+
+Le modele vise est le suivant:
+
+- `Nabaztag` comme interface physique
+- un `catalogue d'actions` comme contrat entre le LLM et le systeme
+- un `orchestrateur` pour choisir l'action pertinente
+- des `connecteurs` vers les services et appareils
+- une `restitution expressive` sur le lapin
+
+Autrement dit:
+
+- le lapin capture une intention
+- le LLM choisit dans un catalogue d'actions compatibles
+- l'action est executee soit localement sur le lapin, soit sur un systeme externe
+- le resultat revient sur le lapin sous forme de voix, LEDs, oreilles ou audio
+
+## Vers un bridge local open source
+
+Pour la maison connectee, la bonne direction n'est pas de donner au serveur `nabaztag.org` un acces entrant direct au reseau domestique de l'utilisateur.
+
+La piste privilegiee est plutot un `bridge local` auto-heberge chez l'utilisateur:
+
+- le bridge voit les appareils du reseau local
+- il expose une connexion sortante securisee vers le serveur Nabaztag
+- il execute localement les commandes recues
+- il peut parler a plusieurs ecosystemes sans enfermer le projet dans un seul
+
+Ce bridge pourrait devenir le point d'integration generique pour:
+
+- Home Assistant
+- MQTT
+- lecteurs audio et media servers
+- TV, ampli ou hifi pilotables localement
+- scenes et automatisations maison
+
+L'interet est double:
+
+- pas besoin d'ouvrir son reseau local a Internet
+- pas de dependance structurelle a une offre cloud tierce
+
+Dans cette vision, Home Assistant reste une integration interessante, mais comme connecteur parmi d'autres, pas comme centre obligatoire du systeme.
+
 ## Contribuer
 
 Le projet est encore en construction et il est volontairement ouvert a la contribution. Si vous aimez les interfaces tangibles, les objets connectes atypiques, l'IA embarquee dans des experiences physiques, ou simplement le reemploi creatif d'objets anciens, vous etes au bon endroit.
