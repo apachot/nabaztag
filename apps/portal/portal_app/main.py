@@ -432,6 +432,8 @@ def _issue_local_bridge_token(user, *, bridge_name: str, capabilities: list[dict
 
 def _local_bridge_pairing_command(session: LocalBridgePairingSession) -> str:
     portal_base = request.url_root.rstrip("/")
+    if portal_base.startswith("http://") and "localhost" not in portal_base and "127.0.0.1" not in portal_base:
+        portal_base = "https://" + portal_base[len("http://") :]
     return (
         f"python3 apps/local_bridge/bridge_agent.py pair "
         f"--portal {portal_base} --pairing-token {session.token} --name maison"

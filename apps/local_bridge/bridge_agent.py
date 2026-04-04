@@ -5,6 +5,7 @@ import json
 import sys
 import time
 from pathlib import Path
+from urllib import parse as urllib_parse
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 
@@ -30,6 +31,16 @@ def save_config(config: dict) -> None:
     CONFIG_PATH.write_text(json.dumps(config, indent=2, ensure_ascii=False))
 
 
+def normalize_portal_base(portal: str) -> str:
+    normalized = portal.strip().rstrip("/")
+    parsed = urllib_parse.urlparse(normalized)
+    host = (parsed.hostname or "").strip().lower()
+    if parsed.scheme == "http" and host not in {"localhost", "127.0.0.1"}:
+        parsed = parsed._replace(scheme="https")
+        normalized = urllib_parse.urlunparse(parsed).rstrip("/")
+    return normalized
+
+
 def http_json(*, url: str, method: str = "GET", token: str | None = None, payload: dict | None = None) -> dict:
     headers = {"Accept": "application/json"}
     body = None
@@ -45,7 +56,7 @@ def http_json(*, url: str, method: str = "GET", token: str | None = None, payloa
 
 
 def pair(args: argparse.Namespace) -> int:
-    portal = args.portal.rstrip("/")
+    portal = normalize_portal_base(args.portal)
     capabilities = DEFAULT_CAPABILITIES
     response = http_json(
         url=f"{portal}/bridge-api/v1/pairing/claim",
@@ -142,7 +153,7 @@ def execute_command(command_payload: dict) -> dict:
 
 def run(args: argparse.Namespace) -> int:
     config = load_config()
-    portal = str(config.get("portal") or "").rstrip("/")
+    portal = normalize_portal_base(str(config.get("portal") or ""))
     token = str(config.get("bridge_token") or "").strip()
     if not portal or not token:
         print("Bridge non configuré. Lance d'abord la commande `pair`.", file=sys.stderr)
