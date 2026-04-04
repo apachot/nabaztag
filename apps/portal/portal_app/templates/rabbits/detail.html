@@ -307,27 +307,38 @@
               {% if connector.error %}
                 <div class="flash error">{{ connector.error }}</div>
               {% endif %}
-              {% if connector.key == "home_assistant" %}
+              {% if connector.test_form %}
                 <form method="post" action="{{ url_for('main.rabbit_connector_test', rabbit_id=rabbit.id, connector_key=connector.key) }}" class="stack">
-                  <label>Entité</label>
-                  <select name="entity_id" id="connector-{{ connector.key }}-entity">
-                    <option value="">Choisir une entité...</option>
-                    {% for entity in connector.entities %}
-                      <option value="{{ entity.entity_id }}" data-domain="{{ entity.domain }}">
-                        {{ entity.name }} ({{ entity.entity_id }})
-                      </option>
-                    {% endfor %}
-                  </select>
-                  <label>Domaine</label>
-                  <input type="text" name="domain" id="connector-{{ connector.key }}-domain" placeholder="light">
-                  <label>Service</label>
-                  <input type="text" name="service" placeholder="turn_on">
-                  <label>Paramètres JSON optionnels</label>
-                  <textarea name="service_data" rows="4" placeholder='{"rgb_color":[0,0,255]}'></textarea>
+                  {% for field in connector.test_form.fields %}
+                    <label>{{ field.label }}</label>
+                    {% if field.type == "select" %}
+                      <select name="{{ field.name }}" id="connector-{{ connector.key }}-{{ field.name }}">
+                        <option value="">Choisir...</option>
+                        {% if field.options_key == "entities" %}
+                          {% for entity in connector.entities %}
+                            <option value="{{ entity.entity_id }}" data-domain="{{ entity.domain }}">
+                              {{ entity.name }} ({{ entity.entity_id }})
+                            </option>
+                          {% endfor %}
+                        {% endif %}
+                      </select>
+                    {% elif field.type == "textarea" %}
+                      <textarea name="{{ field.name }}" rows="4" placeholder="{{ field.placeholder }}"></textarea>
+                    {% else %}
+                      <input
+                        type="text"
+                        name="{{ field.name }}"
+                        {% if connector.key == "home_assistant" and field.name == "domain" %}id="connector-{{ connector.key }}-domain"{% endif %}
+                        placeholder="{{ field.placeholder }}"
+                      >
+                    {% endif %}
+                  {% endfor %}
                   <div class="actions">
                     <button class="button primary" type="submit">Tester l’action</button>
                   </div>
                 </form>
+              {% endif %}
+              {% if connector.key == "home_assistant" %}
                 {% if connector.entities %}
                   <div class="meta">
                     {{ connector.entities|length }} entité{{ "s" if connector.entities|length != 1 else "" }} détectée{{ "s" if connector.entities|length != 1 else "" }} compatible{{ "s" if connector.entities|length != 1 else "" }}.
@@ -337,7 +348,7 @@
                 {% endif %}
                 <script>
                   (() => {
-                    const select = document.getElementById("connector-{{ connector.key }}-entity");
+                    const select = document.getElementById("connector-{{ connector.key }}-entity_id");
                     const domainInput = document.getElementById("connector-{{ connector.key }}-domain");
                     if (!select || !domainInput) return;
                     select.addEventListener("change", () => {
@@ -349,6 +360,8 @@
                     });
                   })();
                 </script>
+              {% elif connector.key == "webhook" %}
+                <div class="meta">Le webhook reçoit un POST JSON du type <span class="mono">{"event":"...","payload":{...}}</span>.</div>
               {% endif %}
             </div>
           {% endfor %}

@@ -4043,40 +4043,66 @@ def rabbit_device_audio(rabbit_id: int):
 def rabbit_connector_test(rabbit_id: int, connector_key: str):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
     connector_key = connector_key.strip().lower()
-    if connector_key != "home_assistant" or not is_connector_configured(current_user, connector_key):
+    if not is_connector_configured(current_user, connector_key):
         flash("Connecteur non configuré.", "error")
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
-    entity_id = " ".join(request.form.get("entity_id", "").split()).strip()
-    domain = " ".join(request.form.get("domain", "").split()).strip().lower()
-    service = " ".join(request.form.get("service", "").split()).strip().lower()
-    service_data_raw = request.form.get("service_data", "").strip()
-    if not domain and entity_id and "." in entity_id:
-        domain = entity_id.split(".", 1)[0].lower()
-    action = {
-        "name": "connector.invoke",
-        "connector": connector_key,
-        "operation": "call_service",
-        "params": {
-            "domain": domain,
-            "service": service,
-            "entity_id": entity_id,
-        },
-    }
-
-    service_data = {}
-    if service_data_raw:
-        try:
-            parsed = json.loads(service_data_raw)
-        except json.JSONDecodeError:
-            flash("Le JSON des paramètres Home Assistant est invalide.", "error")
-            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
-        if not isinstance(parsed, dict):
-            flash("Les paramètres Home Assistant doivent être un objet JSON.", "error")
-            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
-        service_data = parsed
-    if service_data:
-        action["params"]["service_data"] = service_data
+    if connector_key == "home_assistant":
+        entity_id = " ".join(request.form.get("entity_id", "").split()).strip()
+        domain = " ".join(request.form.get("domain", "").split()).strip().lower()
+        service = " ".join(request.form.get("service", "").split()).strip().lower()
+        service_data_raw = request.form.get("service_data", "").strip()
+        if not domain and entity_id and "." in entity_id:
+            domain = entity_id.split(".", 1)[0].lower()
+        action = {
+            "name": "connector.invoke",
+            "connector": connector_key,
+            "operation": "call_service",
+            "params": {
+                "domain": domain,
+                "service": service,
+                "entity_id": entity_id,
+            },
+        }
+        service_data = {}
+        if service_data_raw:
+            try:
+                parsed = json.loads(service_data_raw)
+            except json.JSONDecodeError:
+                flash("Le JSON des paramètres Home Assistant est invalide.", "error")
+                return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+            if not isinstance(parsed, dict):
+                flash("Les paramètres Home Assistant doivent être un objet JSON.", "error")
+                return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+            service_data = parsed
+        if service_data:
+            action["params"]["service_data"] = service_data
+    elif connector_key == "webhook":
+        event_name = " ".join(request.form.get("event", "").split()).strip()
+        payload_raw = request.form.get("payload", "").strip()
+        payload = {}
+        if payload_raw:
+            try:
+                parsed = json.loads(payload_raw)
+            except json.JSONDecodeError:
+                flash("Le JSON du webhook est invalide.", "error")
+                return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+            if not isinstance(parsed, dict):
+                flash("Le payload du webhook doit être un objet JSON.", "error")
+                return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+            payload = parsed
+        action = {
+            "name": "connector.invoke",
+            "connector": connector_key,
+            "operation": "trigger",
+            "params": {
+                "event": event_name,
+                "payload": payload,
+            },
+        }
+    else:
+        flash("Connecteur invalide.", "error")
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     try:
         normalized_action = normalize_connector_action(action)
@@ -4094,10 +4120,7 @@ def rabbit_connector_test(rabbit_id: int, connector_key: str):
         event_type="rabbit.connector.test",
         payload={
             "connector": connector_key,
-            "domain": domain,
-            "service": service,
-            "entity_id": entity_id or None,
-            "service_data": service_data,
+            "action": normalized_action,
         },
     )
     db.session.commit()

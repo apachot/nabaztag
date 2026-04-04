@@ -72,6 +72,9 @@
                 placeholder="{% if field.type == 'password' and config.get(field.name) %}{{ field.placeholder }}{% else %}{{ field.placeholder }}{% endif %}"
                 {% if field.type != 'password' %}value="{{ config.get(field.name, '') }}"{% endif %}
               >
+              {% if field.help_text %}
+                <div class="meta">{{ field.help_text }}</div>
+              {% endif %}
             </div>
           {% endfor %}
           <div class="meta">

@@ -133,6 +133,16 @@ Autrement dit:
 - l'action est executee soit localement sur le lapin, soit sur un systeme externe
 - le resultat revient sur le lapin sous forme de voix, LEDs, oreilles ou audio
 
+Aujourd'hui, cette couche prend la forme d'une architecture de `connecteurs externes`:
+
+- configuration par compte utilisateur
+- catalogue d'operations exposees au LLM
+- contexte declaratif pour aider le LLM a choisir une action compatible
+- execution centralisee cote portail
+- formulaires de test sur la fiche d'un lapin
+
+Le contrat est documente dans [docs/connectors.md](/Users/apachot/Documents/GitHub/nabaztag/docs/connectors.md).
+
 ## Vers un bridge local open source
 
 Pour la maison connectee, la bonne direction n'est pas de donner au serveur `nabaztag.org` un acces entrant direct au reseau domestique de l'utilisateur.
@@ -158,6 +168,13 @@ L'interet est double:
 - pas de dependance structurelle a une offre cloud tierce
 
 Dans cette vision, Home Assistant reste une integration interessante, mais comme connecteur parmi d'autres, pas comme centre obligatoire du systeme.
+
+Les deux premiers connecteurs actuellement branches sont:
+
+- `home_assistant`
+- `webhook`
+
+Le second est volontairement plus generique. Il permet de relier le lapin a un service HTTP auto-heberge ou a un futur bridge local sans coupler tout le projet a un seul ecosysteme.
 
 ## Contribuer
 
@@ -200,6 +217,9 @@ La plateforme couvre aujourd'hui les usages suivants:
 - interface mobile web dediee avec micro, reveil vocal `Ok <nom du lapin>` et conversation continue
 - acquittement sonore local et sur le lapin lors du reveil vocal mobile
 - support de stations radio connues, dont `RFI Monde`
+- architecture de connecteurs externes avec action LLM generique `connector.invoke`
+- premier connecteur domotique `Home Assistant`
+- second connecteur generique `webhook` pour valider l'extensibilite
 - endpoint d'upload d'enregistrement compatible avec les usages Nabaztag historiques
 
 ## Architecture
