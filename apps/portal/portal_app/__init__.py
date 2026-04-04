@@ -167,6 +167,78 @@ def _ensure_portal_schema() -> None:
         db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_mobile_api_token_token_hash ON mobile_api_token(token_hash)"))
         db.session.commit()
 
+    if "local_bridge_pairing_session" not in existing_tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS local_bridge_pairing_session (
+                    id INTEGER PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    token VARCHAR(128) NOT NULL UNIQUE,
+                    status VARCHAR(32) NOT NULL DEFAULT 'pending',
+                    bridge_name VARCHAR(255),
+                    expires_at DATETIME NOT NULL,
+                    consumed_at DATETIME,
+                    created_at DATETIME NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES user(id)
+                )
+                """
+            )
+        )
+        db.session.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_local_bridge_pairing_session_user_id ON local_bridge_pairing_session(user_id)")
+        )
+        db.session.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_local_bridge_pairing_session_token ON local_bridge_pairing_session(token)")
+        )
+        db.session.commit()
+
+    if "local_bridge" not in existing_tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS local_bridge (
+                    id INTEGER PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    token_hash VARCHAR(64) NOT NULL UNIQUE,
+                    capabilities_json TEXT NOT NULL DEFAULT '[]',
+                    last_seen_at DATETIME,
+                    revoked_at DATETIME,
+                    created_at DATETIME NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES user(id)
+                )
+                """
+            )
+        )
+        db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_local_bridge_user_id ON local_bridge(user_id)"))
+        db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_local_bridge_token_hash ON local_bridge(token_hash)"))
+        db.session.commit()
+
+    if "local_bridge_command" not in existing_tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS local_bridge_command (
+                    id INTEGER PRIMARY KEY,
+                    bridge_id INTEGER NOT NULL,
+                    command_type VARCHAR(64) NOT NULL DEFAULT 'invoke',
+                    payload_json TEXT NOT NULL DEFAULT '{}',
+                    status VARCHAR(32) NOT NULL DEFAULT 'queued',
+                    result_json TEXT,
+                    error TEXT,
+                    created_at DATETIME NOT NULL,
+                    claimed_at DATETIME,
+                    completed_at DATETIME,
+                    FOREIGN KEY(bridge_id) REFERENCES local_bridge(id)
+                )
+                """
+            )
+        )
+        db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_local_bridge_command_bridge_id ON local_bridge_command(bridge_id)"))
+        db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_local_bridge_command_status ON local_bridge_command(status)"))
+        db.session.commit()
+
     if "user_connector_config" not in existing_tables:
         db.session.execute(
             text(

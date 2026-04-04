@@ -110,3 +110,11 @@ Le connecteur `mqtt` valide encore mieux la logique de bridge local standard. Le
 - usage: rechercher un artiste, un album ou un titre dans une bibliotheque Jellyfin puis le lire sur le lapin
 
 Le connecteur `jellyfin` valide une autre partie importante de l'architecture: un connecteur peut non seulement declencher une action externe, mais aussi produire un flux audio proxifie par le portail pour rester compatible avec le Nabaztag.
+
+### Bridge local
+
+- type: connecteur generique vers un agent local
+- operation: `invoke`
+- usage: relayer une action vers un bridge auto-heberge qui se connecte en sortie au portail
+
+Le connecteur `local_bridge` est la brique strategique pour relier le lapin a des services locaux sans exposer le reseau domestique a Internet. Le portail met une commande en file, puis un agent local la recupere et l'execute chez l'utilisateur.

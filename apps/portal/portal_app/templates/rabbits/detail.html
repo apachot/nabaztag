@@ -362,6 +362,12 @@
                 </script>
               {% elif connector.key == "webhook" %}
                 <div class="meta">Le webhook reçoit un POST JSON du type <span class="mono">{"event":"...","payload":{...}}</span>.</div>
+              {% elif connector.key == "local_bridge" %}
+                {% if connector.capabilities %}
+                  <div class="meta">Capacités exposées actuellement par le bridge local : {{ connector.capabilities|join(', ') }}.</div>
+                {% else %}
+                  <div class="meta">Aucune capacité déclarée par le bridge local pour l’instant.</div>
+                {% endif %}
               {% endif %}
             </div>
           {% endfor %}

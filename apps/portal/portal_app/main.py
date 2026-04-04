@@ -60,6 +60,9 @@ from .models import (
     DeviceObservation,
     MobileApiToken,
     MobileAppPairingSession,
+    LocalBridge,
+    LocalBridgeCommand,
+    LocalBridgePairingSession,
     ProvisioningSession,
     Rabbit,
     RabbitFriendship,
@@ -187,6 +190,9 @@ MISTRAL_MODELS_URL = "https://api.mistral.ai/v1/models"
 RECORDING_DEDUPLICATION_WINDOW_SECONDS = 30
 MOBILE_PAIRING_EXPIRY_MINUTES = 10
 MOBILE_TOKEN_PREFIX = "nzm_"
+LOCAL_BRIDGE_PAIRING_EXPIRY_MINUTES = 10
+LOCAL_BRIDGE_TOKEN_PREFIX = "nzb_"
+LOCAL_BRIDGE_ACTIVE_WINDOW_SECONDS = 120
 CONNECTOR_PROXY_EXPIRY_SECONDS = 3600
 BODY_LED_TARGETS = ("left", "center", "right")
 LED_TARGETS = ("left", "center", "right", "bottom", "nose")
@@ -336,6 +342,10 @@ def _mobile_token_hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+def _local_bridge_token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
 def _utc_comparable(value: datetime | None) -> datetime | None:
     if value is None:
         return None
@@ -382,6 +392,119 @@ def _create_mobile_pairing_session(user) -> MobileAppPairingSession:
     return session
 
 
+def _active_local_bridge_pairing_for_user(user) -> LocalBridgePairingSession | None:
+    return (
+        LocalBridgePairingSession.query.filter_by(user_id=user.id, status="pending")
+        .filter(LocalBridgePairingSession.consumed_at.is_(None))
+        .order_by(LocalBridgePairingSession.created_at.desc())
+        .first()
+    )
+
+
+def _create_local_bridge_pairing_session(user) -> LocalBridgePairingSession:
+    now = utc_now()
+    LocalBridgePairingSession.query.filter_by(user_id=user.id, status="pending").update(
+        {"status": "expired", "consumed_at": now}
+    )
+    session = LocalBridgePairingSession(
+        user_id=user.id,
+        token=secrets.token_urlsafe(24),
+        expires_at=now + timedelta(minutes=LOCAL_BRIDGE_PAIRING_EXPIRY_MINUTES),
+    )
+    db.session.add(session)
+    db.session.commit()
+    return session
+
+
+def _issue_local_bridge_token(user, *, bridge_name: str, capabilities: list[dict]) -> tuple[LocalBridge, str]:
+    raw_token = f"{LOCAL_BRIDGE_TOKEN_PREFIX}{secrets.token_urlsafe(32)}"
+    bridge = LocalBridge(
+        user_id=user.id,
+        name=bridge_name,
+        token_hash=_local_bridge_token_hash(raw_token),
+        last_seen_at=utc_now(),
+    )
+    bridge.set_capabilities(capabilities)
+    db.session.add(bridge)
+    db.session.commit()
+    return bridge, raw_token
+
+
+def _local_bridge_pairing_command(session: LocalBridgePairingSession) -> str:
+    portal_base = request.url_root.rstrip("/")
+    return (
+        f"python3 apps/local_bridge/bridge_agent.py pair "
+        f"--portal {portal_base} --pairing-token {session.token} --name maison"
+    )
+
+
+def _active_local_bridges_for_user(user) -> list[LocalBridge]:
+    cutoff = utc_now() - timedelta(seconds=LOCAL_BRIDGE_ACTIVE_WINDOW_SECONDS)
+    return (
+        LocalBridge.query.filter_by(user_id=user.id)
+        .filter(LocalBridge.revoked_at.is_(None))
+        .filter(LocalBridge.last_seen_at.isnot(None))
+        .filter(LocalBridge.last_seen_at >= cutoff)
+        .order_by(LocalBridge.last_seen_at.desc(), LocalBridge.created_at.desc())
+        .all()
+    )
+
+
+def _current_local_bridge() -> LocalBridge | None:
+    raw_token = _mobile_bearer_token()
+    if not raw_token:
+        return None
+    bridge = (
+        LocalBridge.query.filter_by(token_hash=_local_bridge_token_hash(raw_token))
+        .filter(LocalBridge.revoked_at.is_(None))
+        .first()
+    )
+    if bridge is None:
+        return None
+    bridge.last_seen_at = utc_now()
+    db.session.commit()
+    return bridge
+
+
+def _local_bridge_capability_names(bridge: LocalBridge) -> list[str]:
+    names: list[str] = []
+    for capability in bridge.capabilities():
+        if not isinstance(capability, dict):
+            continue
+        name = " ".join(str(capability.get("name") or "").split()).strip()
+        if name:
+            names.append(name)
+    return names
+
+
+def _queue_local_bridge_command(user, *, capability: str, action: str, params: dict | None = None) -> LocalBridgeCommand:
+    bridges = _active_local_bridges_for_user(user)
+    if not bridges:
+        raise RuntimeError("Aucun bridge local actif pour ce compte.")
+    selected_bridge = None
+    for bridge in bridges:
+        if capability in _local_bridge_capability_names(bridge):
+            selected_bridge = bridge
+            break
+    if selected_bridge is None:
+        selected_bridge = bridges[0]
+    command = LocalBridgeCommand(
+        bridge_id=selected_bridge.id,
+        command_type="invoke",
+        status="queued",
+    )
+    command.set_payload(
+        {
+            "capability": capability,
+            "action": action,
+            "params": params or {},
+        }
+    )
+    db.session.add(command)
+    db.session.commit()
+    return command
+
+
 def _mobile_pairing_url(session: MobileAppPairingSession) -> str:
     return url_for("main.mobile_app_pairing_bridge", token=session.token, _external=True)
 
@@ -411,6 +534,15 @@ def _current_mobile_user() -> tuple[object | None, MobileApiToken | None]:
     token_record.last_used_at = utc_now()
     db.session.commit()
     return token_record.user, token_record
+
+
+def _serialize_local_bridge(bridge: LocalBridge) -> dict:
+    return {
+        "id": bridge.id,
+        "name": bridge.name,
+        "capabilities": bridge.capabilities(),
+        "last_seen_at": bridge.last_seen_at.isoformat() if bridge.last_seen_at else None,
+    }
 
 
 def _absolute_url(relative_url: str | None) -> str | None:
@@ -449,6 +581,19 @@ def _connector_stream_proxy_url(*, connector_key: str, owner_id: int, item_id: s
 def _enqueue_connector_execution_result(rabbit: Rabbit, result: dict | None, *, source: str) -> str | None:
     if not isinstance(result, dict):
         return None
+    local_bridge_command = result.get("local_bridge_command")
+    if isinstance(local_bridge_command, dict) and rabbit.owner is not None:
+        capability = " ".join(str(local_bridge_command.get("capability") or "").split()).strip()
+        action_name = " ".join(str(local_bridge_command.get("action") or "").split()).strip()
+        action_params = local_bridge_command.get("params") if isinstance(local_bridge_command.get("params"), dict) else {}
+        if capability and action_name:
+            _queue_local_bridge_command(
+                rabbit.owner,
+                capability=capability,
+                action=action_name,
+                params=action_params,
+            )
+            return f"{capability}.{action_name}"
     stream_item = result.get("stream_item")
     if not isinstance(stream_item, dict):
         return None
@@ -2900,6 +3045,14 @@ def account():
             flash("Action mobile invalide.", "error")
             return redirect(url_for("main.account"))
 
+        if form_name == "local_bridge_pairing":
+            if action == "create":
+                _create_local_bridge_pairing_session(current_user)
+                flash("Code d'appairage du bridge local généré.", "success")
+                return redirect(url_for("main.account"))
+            flash("Action bridge local invalide.", "error")
+            return redirect(url_for("main.account"))
+
         if form_name == "connector":
             connector_key = request.form.get("connector", "").strip().lower()
             definition = connector_definition(connector_key)
@@ -2954,6 +3107,12 @@ def account():
 
     mobile_pairing = _active_mobile_pairing_for_user(current_user)
     mobile_pairing_url = _mobile_pairing_url(mobile_pairing) if mobile_pairing else None
+    local_bridge_pairing = _active_local_bridge_pairing_for_user(current_user)
+    local_bridge_pairing_command = (
+        _local_bridge_pairing_command(local_bridge_pairing) if local_bridge_pairing else None
+    )
+    local_bridges = _active_local_bridges_for_user(current_user)
+    account_connector_definitions = [definition for definition in connector_definitions() if definition.account_fields]
     mobile_tokens_count = (
         MobileApiToken.query.filter_by(user_id=current_user.id)
         .filter(MobileApiToken.revoked_at.is_(None))
@@ -2963,10 +3122,13 @@ def account():
         "account.html",
         mobile_pairing=mobile_pairing,
         mobile_pairing_url=mobile_pairing_url,
+        local_bridge_pairing=local_bridge_pairing,
+        local_bridge_pairing_command=local_bridge_pairing_command,
+        local_bridges=local_bridges,
         mobile_tokens_count=mobile_tokens_count,
-        connector_definitions=connector_definitions(),
-        connector_configs={definition.key: get_user_connector_config(current_user, definition.key) for definition in connector_definitions()},
-        connector_status={definition.key: is_connector_configured(current_user, definition.key) for definition in connector_definitions()},
+        connector_definitions=account_connector_definitions,
+        connector_configs={definition.key: get_user_connector_config(current_user, definition.key) for definition in account_connector_definitions},
+        connector_status={definition.key: is_connector_configured(current_user, definition.key) for definition in account_connector_definitions},
     )
 
 
@@ -3034,6 +3196,99 @@ def mobile_api_pairing_claim():
             "rabbits": [_serialize_mobile_rabbit(rabbit) for rabbit in rabbits],
         }
     )
+
+
+@main_bp.post("/bridge-api/v1/pairing/claim")
+def local_bridge_pairing_claim():
+    payload = request.get_json(silent=True) or {}
+    pairing_token = str(payload.get("pairing_token") or "").strip()
+    bridge_name = " ".join(str(payload.get("bridge_name") or "").split()).strip() or "Bridge local"
+    capabilities = payload.get("capabilities") if isinstance(payload.get("capabilities"), list) else []
+    if not pairing_token:
+        return jsonify({"ok": False, "message": "pairing_token obligatoire."}), 400
+
+    session = LocalBridgePairingSession.query.filter_by(token=pairing_token).first()
+    if session is None:
+        return jsonify({"ok": False, "message": "Code d'appairage invalide."}), 404
+    if session.consumed_at is not None or session.status != "pending":
+        return jsonify({"ok": False, "message": "Code d'appairage déjà utilisé."}), 409
+    expires_at = _utc_comparable(session.expires_at)
+    if expires_at is not None and expires_at < _utc_comparable(utc_now()):
+        session.status = "expired"
+        db.session.commit()
+        return jsonify({"ok": False, "message": "Code d'appairage expiré."}), 410
+    if session.user is None:
+        return jsonify({"ok": False, "message": "Compte introuvable."}), 404
+
+    bridge, api_token = _issue_local_bridge_token(session.user, bridge_name=bridge_name, capabilities=capabilities)
+    session.status = "claimed"
+    session.bridge_name = bridge_name
+    session.consumed_at = utc_now()
+    db.session.commit()
+    return jsonify(
+        {
+            "ok": True,
+            "bridge_token": api_token,
+            "bridge": _serialize_local_bridge(bridge),
+        }
+    )
+
+
+@main_bp.get("/bridge-api/v1/me")
+def local_bridge_me():
+    bridge = _current_local_bridge()
+    if bridge is None:
+        return jsonify({"ok": False, "message": "Authentification bridge invalide."}), 401
+    return jsonify({"ok": True, "bridge": _serialize_local_bridge(bridge)})
+
+
+@main_bp.get("/bridge-api/v1/commands/next")
+def local_bridge_next_command():
+    bridge = _current_local_bridge()
+    if bridge is None:
+        return jsonify({"ok": False, "message": "Authentification bridge invalide."}), 401
+    command = (
+        LocalBridgeCommand.query.filter_by(bridge_id=bridge.id, status="queued")
+        .order_by(LocalBridgeCommand.created_at.asc(), LocalBridgeCommand.id.asc())
+        .first()
+    )
+    if command is None:
+        return jsonify({"ok": True, "command": None})
+    command.status = "claimed"
+    command.claimed_at = utc_now()
+    db.session.commit()
+    return jsonify(
+        {
+            "ok": True,
+            "command": {
+                "id": command.id,
+                "command_type": command.command_type,
+                "payload": command.payload_dict(),
+            },
+        }
+    )
+
+
+@main_bp.post("/bridge-api/v1/commands/<int:command_id>/complete")
+def local_bridge_complete_command(command_id: int):
+    bridge = _current_local_bridge()
+    if bridge is None:
+        return jsonify({"ok": False, "message": "Authentification bridge invalide."}), 401
+    command = LocalBridgeCommand.query.filter_by(id=command_id, bridge_id=bridge.id).first()
+    if command is None:
+        return jsonify({"ok": False, "message": "Commande introuvable."}), 404
+    payload = request.get_json(silent=True) or {}
+    status = " ".join(str(payload.get("status") or "").split()).strip().lower() or "done"
+    result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+    error_message = " ".join(str(payload.get("error") or "").split()).strip()
+    if status not in {"done", "failed"}:
+        return jsonify({"ok": False, "message": "Statut invalide."}), 400
+    command.status = status
+    command.completed_at = utc_now()
+    command.error = error_message or None
+    command.set_result(result)
+    db.session.commit()
+    return jsonify({"ok": True})
 
 
 @main_bp.get("/mobile-api/v1/rabbits")
@@ -4266,6 +4521,31 @@ def rabbit_connector_test(rabbit_id: int, connector_key: str):
                 "item_type": item_type,
             },
         }
+    elif connector_key == "local_bridge":
+        capability = " ".join(request.form.get("capability", "").split()).strip()
+        bridge_action = " ".join(request.form.get("action", "").split()).strip()
+        params_raw = request.form.get("params", "").strip()
+        params = {}
+        if params_raw:
+            try:
+                parsed = json.loads(params_raw)
+            except json.JSONDecodeError:
+                flash("Le JSON des paramètres bridge local est invalide.", "error")
+                return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+            if not isinstance(parsed, dict):
+                flash("Les paramètres bridge local doivent être un objet JSON.", "error")
+                return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+            params = parsed
+        action = {
+            "name": "connector.invoke",
+            "connector": connector_key,
+            "operation": "invoke",
+            "params": {
+                "capability": capability,
+                "action": bridge_action,
+                "params": params,
+            },
+        }
     else:
         flash("Connecteur invalide.", "error")
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
@@ -4297,6 +4577,8 @@ def rabbit_connector_test(rabbit_id: int, connector_key: str):
     db.session.commit()
     if connector_key == "jellyfin" and connector_label:
         flash(f"Lecture Jellyfin mise en file: {connector_label}.", "success")
+    elif connector_key == "local_bridge" and connector_label:
+        flash(f"Commande bridge local mise en file: {connector_label}.", "success")
     else:
         flash("Action du connecteur envoyée.", "success")
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))

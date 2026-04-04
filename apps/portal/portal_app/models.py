@@ -35,6 +35,16 @@ class User(UserMixin, db.Model):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    local_bridge_pairing_sessions = db.relationship(
+        "LocalBridgePairingSession",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    local_bridges = db.relationship(
+        "LocalBridge",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
     connector_configs = db.relationship(
         "UserConnectorConfig",
         back_populates="user",
@@ -178,6 +188,83 @@ class MobileApiToken(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
 
     user = db.relationship("User", back_populates="mobile_api_tokens")
+
+
+class LocalBridgePairingSession(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    token = db.Column(db.String(128), unique=True, nullable=False, index=True)
+    status = db.Column(db.String(32), default="pending", nullable=False)
+    bridge_name = db.Column(db.String(255))
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
+    consumed_at = db.Column(db.DateTime(timezone=True))
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+
+    user = db.relationship("User", back_populates="local_bridge_pairing_sessions")
+
+
+class LocalBridge(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    name = db.Column(db.String(255), nullable=False)
+    token_hash = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    capabilities_json = db.Column(db.Text, nullable=False, default="[]")
+    last_seen_at = db.Column(db.DateTime(timezone=True))
+    revoked_at = db.Column(db.DateTime(timezone=True))
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+
+    user = db.relationship("User", back_populates="local_bridges")
+    commands = db.relationship(
+        "LocalBridgeCommand",
+        back_populates="bridge",
+        cascade="all, delete-orphan",
+        order_by="LocalBridgeCommand.created_at.asc()",
+    )
+
+    def capabilities(self) -> list[dict]:
+        try:
+            value = json.loads(self.capabilities_json or "[]")
+        except Exception:
+            value = []
+        return value if isinstance(value, list) else []
+
+    def set_capabilities(self, capabilities: list[dict]) -> None:
+        self.capabilities_json = json.dumps(capabilities, ensure_ascii=False)
+
+
+class LocalBridgeCommand(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    bridge_id = db.Column(db.Integer, db.ForeignKey("local_bridge.id"), nullable=False, index=True)
+    command_type = db.Column(db.String(64), nullable=False, default="invoke", index=True)
+    payload_json = db.Column(db.Text, nullable=False, default="{}")
+    status = db.Column(db.String(32), nullable=False, default="queued", index=True)
+    result_json = db.Column(db.Text)
+    error = db.Column(db.Text)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    claimed_at = db.Column(db.DateTime(timezone=True))
+    completed_at = db.Column(db.DateTime(timezone=True))
+
+    bridge = db.relationship("LocalBridge", back_populates="commands")
+
+    def payload_dict(self) -> dict:
+        try:
+            value = json.loads(self.payload_json or "{}")
+        except Exception:
+            value = {}
+        return value if isinstance(value, dict) else {}
+
+    def set_payload(self, payload: dict) -> None:
+        self.payload_json = json.dumps(payload, ensure_ascii=False)
+
+    def result_dict(self) -> dict:
+        try:
+            value = json.loads(self.result_json or "{}")
+        except Exception:
+            value = {}
+        return value if isinstance(value, dict) else {}
+
+    def set_result(self, result: dict) -> None:
+        self.result_json = json.dumps(result, ensure_ascii=False)
 
 
 class UserConnectorConfig(db.Model):

@@ -96,6 +96,47 @@
 
     <article class="panel stack">
       <div>
+        <h2 style="margin-bottom: 8px;">Bridge local</h2>
+        <div class="meta">
+          Le bridge local est un petit agent auto-heberge qui se connecte en sortie au portail et exécute chez toi des actions locales sans exposer ton réseau à Internet.
+        </div>
+      </div>
+
+      <form method="post" class="actions">
+        <input type="hidden" name="form" value="local_bridge_pairing">
+        <button class="button primary" type="submit" name="action" value="create">Générer un code bridge local</button>
+      </form>
+
+      {% if local_bridge_pairing and local_bridge_pairing_command %}
+        <div class="stack">
+          <div class="meta">
+            Code actif jusqu’au {{ local_bridge_pairing.expires_at.strftime("%d/%m/%Y %H:%M") if local_bridge_pairing.expires_at else "n/a" }}.
+          </div>
+          <div class="field">
+            <label>Commande d'appairage</label>
+            <textarea rows="3" readonly onclick="this.select()">{{ local_bridge_pairing_command }}</textarea>
+          </div>
+        </div>
+      {% else %}
+        <div class="meta">Aucun code d'appairage bridge local actif pour l’instant.</div>
+      {% endif %}
+
+      {% if local_bridges %}
+        <div class="stack">
+          <strong>Bridges actifs</strong>
+          {% for bridge in local_bridges %}
+            <div class="meta">
+              {{ bridge.name }}{% if bridge.last_seen_at %} · vu le {{ bridge.last_seen_at.strftime("%d/%m/%Y %H:%M:%S") }}{% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="meta">Aucun bridge local actif sur ce compte.</div>
+      {% endif %}
+    </article>
+
+    <article class="panel stack">
+      <div>
         <h2 style="margin-bottom: 8px;">Application mobile</h2>
         <div class="meta">
           Génère ici un QR code d'appairage pour l'application iPhone/Android. Le code est valable

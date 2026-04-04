@@ -176,8 +176,9 @@ Les connecteurs actuellement branches sont:
 - `webhook`
 - `mqtt`
 - `jellyfin`
+- `local_bridge`
 
-`webhook` et `mqtt` sont volontairement plus generiques. Ils permettent de relier le lapin a un service HTTP auto-heberge, a un broker MQTT, ou a un futur bridge local sans coupler tout le projet a un seul ecosysteme. `jellyfin` valide de son cote un usage media open source plus concret: demander une musique a la voix, la resoudre via un catalogue local, puis la lire sur le lapin via un proxy audio MP3 du portail.
+`webhook` et `mqtt` sont volontairement plus generiques. Ils permettent de relier le lapin a un service HTTP auto-heberge, a un broker MQTT, ou a un futur bridge local sans coupler tout le projet a un seul ecosysteme. `jellyfin` valide de son cote un usage media open source plus concret: demander une musique a la voix, la resoudre via un catalogue local, puis la lire sur le lapin via un proxy audio MP3 du portail. `local_bridge` pose enfin le socle cible: un agent auto-heberge qui se connecte en sortie au portail et execute chez l'utilisateur des actions locales sans exposition entrante du LAN.
 
 ## Contribuer
 
@@ -224,6 +225,7 @@ La plateforme couvre aujourd'hui les usages suivants:
 - premier connecteur domotique `Home Assistant`
 - connecteurs generiques `webhook` et `mqtt` pour valider l'extensibilite
 - connecteur media `Jellyfin` pour chercher et lire de la musique auto-hebergee sur le lapin
+- bridge local auto-heberge avec appairage, polling sortant et file de commandes
 - endpoint d'upload d'enregistrement compatible avec les usages Nabaztag historiques
 
 ## Architecture

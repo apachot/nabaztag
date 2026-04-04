@@ -245,6 +245,31 @@ CONNECTOR_REGISTRY = {
             ),
         ),
     ),
+    "local_bridge": ConnectorDefinition(
+        key="local_bridge",
+        label="Bridge local",
+        description="Relaye une action générique vers un agent local auto-hébergé, connecté en sortie au portail.",
+        account_fields=(),
+        operations=(
+            ConnectorOperationDefinition(
+                key="invoke",
+                description="Déclencher une capacité supportée par le bridge local.",
+                params_schema={
+                    "capability": "nom de capacité, par exemple mqtt.publish",
+                    "action": "nom d'action, par exemple publish",
+                    "params": "objet JSON optionnel",
+                },
+            ),
+        ),
+        test_form=ConnectorTestFormDefinition(
+            description="Teste une action générique sur le bridge local actif.",
+            fields=(
+                ConnectorTestFieldDefinition("capability", "Capacité", "text", "mqtt.publish"),
+                ConnectorTestFieldDefinition("action", "Action", "text", "publish"),
+                ConnectorTestFieldDefinition("params", "Paramètres JSON optionnels", "textarea", '{"topic":"nabaztag/test","payload":"bonjour"}'),
+            ),
+        ),
+    ),
 }
 
 
@@ -310,6 +335,8 @@ def is_connector_configured(user, connector_key: str) -> bool:
         return bool(" ".join(str(config.get("host") or "").split()).strip())
     if connector_key == "jellyfin":
         return bool(_normalize_url(config.get("base_url")) and str(config.get("token") or "").strip())
+    if connector_key == "local_bridge":
+        return any(getattr(bridge, "revoked_at", None) is None for bridge in getattr(user, "local_bridges", []))
     return False
 
 
@@ -337,6 +364,8 @@ def validate_connector_config(connector_key: str, config: dict) -> str | None:
         if not str(config.get("token") or "").strip():
             return "Saisis un token API Jellyfin."
         return None
+    if connector_key == "local_bridge":
+        return "Le bridge local se configure via son appairage dédié."
     return "Connecteur invalide."
 
 
@@ -388,6 +417,22 @@ def connector_context_for_user(user) -> dict:
             "operations": ["play_music"],
             "supported_item_types": ["track", "album", "artist"],
             "description": "Recherche de musique dans Jellyfin puis lecture sur le lapin via le portail.",
+        }
+    if is_connector_configured(user, "local_bridge"):
+        capabilities: list[str] = []
+        for bridge in getattr(user, "local_bridges", []):
+            if getattr(bridge, "revoked_at", None) is not None:
+                continue
+            for capability in bridge.capabilities():
+                if not isinstance(capability, dict):
+                    continue
+                name = " ".join(str(capability.get("name") or "").split()).strip()
+                if name and name not in capabilities:
+                    capabilities.append(name)
+        context["local_bridge"] = {
+            "operations": ["invoke"],
+            "capabilities": capabilities,
+            "description": "Bridge local auto-hebergé connecté en sortie au portail.",
         }
     return context
 
@@ -495,6 +540,26 @@ def normalize_connector_action(action_payload: object) -> dict | None:
             normalized["params"]["item_type"] = item_type
         return normalized
 
+    if connector_key == "local_bridge" and operation == "invoke":
+        capability = " ".join(str(params.get("capability") or "").split()).strip()
+        action_name = " ".join(str(params.get("action") or "").split()).strip()
+        action_params = params.get("params")
+        if not capability or not action_name:
+            return None
+        if action_params is not None and not isinstance(action_params, dict):
+            return None
+        normalized = {
+            "name": "connector.invoke",
+            "connector": connector_key,
+            "operation": operation,
+            "params": {
+                "capability": capability,
+                "action": action_name,
+                "params": action_params or {},
+            },
+        }
+        return normalized
+
     return None
 
 
@@ -513,6 +578,8 @@ def execute_connector_action(user, action: dict, *, rabbit=None) -> dict | None:
         return None
     if connector_key == "jellyfin" and operation == "play_music" and isinstance(params, dict):
         return _execute_jellyfin_play_music(user, rabbit, params)
+    if connector_key == "local_bridge" and operation == "invoke" and isinstance(params, dict):
+        return {"local_bridge_command": params}
     raise RuntimeError("Action de connecteur invalide.")
 
 
@@ -529,6 +596,29 @@ def connector_test_contexts(user) -> list[dict]:
             except RuntimeError as exc:
                 error = str(exc)
                 extra["entities"] = []
+        if definition.key == "local_bridge":
+            capabilities: list[str] = []
+            bridges: list[dict] = []
+            for bridge in getattr(user, "local_bridges", []):
+                if getattr(bridge, "revoked_at", None) is not None:
+                    continue
+                bridge_capabilities: list[str] = []
+                for capability in bridge.capabilities():
+                    if not isinstance(capability, dict):
+                        continue
+                    name = " ".join(str(capability.get("name") or "").split()).strip()
+                    if name:
+                        bridge_capabilities.append(name)
+                        if name not in capabilities:
+                            capabilities.append(name)
+                bridges.append(
+                    {
+                        "name": getattr(bridge, "name", "bridge"),
+                        "capabilities": bridge_capabilities,
+                    }
+                )
+            extra["capabilities"] = capabilities
+            extra["bridges"] = bridges
         contexts.append(
             {
                 "key": definition.key,
