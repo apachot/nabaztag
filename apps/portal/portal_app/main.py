@@ -3051,9 +3051,9 @@ def account():
             if action == "create":
                 _create_local_bridge_pairing_session(current_user)
                 flash("Code d'appairage du bridge local généré.", "success")
-                return redirect(url_for("main.account"))
+                return redirect(f"{url_for('main.account')}#local-bridge")
             flash("Action bridge local invalide.", "error")
-            return redirect(url_for("main.account"))
+            return redirect(f"{url_for('main.account')}#local-bridge")
 
         if form_name == "connector":
             connector_key = request.form.get("connector", "").strip().lower()
