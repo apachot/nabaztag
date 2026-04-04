@@ -423,14 +423,20 @@
           if (waitForWakeWord) {
             if (hasWakeWord(normalized)) {
               pendingTranscriptSeed = extractMessageAfterWakeWord(normalized);
-              playCue(1046, 140);
               void triggerRabbitWakeAck();
               waitForWakeWord = false;
               finalTranscript = "";
               clearRestartTimer();
-              shouldAutoSend = true;
               input.value = pendingTranscriptSeed;
               updateTranscript(pendingTranscriptSeed);
+              if (pendingTranscriptSeed) {
+                shouldAutoSend = false;
+                pendingTranscriptSeed = "";
+                void sendMessage();
+                return;
+              }
+              playCue(1046, 140);
+              shouldAutoSend = true;
               scheduleRecognitionRestart(250);
               return;
             }
