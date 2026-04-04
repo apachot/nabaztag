@@ -18,7 +18,7 @@ from urllib import error as urllib_error
 from urllib import request as urllib_request
 from zoneinfo import ZoneInfo
 
-from flask import Blueprint, Response, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
+from flask import Blueprint, Response, current_app, flash, jsonify, redirect, render_template, request, send_file, stream_with_context, url_for
 from flask_login import current_user, login_required, login_user
 from werkzeug.utils import secure_filename
 
@@ -36,6 +36,7 @@ from .api_client import (
 )
 from .connectors import (
     connector_action_catalog,
+    connector_definition,
     connector_context_for_rabbit,
     connector_definitions,
     connector_test_contexts,
@@ -45,6 +46,7 @@ from .connectors import (
     normalize_connector_action,
     save_user_connector_config,
     clear_user_connector_config,
+    validate_connector_config,
 )
 from .device_protocol import (
     build_audio_packet,
@@ -66,6 +68,7 @@ from .models import (
     RabbitEventLog,
     RabbitPrecomputedPerformance,
     RabbitRecording,
+    User,
     Ztamp,
     utc_now,
 )
@@ -184,6 +187,7 @@ MISTRAL_MODELS_URL = "https://api.mistral.ai/v1/models"
 RECORDING_DEDUPLICATION_WINDOW_SECONDS = 30
 MOBILE_PAIRING_EXPIRY_MINUTES = 10
 MOBILE_TOKEN_PREFIX = "nzm_"
+CONNECTOR_PROXY_EXPIRY_SECONDS = 3600
 BODY_LED_TARGETS = ("left", "center", "right")
 LED_TARGETS = ("left", "center", "right", "bottom", "nose")
 LED_MODE_TO_PRESET = {
@@ -415,6 +419,58 @@ def _absolute_url(relative_url: str | None) -> str | None:
     if relative_url.startswith("http://") or relative_url.startswith("https://"):
         return relative_url
     return f"{request.url_root.rstrip('/')}{relative_url}"
+
+
+def _connector_proxy_signature(*, connector_key: str, owner_id: int, item_id: str, expires: int) -> str:
+    secret = current_app.config.get("SECRET_KEY") or "nabaztag"
+    payload = f"{connector_key}:{owner_id}:{item_id}:{expires}"
+    return hashlib.sha256(f"{secret}:{payload}".encode("utf-8")).hexdigest()
+
+
+def _connector_stream_proxy_url(*, connector_key: str, owner_id: int, item_id: str) -> str:
+    expires = int(time.time()) + CONNECTOR_PROXY_EXPIRY_SECONDS
+    signature = _connector_proxy_signature(
+        connector_key=connector_key,
+        owner_id=owner_id,
+        item_id=item_id,
+        expires=expires,
+    )
+    return url_for(
+        "main.connector_stream_proxy",
+        connector_key=connector_key,
+        owner_id=owner_id,
+        item_id=item_id,
+        expires=expires,
+        sig=signature,
+        _external=False,
+    )
+
+
+def _enqueue_connector_execution_result(rabbit: Rabbit, result: dict | None, *, source: str) -> str | None:
+    if not isinstance(result, dict):
+        return None
+    stream_item = result.get("stream_item")
+    if not isinstance(stream_item, dict):
+        return None
+    connector_key = " ".join(str(stream_item.get("connector") or "").split()).strip().lower()
+    item_id = " ".join(str(stream_item.get("item_id") or "").split()).strip()
+    label = " ".join(str(stream_item.get("label") or "").split()).strip()
+    if connector_key != "jellyfin" or not item_id or rabbit.owner is None:
+        return None
+    _enqueue_device_command(
+        rabbit,
+        command_type="audio",
+        payload={
+            "url": _connector_stream_proxy_url(
+                connector_key=connector_key,
+                owner_id=rabbit.owner.id,
+                item_id=item_id,
+            ),
+            "source": source,
+            "mode": "stream",
+        },
+    )
+    return label or None
 
 
 def _serialize_mobile_rabbit(rabbit: Rabbit) -> dict:
@@ -842,7 +898,15 @@ def _queue_performance_asset(
                 pass
         elif action_name == "connector.invoke" and rabbit.owner is not None:
             try:
-                execute_connector_action(rabbit.owner, action)
+                connector_result = execute_connector_action(rabbit.owner, action, rabbit=rabbit)
+                connector_label = _enqueue_connector_execution_result(rabbit, connector_result, source=source)
+                if connector_label:
+                    current_app.logger.info(
+                        "connector stream queued for rabbit %s via %s: %s",
+                        rabbit.id,
+                        action.get("connector"),
+                        connector_label,
+                    )
             except RuntimeError as exc:
                 current_app.logger.warning(
                     "unable to execute connector action for rabbit %s: %s",
@@ -2601,6 +2665,73 @@ def serve_audio_asset(filename: str):
     return send_file(path, mimetype=guessed_type, as_attachment=False, download_name=path.name)
 
 
+@main_bp.get("/ojn_local/connectors/<connector_key>/<int:owner_id>/<item_id>")
+def connector_stream_proxy(connector_key: str, owner_id: int, item_id: str):
+    connector_key = connector_key.strip().lower()
+    expires_raw = " ".join((request.args.get("expires") or "").split()).strip()
+    signature = " ".join((request.args.get("sig") or "").split()).strip()
+    if not expires_raw.isdigit():
+        return Response("Forbidden\n", status=403, mimetype="text/plain")
+    expires = int(expires_raw)
+    if expires < int(time.time()):
+        return Response("Expired\n", status=403, mimetype="text/plain")
+    expected_signature = _connector_proxy_signature(
+        connector_key=connector_key,
+        owner_id=owner_id,
+        item_id=item_id,
+        expires=expires,
+    )
+    if not secrets.compare_digest(signature, expected_signature):
+        return Response("Forbidden\n", status=403, mimetype="text/plain")
+    owner = db.session.get(User, owner_id)
+    if owner is None or connector_key != "jellyfin":
+        return Response("Not found\n", status=404, mimetype="text/plain")
+    config = get_user_connector_config(owner, "jellyfin")
+    base_url = " ".join(str(config.get("base_url") or "").split()).strip().rstrip("/")
+    token = str(config.get("token") or "").strip()
+    if not base_url or not token:
+        return Response("Not configured\n", status=404, mimetype="text/plain")
+    upstream_url = (
+        f"{base_url}/Audio/{item_id}/universal"
+        "?container=mp3&audioCodec=mp3&transcodingContainer=mp3&transcodingProtocol=http"
+        "&maxStreamingBitrate=128000&audioBitRate=128000&static=true"
+    )
+    upstream_request = urllib_request.Request(
+        upstream_url,
+        headers={
+            "X-Emby-Token": token,
+            "Authorization": (
+                'MediaBrowser Token="{}", Client="Nabaztag Portal", Device="Nabaztag Portal", '
+                'DeviceId="nabaztag-portal", Version="1.0"'
+            ).format(token),
+        },
+        method="GET",
+    )
+    try:
+        upstream_response = urllib_request.urlopen(upstream_request, timeout=30)
+    except urllib_error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="ignore").strip()
+        message = detail or exc.reason or f"HTTP {exc.code}"
+        current_app.logger.warning("jellyfin proxy http error for user %s item %s: %s", owner_id, item_id, message)
+        return Response("Upstream error\n", status=502, mimetype="text/plain")
+    except urllib_error.URLError as exc:
+        current_app.logger.warning("jellyfin proxy connection error for user %s item %s: %s", owner_id, item_id, exc.reason)
+        return Response("Upstream unavailable\n", status=502, mimetype="text/plain")
+
+    def generate():
+        try:
+            while True:
+                chunk = upstream_response.read(64 * 1024)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            upstream_response.close()
+
+    mimetype = upstream_response.headers.get_content_type() or "audio/mpeg"
+    return Response(stream_with_context(generate()), mimetype=mimetype)
+
+
 @main_bp.get("/")
 def index():
     return render_template("index.html")
@@ -2771,7 +2902,8 @@ def account():
 
         if form_name == "connector":
             connector_key = request.form.get("connector", "").strip().lower()
-            if connector_key != "home_assistant":
+            definition = connector_definition(connector_key)
+            if definition is None:
                 flash("Connecteur invalide.", "error")
                 return redirect(url_for("main.account"))
             if action == "clear":
@@ -2781,18 +2913,18 @@ def account():
                 return redirect(url_for("main.account"))
 
             existing_config = get_user_connector_config(current_user, connector_key)
-            url_value = " ".join(request.form.get("base_url", "").split()).strip()
-            token_value = request.form.get("token", "").strip()
-            if not url_value:
-                flash("Saisis l'URL du connecteur.", "error")
+            connector_config: dict[str, str] = {}
+            for field in definition.account_fields:
+                raw_value = request.form.get(field.name, "")
+                if field.type == "password":
+                    value = raw_value.strip() or str(existing_config.get(field.name) or "")
+                else:
+                    value = " ".join(raw_value.split()).strip()
+                connector_config[field.name] = value
+            validation_error = validate_connector_config(connector_key, connector_config)
+            if validation_error:
+                flash(validation_error, "error")
                 return redirect(url_for("main.account"))
-            if not token_value and not existing_config.get("token"):
-                flash("Saisis un token d'accès pour ce connecteur.", "error")
-                return redirect(url_for("main.account"))
-            connector_config = {
-                "base_url": url_value,
-                "token": token_value or existing_config.get("token"),
-            }
             save_user_connector_config(current_user, connector_key, connector_config)
             db.session.commit()
             flash("Configuration du connecteur enregistrée.", "success")
@@ -4122,6 +4254,18 @@ def rabbit_connector_test(rabbit_id: int, connector_key: str):
                 "retain": retain_raw,
             },
         }
+    elif connector_key == "jellyfin":
+        query = " ".join(request.form.get("query", "").split()).strip()
+        item_type = " ".join(request.form.get("item_type", "").split()).strip().lower()
+        action = {
+            "name": "connector.invoke",
+            "connector": connector_key,
+            "operation": "play_music",
+            "params": {
+                "query": query,
+                "item_type": item_type,
+            },
+        }
     else:
         flash("Connecteur invalide.", "error")
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
@@ -4131,7 +4275,12 @@ def rabbit_connector_test(rabbit_id: int, connector_key: str):
         if normalized_action is None:
             flash("Action du connecteur invalide.", "error")
             return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
-        execute_connector_action(current_user, normalized_action)
+        connector_result = execute_connector_action(current_user, normalized_action, rabbit=rabbit)
+        connector_label = _enqueue_connector_execution_result(
+            rabbit,
+            connector_result,
+            source=f"connector:{connector_key}",
+        )
     except RuntimeError as exc:
         flash(str(exc), "error")
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
@@ -4146,7 +4295,10 @@ def rabbit_connector_test(rabbit_id: int, connector_key: str):
         },
     )
     db.session.commit()
-    flash("Action du connecteur envoyée.", "success")
+    if connector_key == "jellyfin" and connector_label:
+        flash(f"Lecture Jellyfin mise en file: {connector_label}.", "success")
+    else:
+        flash("Action du connecteur envoyée.", "success")
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
 

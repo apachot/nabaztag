@@ -102,3 +102,11 @@ Le connecteur `webhook` permet de prouver que l'architecture n'est pas uniquemen
 - usage: bridge local, domotique, audio, automation, interconnexion avec Home Assistant ou Node-RED
 
 Le connecteur `mqtt` valide encore mieux la logique de bridge local standard. Le lapin peut publier un message sur un broker MQTT, puis un autre systeme local l'interprete et pilote ensuite la maison, l'audio ou d'autres automatismes.
+
+### Jellyfin
+
+- type: connecteur media open source
+- operation: `play_music`
+- usage: rechercher un artiste, un album ou un titre dans une bibliotheque Jellyfin puis le lire sur le lapin
+
+Le connecteur `jellyfin` valide une autre partie importante de l'architecture: un connecteur peut non seulement declencher une action externe, mais aussi produire un flux audio proxifie par le portail pour rester compatible avec le Nabaztag.

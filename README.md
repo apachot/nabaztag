@@ -158,6 +158,7 @@ Ce bridge pourrait devenir le point d'integration generique pour:
 
 - Home Assistant
 - MQTT
+- Jellyfin
 - lecteurs audio et media servers
 - TV, ampli ou hifi pilotables localement
 - scenes et automatisations maison
@@ -169,13 +170,14 @@ L'interet est double:
 
 Dans cette vision, Home Assistant reste une integration interessante, mais comme connecteur parmi d'autres, pas comme centre obligatoire du systeme.
 
-Les deux premiers connecteurs actuellement branches sont:
+Les connecteurs actuellement branches sont:
 
 - `home_assistant`
 - `webhook`
 - `mqtt`
+- `jellyfin`
 
-`webhook` et `mqtt` sont volontairement plus generiques. Ils permettent de relier le lapin a un service HTTP auto-heberge, a un broker MQTT, ou a un futur bridge local sans coupler tout le projet a un seul ecosysteme.
+`webhook` et `mqtt` sont volontairement plus generiques. Ils permettent de relier le lapin a un service HTTP auto-heberge, a un broker MQTT, ou a un futur bridge local sans coupler tout le projet a un seul ecosysteme. `jellyfin` valide de son cote un usage media open source plus concret: demander une musique a la voix, la resoudre via un catalogue local, puis la lire sur le lapin via un proxy audio MP3 du portail.
 
 ## Contribuer
 
@@ -221,6 +223,7 @@ La plateforme couvre aujourd'hui les usages suivants:
 - architecture de connecteurs externes avec action LLM generique `connector.invoke`
 - premier connecteur domotique `Home Assistant`
 - connecteurs generiques `webhook` et `mqtt` pour valider l'extensibilite
+- connecteur media `Jellyfin` pour chercher et lire de la musique auto-hebergee sur le lapin
 - endpoint d'upload d'enregistrement compatible avec les usages Nabaztag historiques
 
 ## Architecture

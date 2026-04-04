@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
+from urllib import parse as urllib_parse
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 
@@ -207,6 +208,43 @@ CONNECTOR_REGISTRY = {
             ),
         ),
     ),
+    "jellyfin": ConnectorDefinition(
+        key="jellyfin",
+        label="Jellyfin",
+        description="Recherche de musique sur un serveur Jellyfin auto-heberge puis lecture sur le lapin via un proxy audio MP3 du portail.",
+        account_fields=(
+            ConnectorFieldDefinition(
+                name="base_url",
+                label="URL Jellyfin",
+                type="url",
+                placeholder="https://media.example.com",
+            ),
+            ConnectorFieldDefinition(
+                name="token",
+                label="Token API / access token",
+                type="password",
+                placeholder="Token déjà enregistré",
+                help_text="Utilise un token Jellyfin ayant accès à la bibliothèque musicale.",
+            ),
+        ),
+        operations=(
+            ConnectorOperationDefinition(
+                key="play_music",
+                description="Chercher une musique dans Jellyfin puis la lancer sur le lapin.",
+                params_schema={
+                    "query": "titre, artiste ou album a chercher",
+                    "item_type": "track|album|artist optionnel",
+                },
+            ),
+        ),
+        test_form=ConnectorTestFormDefinition(
+            description="Teste une recherche musicale Jellyfin puis lit le premier résultat compatible sur le lapin.",
+            fields=(
+                ConnectorTestFieldDefinition("query", "Recherche", "text", "Leonard Cohen"),
+                ConnectorTestFieldDefinition("item_type", "Type optionnel", "text", "track"),
+            ),
+        ),
+    ),
 }
 
 
@@ -270,7 +308,36 @@ def is_connector_configured(user, connector_key: str) -> bool:
         return bool(_normalize_url(config.get("endpoint_url")))
     if connector_key == "mqtt":
         return bool(" ".join(str(config.get("host") or "").split()).strip())
+    if connector_key == "jellyfin":
+        return bool(_normalize_url(config.get("base_url")) and str(config.get("token") or "").strip())
     return False
+
+
+def validate_connector_config(connector_key: str, config: dict) -> str | None:
+    if connector_key == "home_assistant":
+        if not _normalize_url(config.get("base_url")):
+            return "Saisis l'URL du connecteur."
+        if not str(config.get("token") or "").strip():
+            return "Saisis un token d'accès pour ce connecteur."
+        return None
+    if connector_key == "webhook":
+        if not _normalize_url(config.get("endpoint_url")):
+            return "Saisis l'URL du webhook."
+        return None
+    if connector_key == "mqtt":
+        if not " ".join(str(config.get("host") or "").split()).strip():
+            return "Saisis l'hôte du broker MQTT."
+        port = " ".join(str(config.get("port") or "").split()).strip()
+        if port and not port.isdigit():
+            return "Le port MQTT doit être numérique."
+        return None
+    if connector_key == "jellyfin":
+        if not _normalize_url(config.get("base_url")):
+            return "Saisis l'URL du serveur Jellyfin."
+        if not str(config.get("token") or "").strip():
+            return "Saisis un token API Jellyfin."
+        return None
+    return "Connecteur invalide."
 
 
 def connector_action_catalog(user) -> list[dict]:
@@ -315,6 +382,12 @@ def connector_context_for_user(user) -> dict:
             "operations": ["publish"],
             "topic_prefix": get_user_connector_config(user, "mqtt").get("topic_prefix") or "",
             "description": "Publication de messages MQTT vers un broker local ou distant.",
+        }
+    if is_connector_configured(user, "jellyfin"):
+        context["jellyfin"] = {
+            "operations": ["play_music"],
+            "supported_item_types": ["track", "album", "artist"],
+            "description": "Recherche de musique dans Jellyfin puis lecture sur le lapin via le portail.",
         }
     return context
 
@@ -407,22 +480,39 @@ def normalize_connector_action(action_payload: object) -> dict | None:
             normalized["params"]["payload"] = payload
         return normalized
 
+    if connector_key == "jellyfin" and operation == "play_music":
+        query = " ".join(str(params.get("query") or "").split()).strip()
+        item_type = " ".join(str(params.get("item_type") or "").split()).strip().lower()
+        if not query:
+            return None
+        normalized = {
+            "name": "connector.invoke",
+            "connector": connector_key,
+            "operation": operation,
+            "params": {"query": query},
+        }
+        if item_type in {"track", "album", "artist"}:
+            normalized["params"]["item_type"] = item_type
+        return normalized
+
     return None
 
 
-def execute_connector_action(user, action: dict) -> None:
+def execute_connector_action(user, action: dict, *, rabbit=None) -> dict | None:
     connector_key = action.get("connector")
     operation = action.get("operation")
     params = action.get("params")
     if connector_key == "home_assistant" and operation == "call_service" and isinstance(params, dict):
         _execute_home_assistant_service(user, params)
-        return
+        return None
     if connector_key == "webhook" and operation == "trigger" and isinstance(params, dict):
         _execute_webhook_trigger(user, params)
-        return
+        return None
     if connector_key == "mqtt" and operation == "publish" and isinstance(params, dict):
         _execute_mqtt_publish(user, params)
-        return
+        return None
+    if connector_key == "jellyfin" and operation == "play_music" and isinstance(params, dict):
+        return _execute_jellyfin_play_music(user, rabbit, params)
     raise RuntimeError("Action de connecteur invalide.")
 
 
@@ -484,6 +574,44 @@ def _connector_http_request(
         url,
         data=body,
         headers=headers,
+        method=method.upper(),
+    )
+    try:
+        with urllib_request.urlopen(request_object, timeout=timeout) as response:
+            raw_body = response.read().decode("utf-8")
+    except urllib_error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="ignore").strip()
+        message = detail or exc.reason or f"HTTP {exc.code}"
+        raise RuntimeError(f"Le connecteur a répondu en erreur: {message}") from exc
+    except urllib_error.URLError as exc:
+        raise RuntimeError(f"Impossible de joindre le connecteur: {exc.reason}") from exc
+    if not raw_body:
+        return None
+    try:
+        return json.loads(raw_body)
+    except json.JSONDecodeError:
+        return raw_body
+
+
+def _connector_http_json(
+    *,
+    url: str,
+    method: str = "GET",
+    payload: dict | None = None,
+    headers: dict[str, str] | None = None,
+    timeout: int = 10,
+):
+    body = None
+    request_headers = {"Accept": "application/json"}
+    if headers:
+        request_headers.update(headers)
+    if payload is not None:
+        body = json.dumps(payload).encode("utf-8")
+        request_headers["Content-Type"] = "application/json"
+    request_object = urllib_request.Request(
+        url,
+        data=body,
+        headers=request_headers,
         method=method.upper(),
     )
     try:
@@ -614,3 +742,116 @@ def _execute_mqtt_publish(user, params: dict) -> None:
         )
     except Exception as exc:
         raise RuntimeError(f"Publication MQTT impossible: {exc}") from exc
+
+
+def _jellyfin_headers(config: dict) -> dict[str, str]:
+    token = str(config.get("token") or "").strip()
+    return {
+        "X-Emby-Token": token,
+        "Authorization": (
+            'MediaBrowser Token="{}", Client="Nabaztag Portal", Device="Nabaztag Portal", '
+            'DeviceId="nabaztag-portal", Version="1.0"'
+        ).format(token),
+    }
+
+
+def _jellyfin_request(user, path: str, *, query: dict | None = None, timeout: int = 15):
+    config = get_user_connector_config(user, "jellyfin")
+    base_url = _normalize_url(config.get("base_url"))
+    if not base_url or not str(config.get("token") or "").strip():
+        raise RuntimeError("Le connecteur Jellyfin n'est pas configuré.")
+    url = f"{base_url}{path}"
+    if query:
+        encoded_query = urllib_parse.urlencode(
+            {key: value for key, value in query.items() if value not in (None, "")},
+            doseq=True,
+        )
+        if encoded_query:
+            url = f"{url}?{encoded_query}"
+    return _connector_http_json(url=url, method="GET", headers=_jellyfin_headers(config), timeout=timeout)
+
+
+def _jellyfin_search_items(user, *, query: str, include_item_types: list[str], limit: int = 8) -> list[dict]:
+    payload = _jellyfin_request(
+        user,
+        "/Items",
+        query={
+            "searchTerm": query,
+            "recursive": "true",
+            "includeItemTypes": ",".join(include_item_types),
+            "limit": str(limit),
+        },
+    )
+    if not isinstance(payload, dict):
+        return []
+    items = payload.get("Items")
+    if not isinstance(items, list):
+        return []
+    return [item for item in items if isinstance(item, dict)]
+
+
+def _jellyfin_pick_audio_item(user, *, query: str, item_type: str | None) -> dict | None:
+    normalized_query = query.casefold()
+
+    def sort_key(item: dict) -> tuple[int, int, str]:
+        name = str(item.get("Name") or "").strip()
+        exact_rank = 0 if name.casefold() == normalized_query else 1
+        return (exact_rank, name.casefold(), str(item.get("Id") or ""))
+
+    if item_type in {None, "", "track"}:
+        audio_items = _jellyfin_search_items(user, query=query, include_item_types=["Audio"], limit=10)
+        if audio_items:
+            return sorted(audio_items, key=sort_key)[0]
+
+    if item_type in {None, "", "album"}:
+        album_items = _jellyfin_search_items(user, query=query, include_item_types=["MusicAlbum"], limit=5)
+        if album_items:
+            album = sorted(album_items, key=sort_key)[0]
+            album_id = str(album.get("Id") or "").strip()
+            if album_id:
+                album_tracks = _jellyfin_request(
+                    user,
+                    "/Items",
+                    query={
+                        "parentId": album_id,
+                        "recursive": "true",
+                        "includeItemTypes": "Audio",
+                        "limit": "1",
+                    },
+                )
+                if isinstance(album_tracks, dict) and isinstance(album_tracks.get("Items"), list):
+                    for item in album_tracks["Items"]:
+                        if isinstance(item, dict):
+                            return item
+
+    if item_type in {None, "", "artist"}:
+        fallback_audio = _jellyfin_search_items(user, query=query, include_item_types=["Audio"], limit=10)
+        if fallback_audio:
+            return sorted(fallback_audio, key=sort_key)[0]
+
+    return None
+
+
+def _execute_jellyfin_play_music(user, rabbit, params: dict) -> dict:
+    query = " ".join(str(params.get("query") or "").split()).strip()
+    item_type = " ".join(str(params.get("item_type") or "").split()).strip().lower() or "track"
+    if item_type not in {"track", "album", "artist"}:
+        item_type = "track"
+    if not query:
+        raise RuntimeError("Recherche Jellyfin vide.")
+    item = _jellyfin_pick_audio_item(user, query=query, item_type=item_type)
+    if item is None:
+        raise RuntimeError(f"Aucun résultat Jellyfin trouvé pour `{query}`.")
+    item_id = str(item.get("Id") or "").strip()
+    item_name = " ".join(str(item.get("Name") or "").split()).strip() or query
+    if not item_id:
+        raise RuntimeError("Résultat Jellyfin invalide.")
+    return {
+        "stream_item": {
+            "connector": "jellyfin",
+            "item_id": item_id,
+            "label": item_name,
+            "query": query,
+            "rabbit_id": getattr(rabbit, "id", None),
+        }
+    }
