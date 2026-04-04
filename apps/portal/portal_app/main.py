@@ -34,6 +34,18 @@ from .api_client import (
     stop_remote_recording,
     set_remote_target,
 )
+from .connectors import (
+    connector_action_catalog,
+    connector_context_for_rabbit,
+    connector_definitions,
+    connector_test_contexts,
+    execute_connector_action,
+    get_user_connector_config,
+    is_connector_configured,
+    normalize_connector_action,
+    save_user_connector_config,
+    clear_user_connector_config,
+)
 from .device_protocol import (
     build_audio_packet,
     build_choreography_packet,
@@ -119,149 +131,6 @@ def _recent_provisioning_candidates(*, limit: int = 8) -> tuple[DeviceObservatio
     ]
     return (button_candidates[0] if button_candidates else None, devices)
 
-
-def _normalize_home_assistant_url(url: str | None) -> str:
-    normalized = " ".join(str(url or "").split()).strip()
-    if not normalized:
-        return ""
-    if not normalized.startswith(("http://", "https://")):
-        normalized = f"http://{normalized}"
-    return normalized.rstrip("/")
-
-
-def _home_assistant_is_configured(user) -> bool:
-    return bool(
-        _normalize_home_assistant_url(getattr(user, "home_assistant_url", None))
-        and getattr(user, "home_assistant_token", None)
-    )
-
-
-def _home_assistant_api_request(
-    user,
-    *,
-    method: str,
-    path: str,
-    payload: dict | None = None,
-    timeout: int = 10,
-):
-    if not _home_assistant_is_configured(user):
-        raise RuntimeError("Home Assistant n'est pas configuré pour ce compte.")
-    body = None
-    headers = {
-        "Authorization": f"Bearer {user.home_assistant_token}",
-        "Accept": "application/json",
-    }
-    if payload is not None:
-        body = json.dumps(payload).encode("utf-8")
-        headers["Content-Type"] = "application/json"
-    request_object = urllib_request.Request(
-        f"{_normalize_home_assistant_url(user.home_assistant_url)}{path}",
-        data=body,
-        headers=headers,
-        method=method.upper(),
-    )
-    try:
-        with urllib_request.urlopen(request_object, timeout=timeout) as response:
-            raw_body = response.read().decode("utf-8")
-    except urllib_error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="ignore").strip()
-        message = detail or exc.reason or f"HTTP {exc.code}"
-        raise RuntimeError(f"Home Assistant a répondu en erreur: {message}") from exc
-    except urllib_error.URLError as exc:
-        raise RuntimeError(f"Impossible de joindre Home Assistant: {exc.reason}") from exc
-    if not raw_body:
-        return None
-    try:
-        return json.loads(raw_body)
-    except json.JSONDecodeError:
-        return raw_body
-
-
-HOME_ASSISTANT_SUPPORTED_DOMAINS = (
-    "light",
-    "switch",
-    "scene",
-    "script",
-    "media_player",
-    "input_boolean",
-)
-HOME_ASSISTANT_DOMAIN_SERVICES = {
-    "light": ["turn_on", "turn_off", "toggle"],
-    "switch": ["turn_on", "turn_off", "toggle"],
-    "scene": ["turn_on"],
-    "script": ["turn_on"],
-    "media_player": ["media_play", "media_pause", "media_stop", "turn_on", "turn_off", "volume_set"],
-    "input_boolean": ["turn_on", "turn_off", "toggle"],
-}
-
-
-def _home_assistant_entities(user, *, limit: int = 60) -> list[dict]:
-    payload = _home_assistant_api_request(user, method="GET", path="/api/states")
-    if not isinstance(payload, list):
-        return []
-    entities: list[dict] = []
-    for item in payload:
-        if not isinstance(item, dict):
-            continue
-        entity_id = str(item.get("entity_id") or "").strip()
-        if "." not in entity_id:
-            continue
-        domain, _ = entity_id.split(".", 1)
-        if domain not in HOME_ASSISTANT_SUPPORTED_DOMAINS:
-            continue
-        attributes = item.get("attributes") if isinstance(item.get("attributes"), dict) else {}
-        entities.append(
-            {
-                "entity_id": entity_id,
-                "domain": domain,
-                "name": str(attributes.get("friendly_name") or entity_id).strip(),
-                "state": item.get("state"),
-                "supported_services": HOME_ASSISTANT_DOMAIN_SERVICES.get(domain, []),
-            }
-        )
-    entities.sort(key=lambda entity: (entity["domain"], entity["name"].lower(), entity["entity_id"]))
-    return entities[:limit]
-
-
-def _home_assistant_action_context(user) -> dict | None:
-    if not _home_assistant_is_configured(user):
-        return None
-    return {
-        "domains": list(HOME_ASSISTANT_SUPPORTED_DOMAINS),
-        "services_by_domain": HOME_ASSISTANT_DOMAIN_SERVICES,
-        "entities": _home_assistant_entities(user),
-    }
-
-
-def _execute_home_assistant_action(user, action: dict) -> None:
-    domain = str(action.get("domain") or "").strip().lower()
-    service = str(action.get("service") or "").strip().lower()
-    entity_id = " ".join(str(action.get("entity_id") or "").split()).strip()
-    if domain not in HOME_ASSISTANT_SUPPORTED_DOMAINS or not service:
-        raise RuntimeError("Action Home Assistant invalide.")
-    service_data = action.get("service_data")
-    if not isinstance(service_data, dict):
-        service_data = {}
-    payload = dict(service_data)
-    if entity_id:
-        payload["entity_id"] = entity_id
-    _home_assistant_api_request(
-        user,
-        method="POST",
-        path=f"/api/services/{domain}/{service}",
-        payload=payload,
-    )
-
-
-def _rabbit_home_assistant_action_context(rabbit: Rabbit) -> dict | None:
-    owner = rabbit.owner
-    if owner is None:
-        return None
-    try:
-        return _home_assistant_action_context(owner)
-    except RuntimeError as exc:
-        current_app.logger.warning("unable to load Home Assistant context for rabbit %s: %s", rabbit.id, exc)
-        return None
 
 LED_COLOR_PRESETS = {
     "off": "#000000",
@@ -364,16 +233,6 @@ RABBIT_ACTION_CATALOG = [
         "name": "wakeup",
         "description": "Reveiller le lapin.",
         "parameters": {},
-    },
-    {
-        "name": "home_assistant.call_service",
-        "description": "Appeler un service Home Assistant disponible pour ce compte.",
-        "parameters": {
-            "domain": "light|switch|scene|script|media_player|input_boolean",
-            "service": "nom du service Home Assistant, par exemple turn_on",
-            "entity_id": "entity_id optionnel mais recommande, par exemple light.salon",
-            "service_data": "objet JSON optionnel avec parametres supplementaires",
-        },
     },
 ]
 KNOWN_RADIO_STREAMS = {
@@ -604,7 +463,8 @@ def _queue_mobile_conversation_for_rabbit(rabbit: Rabbit, *, user_text: str) -> 
         personality_prompt=rabbit.personality_prompt or DEFAULT_RABBIT_PERSONALITY_PROMPT,
         conversation_messages=_conversation_messages_for_generation(rabbit),
         user_prompt_override="Reponds maintenant au dernier message de l'utilisateur dans cette conversation.",
-        home_assistant_context=_rabbit_home_assistant_action_context(rabbit),
+        connector_context=connector_context_for_rabbit(rabbit),
+        action_catalog=RABBIT_ACTION_CATALOG + connector_action_catalog(owner),
     )
     _queue_generated_performance(
         rabbit,
@@ -816,7 +676,8 @@ def _generate_auto_performance_payload(rabbit: Rabbit, owner) -> dict:
             "une observation absurde, une humeur du moment ou une fantaisie poetique. "
             "Utilise la voix, et si utile, un langage corporel expressif avec oreilles et LEDs."
         ),
-        home_assistant_context=_rabbit_home_assistant_action_context(rabbit),
+        connector_context=connector_context_for_rabbit(rabbit),
+        action_catalog=RABBIT_ACTION_CATALOG + connector_action_catalog(owner),
     )
 
 
@@ -979,12 +840,12 @@ def _queue_performance_asset(
                 send_remote_action(rabbit.remote_rabbit_id, "sleep", {})
             except NabaztagApiError:
                 pass
-        elif action_name == "home_assistant.call_service" and rabbit.owner is not None:
+        elif action_name == "connector.invoke" and rabbit.owner is not None:
             try:
-                _execute_home_assistant_action(rabbit.owner, action)
+                execute_connector_action(rabbit.owner, action)
             except RuntimeError as exc:
                 current_app.logger.warning(
-                    "unable to execute Home Assistant action for rabbit %s: %s",
+                    "unable to execute connector action for rabbit %s: %s",
                     rabbit.id,
                     exc,
                 )
@@ -1386,25 +1247,8 @@ def _normalize_generated_action(action_payload: object) -> dict | None:
     if action_name in {"sleep", "wakeup"}:
         return {"name": action_name}
 
-    if action_name == "home_assistant.call_service":
-        domain = str(action_payload.get("domain") or "").strip().lower()
-        service = str(action_payload.get("service") or "").strip().lower()
-        entity_id = " ".join(str(action_payload.get("entity_id") or "").split()).strip()
-        service_data = action_payload.get("service_data")
-        if domain not in HOME_ASSISTANT_SUPPORTED_DOMAINS or not service:
-            return None
-        if service_data is not None and not isinstance(service_data, dict):
-            return None
-        normalized_action = {
-            "name": action_name,
-            "domain": domain,
-            "service": service,
-        }
-        if entity_id:
-            normalized_action["entity_id"] = entity_id
-        if isinstance(service_data, dict) and service_data:
-            normalized_action["service_data"] = service_data
-        return normalized_action
+    if action_name == "connector.invoke":
+        return normalize_connector_action(action_payload)
 
     return None
 
@@ -1766,7 +1610,8 @@ def _run_rabbit_pair_conversation(
                     personality_prompt=speaker.personality_prompt or DEFAULT_RABBIT_PERSONALITY_PROMPT,
                     conversation_messages=_rabbit_pair_messages_for_speaker(speaker.id, transcript),
                     user_prompt_override=instruction,
-                    home_assistant_context=_rabbit_home_assistant_action_context(speaker),
+                    connector_context=connector_context_for_rabbit(speaker),
+                    action_catalog=RABBIT_ACTION_CATALOG + connector_action_catalog(owner),
                 )
                 _queue_generated_performance(
                     speaker,
@@ -2198,9 +2043,10 @@ def _generate_mistral_rabbit_performance(
     personality_prompt: str,
     conversation_messages: list[dict[str, str]] | None = None,
     user_prompt_override: str | None = None,
-    home_assistant_context: dict | None = None,
+    connector_context: dict | None = None,
+    action_catalog: list[dict] | None = None,
 ) -> dict:
-    action_catalog_json = json.dumps(RABBIT_ACTION_CATALOG, ensure_ascii=False)
+    action_catalog_json = json.dumps((action_catalog or RABBIT_ACTION_CATALOG), ensure_ascii=False)
     radio_catalog_json = json.dumps(
         [
             {"id": station_id, "label": metadata["label"], "aliases": metadata.get("aliases", [])}
@@ -2208,15 +2054,13 @@ def _generate_mistral_rabbit_performance(
         ],
         ensure_ascii=False,
     )
-    home_assistant_context_json = (
-        json.dumps(home_assistant_context, ensure_ascii=False) if home_assistant_context else "null"
-    )
+    connector_context_json = json.dumps(connector_context, ensure_ascii=False) if connector_context else "{}"
     system_prompt = (
         f"{personality_prompt}\n\n"
-        "Tu pilotes un lapin Nabaztag qui s'exprime avec la voix, les oreilles, les LEDs et quelques actions de maison. "
+        "Tu pilotes un lapin Nabaztag qui s'exprime avec la voix, les oreilles, les LEDs et quelques actions externes. "
         f"Voici le catalogue d'actions autorisees que tu peux utiliser: {action_catalog_json}. "
         f"Voici aussi les stations radio connues actuellement disponibles pour `audio.stream`: {radio_catalog_json}. "
-        f"Voici enfin le contexte Home Assistant disponible pour ce compte, ou `null` si rien n'est configure: {home_assistant_context_json}. "
+        f"Voici enfin le contexte des connecteurs disponibles pour ce compte: {connector_context_json}. "
         "Tu dois repondre uniquement avec un objet JSON valide, sans markdown ni commentaire. "
         "Le JSON doit avoir exactement cette structure generale: "
         '{"text":"...","actions":[{"name":"ears.move","left":{"action":"center"},"right":{"action":"center"}}]}. '
@@ -2229,7 +2073,7 @@ def _generate_mistral_rabbit_performance(
         "6. Si plusieurs actions sont pertinentes et compatibles, tu peux les combiner. "
         "7. Si la demande utilisateur ne correspond a aucune action disponible, garde `actions` vide et reponds seulement par la voix. "
         "8. N'invente jamais une action ou un parametre qui n'existe pas dans le catalogue. "
-        "9. N'utilise `home_assistant.call_service` que si le contexte Home Assistant n'est pas `null` et que l'entite cible figure dans ce contexte. "
+        "9. N'utilise une action de connecteur que si le connecteur correspondant figure dans le contexte et que ses parametres sont compatibles. "
         "10. Pour les oreilles, utilise `keep` si tu ne veux rien changer. "
         "11. Pour les LEDs du corps `left/center/right`, seul `steady` ou `off` est autorise. "
         "12. Pour `bottom`, seul `steady` ou `off` est autorise. "
@@ -2655,7 +2499,8 @@ def violet_record():
                     personality_prompt=rabbit.personality_prompt or DEFAULT_RABBIT_PERSONALITY_PROMPT,
                     conversation_messages=_conversation_messages_for_generation(rabbit),
                     user_prompt_override="Reponds maintenant au dernier message de l'utilisateur dans cette conversation.",
-                    home_assistant_context=_rabbit_home_assistant_action_context(rabbit),
+                    connector_context=connector_context_for_rabbit(rabbit),
+                    action_catalog=RABBIT_ACTION_CATALOG + connector_action_catalog(owner),
                 )
                 _queue_generated_performance(
                     rabbit,
@@ -2924,27 +2769,33 @@ def account():
             flash("Action mobile invalide.", "error")
             return redirect(url_for("main.account"))
 
-        if form_name == "home_assistant":
+        if form_name == "connector":
+            connector_key = request.form.get("connector", "").strip().lower()
+            if connector_key != "home_assistant":
+                flash("Connecteur invalide.", "error")
+                return redirect(url_for("main.account"))
             if action == "clear":
-                current_user.home_assistant_url = None
-                current_user.home_assistant_token = None
+                clear_user_connector_config(current_user, connector_key)
                 db.session.commit()
-                flash("Configuration Home Assistant supprimée.", "success")
+                flash("Configuration du connecteur supprimée.", "success")
                 return redirect(url_for("main.account"))
 
-            url_value = _normalize_home_assistant_url(request.form.get("home_assistant_url", ""))
-            token_value = request.form.get("home_assistant_token", "").strip()
+            existing_config = get_user_connector_config(current_user, connector_key)
+            url_value = " ".join(request.form.get("base_url", "").split()).strip()
+            token_value = request.form.get("token", "").strip()
             if not url_value:
-                flash("Saisis l'URL de ton instance Home Assistant.", "error")
+                flash("Saisis l'URL du connecteur.", "error")
                 return redirect(url_for("main.account"))
-            if not token_value and not current_user.home_assistant_token:
-                flash("Saisis un token d'accès long terme Home Assistant.", "error")
+            if not token_value and not existing_config.get("token"):
+                flash("Saisis un token d'accès pour ce connecteur.", "error")
                 return redirect(url_for("main.account"))
-            current_user.home_assistant_url = url_value
-            if token_value:
-                current_user.home_assistant_token = token_value
+            connector_config = {
+                "base_url": url_value,
+                "token": token_value or existing_config.get("token"),
+            }
+            save_user_connector_config(current_user, connector_key, connector_config)
             db.session.commit()
-            flash("Configuration Home Assistant enregistrée.", "success")
+            flash("Configuration du connecteur enregistrée.", "success")
             return redirect(url_for("main.account"))
 
         provider = request.form.get("provider", "mistral").strip().lower()
@@ -2981,6 +2832,9 @@ def account():
         mobile_pairing=mobile_pairing,
         mobile_pairing_url=mobile_pairing_url,
         mobile_tokens_count=mobile_tokens_count,
+        connector_definitions=connector_definitions(),
+        connector_configs={definition.key: get_user_connector_config(current_user, definition.key) for definition in connector_definitions()},
+        connector_status={definition.key: is_connector_configured(current_user, definition.key) for definition in connector_definitions()},
     )
 
 
@@ -3197,8 +3051,7 @@ def rabbit_detail(rabbit_id: int):
     remote_error = None
     saved_mistral_voices: list[dict] = []
     available_mistral_models: list[dict] = []
-    home_assistant_entities: list[dict] = []
-    home_assistant_error = None
+    connector_tests = connector_test_contexts(current_user)
     precomputed_auto_performance_count = _available_precomputed_auto_performance_count(rabbit.id)
     bundled_auto_performance_count = _bundled_auto_performance_count()
 
@@ -3248,11 +3101,6 @@ def rabbit_detail(rabbit_id: int):
     rabbit_tts_voice = _normalize_rabbit_tts_voice(rabbit, rabbit_tts_voice_options)
     rabbit_llm_model_options = _build_rabbit_llm_model_options(available_mistral_models)
     rabbit_llm_model = _normalize_rabbit_llm_model(rabbit, rabbit_llm_model_options)
-    if _home_assistant_is_configured(current_user):
-        try:
-            home_assistant_entities = _home_assistant_entities(current_user)
-        except RuntimeError as exc:
-            home_assistant_error = str(exc)
 
     remote_rabbit = _apply_local_device_state(
         rabbit,
@@ -3331,9 +3179,7 @@ def rabbit_detail(rabbit_id: int):
         AUTO_PERFORMANCE_DEFAULT_WINDOW_END=AUTO_PERFORMANCE_DEFAULT_WINDOW_END,
         rabbit_auto_performance_next_at=_format_auto_performance_next_at(rabbit.auto_performance_next_at),
         rabbit_photo_url=_rabbit_photo_url(rabbit),
-        home_assistant_configured=_home_assistant_is_configured(current_user),
-        home_assistant_entities=home_assistant_entities,
-        home_assistant_error=home_assistant_error,
+        connector_tests=connector_tests,
         precomputed_auto_performance_count=precomputed_auto_performance_count,
         bundled_auto_performance_count=bundled_auto_performance_count,
         AUTO_PERFORMANCE_POOL_TARGET=AUTO_PERFORMANCE_POOL_TARGET,
@@ -4192,12 +4038,13 @@ def rabbit_device_audio(rabbit_id: int):
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
 
-@main_bp.post("/rabbits/<int:rabbit_id>/home-assistant/test")
+@main_bp.post("/rabbits/<int:rabbit_id>/connectors/<connector_key>/test")
 @login_required
-def rabbit_home_assistant_test(rabbit_id: int):
+def rabbit_connector_test(rabbit_id: int, connector_key: str):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
-    if not _home_assistant_is_configured(current_user):
-        flash("Ajoute d'abord Home Assistant dans Mon compte.", "error")
+    connector_key = connector_key.strip().lower()
+    if connector_key != "home_assistant" or not is_connector_configured(current_user, connector_key):
+        flash("Connecteur non configuré.", "error")
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
     entity_id = " ".join(request.form.get("entity_id", "").split()).strip()
@@ -4206,9 +4053,16 @@ def rabbit_home_assistant_test(rabbit_id: int):
     service_data_raw = request.form.get("service_data", "").strip()
     if not domain and entity_id and "." in entity_id:
         domain = entity_id.split(".", 1)[0].lower()
-    if domain not in HOME_ASSISTANT_SUPPORTED_DOMAINS or not service:
-        flash("Domaine ou service Home Assistant invalide.", "error")
-        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+    action = {
+        "name": "connector.invoke",
+        "connector": connector_key,
+        "operation": "call_service",
+        "params": {
+            "domain": domain,
+            "service": service,
+            "entity_id": entity_id,
+        },
+    }
 
     service_data = {}
     if service_data_raw:
@@ -4221,18 +4075,15 @@ def rabbit_home_assistant_test(rabbit_id: int):
             flash("Les paramètres Home Assistant doivent être un objet JSON.", "error")
             return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
         service_data = parsed
+    if service_data:
+        action["params"]["service_data"] = service_data
 
     try:
-        _execute_home_assistant_action(
-            current_user,
-            {
-                "name": "home_assistant.call_service",
-                "domain": domain,
-                "service": service,
-                "entity_id": entity_id,
-                "service_data": service_data,
-            },
-        )
+        normalized_action = normalize_connector_action(action)
+        if normalized_action is None:
+            flash("Action du connecteur invalide.", "error")
+            return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+        execute_connector_action(current_user, normalized_action)
     except RuntimeError as exc:
         flash(str(exc), "error")
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
@@ -4240,8 +4091,9 @@ def rabbit_home_assistant_test(rabbit_id: int):
     _append_rabbit_event(
         rabbit,
         source="portal",
-        event_type="rabbit.home_assistant.test",
+        event_type="rabbit.connector.test",
         payload={
+            "connector": connector_key,
             "domain": domain,
             "service": service,
             "entity_id": entity_id or None,
@@ -4249,7 +4101,7 @@ def rabbit_home_assistant_test(rabbit_id: int):
         },
     )
     db.session.commit()
-    flash("Action Home Assistant envoyée.", "success")
+    flash("Action du connecteur envoyée.", "success")
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
 
@@ -4298,7 +4150,8 @@ def rabbit_use_case_test(rabbit_id: int):
                     "Invente une micro-performance domestique originale, courte et expressive pour divertir "
                     "les habitants maintenant. Utilise bien la voix, les oreilles et les LEDs."
                 ),
-                home_assistant_context=_rabbit_home_assistant_action_context(rabbit),
+                connector_context=connector_context_for_rabbit(rabbit),
+                action_catalog=RABBIT_ACTION_CATALOG + connector_action_catalog(current_user),
             )
             _queue_generated_performance(
                 rabbit,
@@ -4386,7 +4239,8 @@ def rabbit_use_case_test(rabbit_id: int):
                     f"Le lapin vient de detecter le Ztamp `{ztamp_name}` (tag {ztamp.tag}). "
                     "Invente une courte scene tangible, ludique et domestique inspiree par cet objet."
                 ),
-                home_assistant_context=_rabbit_home_assistant_action_context(rabbit),
+                connector_context=connector_context_for_rabbit(rabbit),
+                action_catalog=RABBIT_ACTION_CATALOG + connector_action_catalog(current_user),
             )
             _queue_generated_performance(
                 rabbit,
@@ -4480,7 +4334,8 @@ def rabbit_device_say(rabbit_id: int):
                 model=llm_model,
                 rabbit_name=rabbit.name,
                 personality_prompt=rabbit.personality_prompt or DEFAULT_RABBIT_PERSONALITY_PROMPT,
-                home_assistant_context=_rabbit_home_assistant_action_context(rabbit),
+                connector_context=connector_context_for_rabbit(rabbit),
+                action_catalog=RABBIT_ACTION_CATALOG + connector_action_catalog(current_user),
             )
             message = generated_performance["text"]
         except RuntimeError as exc:

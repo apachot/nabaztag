@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 
 from flask_login import UserMixin
@@ -31,6 +32,11 @@ class User(UserMixin, db.Model):
     )
     mobile_api_tokens = db.relationship(
         "MobileApiToken",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    connector_configs = db.relationship(
+        "UserConnectorConfig",
         back_populates="user",
         cascade="all, delete-orphan",
     )
@@ -172,6 +178,34 @@ class MobileApiToken(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
 
     user = db.relationship("User", back_populates="mobile_api_tokens")
+
+
+class UserConnectorConfig(db.Model):
+    __table_args__ = (UniqueConstraint("user_id", "key", name="uq_user_connector_config"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    key = db.Column(db.String(64), nullable=False, index=True)
+    config_json = db.Column(db.Text, nullable=False, default="{}")
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = db.Column(
+        db.DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+
+    user = db.relationship("User", back_populates="connector_configs")
+
+    def config_dict(self) -> dict:
+        try:
+            value = json.loads(self.config_json or "{}")
+        except Exception:
+            value = {}
+        return value if isinstance(value, dict) else {}
+
+    def set_config(self, config: dict) -> None:
+        self.config_json = json.dumps(config, ensure_ascii=False)
 
 
 class RabbitEventLog(db.Model):

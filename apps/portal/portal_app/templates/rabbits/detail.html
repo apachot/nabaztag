@@ -293,64 +293,65 @@
       </article>
 
       <article class="panel">
-        <h2>Home Assistant</h2>
+        <h2>Connecteurs</h2>
         <div class="stack">
-          {% if home_assistant_error %}
-            <div class="flash error">{{ home_assistant_error }}</div>
-          {% endif %}
-          {% if not home_assistant_configured %}
+          {% if not connector_tests %}
             <div class="meta">
-              Ajoute d’abord ton URL et ton token Home Assistant dans <a href="{{ url_for('main.account') }}">Mon compte</a>.
+              Aucun connecteur configure pour l’instant. Ajoute-en un dans <a href="{{ url_for('main.account') }}">Mon compte</a>.
             </div>
-          {% else %}
-            <div class="meta">
-              Teste ici un service Home Assistant. Ces mêmes actions peuvent ensuite être appelées par le lapin via son catalogue d’actions.
-            </div>
-            <form method="post" action="{{ url_for('main.rabbit_home_assistant_test', rabbit_id=rabbit.id) }}" class="stack">
-              <label>Entité Home Assistant</label>
-              <select name="entity_id" id="home-assistant-entity-select">
-                <option value="">Choisir une entité...</option>
-                {% for entity in home_assistant_entities %}
-                  <option
-                    value="{{ entity.entity_id }}"
-                    data-domain="{{ entity.domain }}"
-                  >
-                    {{ entity.name }} ({{ entity.entity_id }})
-                  </option>
-                {% endfor %}
-              </select>
-              <label>Domaine</label>
-              <input type="text" name="domain" id="home-assistant-domain-input" placeholder="light">
-              <label>Service</label>
-              <input type="text" name="service" placeholder="turn_on">
-              <label>Paramètres JSON optionnels</label>
-              <textarea name="service_data" rows="4" placeholder='{"rgb_color":[0,0,255]}'></textarea>
-              <div class="actions">
-                <button class="button primary" type="submit">Tester l’action</button>
-              </div>
-            </form>
-            {% if home_assistant_entities %}
-              <div class="meta">
-                {{ home_assistant_entities|length }} entité{{ "s" if home_assistant_entities|length != 1 else "" }} détectée{{ "s" if home_assistant_entities|length != 1 else "" }} compatible{{ "s" if home_assistant_entities|length != 1 else "" }}.
-              </div>
-            {% else %}
-              <div class="meta">Aucune entité compatible trouvée pour l’instant.</div>
-            {% endif %}
-            <script>
-              (() => {
-                const select = document.getElementById("home-assistant-entity-select");
-                const domainInput = document.getElementById("home-assistant-domain-input");
-                if (!select || !domainInput) return;
-                select.addEventListener("change", () => {
-                  const option = select.selectedOptions[0];
-                  const domain = option ? option.dataset.domain : "";
-                  if (domain) {
-                    domainInput.value = domain;
-                  }
-                });
-              })();
-            </script>
           {% endif %}
+          {% for connector in connector_tests %}
+            <div class="stack">
+              <strong>{{ connector.label }}</strong>
+              <div class="meta">{{ connector.description }}</div>
+              {% if connector.error %}
+                <div class="flash error">{{ connector.error }}</div>
+              {% endif %}
+              {% if connector.key == "home_assistant" %}
+                <form method="post" action="{{ url_for('main.rabbit_connector_test', rabbit_id=rabbit.id, connector_key=connector.key) }}" class="stack">
+                  <label>Entité</label>
+                  <select name="entity_id" id="connector-{{ connector.key }}-entity">
+                    <option value="">Choisir une entité...</option>
+                    {% for entity in connector.entities %}
+                      <option value="{{ entity.entity_id }}" data-domain="{{ entity.domain }}">
+                        {{ entity.name }} ({{ entity.entity_id }})
+                      </option>
+                    {% endfor %}
+                  </select>
+                  <label>Domaine</label>
+                  <input type="text" name="domain" id="connector-{{ connector.key }}-domain" placeholder="light">
+                  <label>Service</label>
+                  <input type="text" name="service" placeholder="turn_on">
+                  <label>Paramètres JSON optionnels</label>
+                  <textarea name="service_data" rows="4" placeholder='{"rgb_color":[0,0,255]}'></textarea>
+                  <div class="actions">
+                    <button class="button primary" type="submit">Tester l’action</button>
+                  </div>
+                </form>
+                {% if connector.entities %}
+                  <div class="meta">
+                    {{ connector.entities|length }} entité{{ "s" if connector.entities|length != 1 else "" }} détectée{{ "s" if connector.entities|length != 1 else "" }} compatible{{ "s" if connector.entities|length != 1 else "" }}.
+                  </div>
+                {% else %}
+                  <div class="meta">Aucune entité compatible trouvée pour l’instant.</div>
+                {% endif %}
+                <script>
+                  (() => {
+                    const select = document.getElementById("connector-{{ connector.key }}-entity");
+                    const domainInput = document.getElementById("connector-{{ connector.key }}-domain");
+                    if (!select || !domainInput) return;
+                    select.addEventListener("change", () => {
+                      const option = select.selectedOptions[0];
+                      const domain = option ? option.dataset.domain : "";
+                      if (domain) {
+                        domainInput.value = domain;
+                      }
+                    });
+                  })();
+                </script>
+              {% endif %}
+            </div>
+          {% endfor %}
         </div>
       </article>
 

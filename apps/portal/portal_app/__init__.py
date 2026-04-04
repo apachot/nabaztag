@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -59,6 +60,7 @@ def create_app() -> Flask:
 
         db.create_all()
         _ensure_portal_schema()
+        _migrate_legacy_connector_settings()
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -163,4 +165,60 @@ def _ensure_portal_schema() -> None:
         )
         db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_mobile_api_token_user_id ON mobile_api_token(user_id)"))
         db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_mobile_api_token_token_hash ON mobile_api_token(token_hash)"))
+        db.session.commit()
+
+    if "user_connector_config" not in existing_tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS user_connector_config (
+                    id INTEGER PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    key VARCHAR(64) NOT NULL,
+                    config_json TEXT NOT NULL DEFAULT '{}',
+                    created_at DATETIME NOT NULL,
+                    updated_at DATETIME NOT NULL,
+                    FOREIGN KEY(user_id) REFERENCES user(id)
+                )
+                """
+            )
+        )
+        db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_user_connector_config_user_id ON user_connector_config(user_id)"))
+        db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_user_connector_config_key ON user_connector_config(key)"))
+        db.session.execute(
+            text("CREATE UNIQUE INDEX IF NOT EXISTS uq_user_connector_config ON user_connector_config(user_id, key)")
+        )
+        db.session.commit()
+
+
+def _migrate_legacy_connector_settings() -> None:
+    from .models import User, UserConnectorConfig, utc_now
+
+    users = (
+        User.query.filter(User.home_assistant_url.isnot(None))
+        .filter(User.home_assistant_token.isnot(None))
+        .all()
+    )
+    changed = False
+    for user in users:
+        existing = UserConnectorConfig.query.filter_by(user_id=user.id, key="home_assistant").first()
+        if existing is not None:
+            continue
+        config = {
+            "base_url": (user.home_assistant_url or "").strip(),
+            "token": (user.home_assistant_token or "").strip(),
+        }
+        if not config["base_url"] or not config["token"]:
+            continue
+        db.session.add(
+            UserConnectorConfig(
+                user_id=user.id,
+                key="home_assistant",
+                config_json=json.dumps(config, ensure_ascii=False),
+                created_at=utc_now(),
+                updated_at=utc_now(),
+            )
+        )
+        changed = True
+    if changed:
         db.session.commit()

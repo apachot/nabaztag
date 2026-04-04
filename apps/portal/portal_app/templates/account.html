@@ -43,55 +43,52 @@
       </form>
     </article>
 
-    <article class="panel">
-      <form method="post" class="stack">
-        <input type="hidden" name="form" value="home_assistant">
-        <div>
-          <h2 style="margin-bottom: 8px;">Home Assistant</h2>
-          <div class="meta">
-            Configure ici l’URL de ton instance Home Assistant et un token d’accès long terme pour
-            permettre au lapin de piloter certains services domestiques.
-          </div>
-        </div>
-        <div class="field">
-          <label for="home_assistant_url">URL Home Assistant</label>
-          <input
-            id="home_assistant_url"
-            name="home_assistant_url"
-            type="url"
-            spellcheck="false"
-            autocapitalize="off"
-            autocomplete="off"
-            placeholder="https://homeassistant.local:8123"
-            value="{{ current_user.home_assistant_url or '' }}"
-          >
-        </div>
-        <div class="field">
-          <label for="home_assistant_token">Token d'accès long terme</label>
-          <input
-            id="home_assistant_token"
-            name="home_assistant_token"
-            type="password"
-            spellcheck="false"
-            autocapitalize="off"
-            autocomplete="off"
-            placeholder="{% if current_user.home_assistant_token %}Token déjà enregistré{% else %}...{% endif %}"
-          >
-        </div>
+    <article class="panel stack">
+      <div>
+        <h2 style="margin-bottom: 8px;">Connecteurs externes</h2>
         <div class="meta">
-          {% if current_user.home_assistant_url and current_user.home_assistant_token %}
-            Une connexion Home Assistant est actuellement enregistrée pour ce compte.
-          {% else %}
-            Aucune connexion Home Assistant n'est encore enregistrée pour ce compte.
-          {% endif %}
+          Les integrations externes sont gerees via une couche de connecteurs dediee, separee du coeur du lapin.
         </div>
-        <div class="actions">
-          <button class="button primary" type="submit" name="action" value="save">Enregistrer Home Assistant</button>
-          {% if current_user.home_assistant_url or current_user.home_assistant_token %}
-            <button class="pill" type="submit" name="action" value="clear">Supprimer Home Assistant</button>
-          {% endif %}
-        </div>
-      </form>
+      </div>
+      {% for connector in connector_definitions %}
+        {% set config = connector_configs.get(connector.key, {}) %}
+        <form method="post" class="stack">
+          <input type="hidden" name="form" value="connector">
+          <input type="hidden" name="connector" value="{{ connector.key }}">
+          <div>
+            <strong>{{ connector.label }}</strong>
+            <div class="meta" style="margin-top: 6px;">{{ connector.description }}</div>
+          </div>
+          {% for field in connector.account_fields %}
+            <div class="field">
+              <label for="{{ connector.key }}-{{ field.name }}">{{ field.label }}</label>
+              <input
+                id="{{ connector.key }}-{{ field.name }}"
+                name="{{ field.name }}"
+                type="{{ field.type }}"
+                spellcheck="false"
+                autocapitalize="off"
+                autocomplete="off"
+                placeholder="{% if field.type == 'password' and config.get(field.name) %}{{ field.placeholder }}{% else %}{{ field.placeholder }}{% endif %}"
+                {% if field.type != 'password' %}value="{{ config.get(field.name, '') }}"{% endif %}
+              >
+            </div>
+          {% endfor %}
+          <div class="meta">
+            {% if connector_status.get(connector.key) %}
+              Ce connecteur est actuellement configure pour ce compte.
+            {% else %}
+              Ce connecteur n'est pas encore configure.
+            {% endif %}
+          </div>
+          <div class="actions">
+            <button class="button primary" type="submit" name="action" value="save">Enregistrer {{ connector.label }}</button>
+            {% if connector_status.get(connector.key) %}
+              <button class="pill" type="submit" name="action" value="clear">Supprimer {{ connector.label }}</button>
+            {% endif %}
+          </div>
+        </form>
+      {% endfor %}
     </article>
 
     <article class="panel stack">
