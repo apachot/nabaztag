@@ -4100,6 +4100,28 @@ def rabbit_connector_test(rabbit_id: int, connector_key: str):
                 "payload": payload,
             },
         }
+    elif connector_key == "mqtt":
+        topic = " ".join(request.form.get("topic", "").split()).strip()
+        payload_raw = request.form.get("payload", "").strip()
+        qos_raw = " ".join(request.form.get("qos", "").split()).strip() or "0"
+        retain_raw = " ".join(request.form.get("retain", "").split()).strip() or "false"
+        payload: object = ""
+        if payload_raw:
+            try:
+                payload = json.loads(payload_raw)
+            except json.JSONDecodeError:
+                payload = payload_raw
+        action = {
+            "name": "connector.invoke",
+            "connector": connector_key,
+            "operation": "publish",
+            "params": {
+                "topic": topic,
+                "payload": payload,
+                "qos": qos_raw,
+                "retain": retain_raw,
+            },
+        }
     else:
         flash("Connecteur invalide.", "error")
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))

@@ -94,3 +94,11 @@ Le backend:
 - usage: bridge local, automatisation maison, scripts auto-heberges
 
 Le connecteur `webhook` permet de prouver que l'architecture n'est pas uniquement un habillage de Home Assistant. Il offre une sortie HTTP simple pour connecter le portail Nabaztag a un service externe ou a un futur bridge local open source.
+
+### MQTT
+
+- type: connecteur bus de messages
+- operation: `publish`
+- usage: bridge local, domotique, audio, automation, interconnexion avec Home Assistant ou Node-RED
+
+Le connecteur `mqtt` valide encore mieux la logique de bridge local standard. Le lapin peut publier un message sur un broker MQTT, puis un autre systeme local l'interprete et pilote ensuite la maison, l'audio ou d'autres automatismes.

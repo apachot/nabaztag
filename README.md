@@ -173,8 +173,9 @@ Les deux premiers connecteurs actuellement branches sont:
 
 - `home_assistant`
 - `webhook`
+- `mqtt`
 
-Le second est volontairement plus generique. Il permet de relier le lapin a un service HTTP auto-heberge ou a un futur bridge local sans coupler tout le projet a un seul ecosysteme.
+`webhook` et `mqtt` sont volontairement plus generiques. Ils permettent de relier le lapin a un service HTTP auto-heberge, a un broker MQTT, ou a un futur bridge local sans coupler tout le projet a un seul ecosysteme.
 
 ## Contribuer
 
@@ -219,7 +220,7 @@ La plateforme couvre aujourd'hui les usages suivants:
 - support de stations radio connues, dont `RFI Monde`
 - architecture de connecteurs externes avec action LLM generique `connector.invoke`
 - premier connecteur domotique `Home Assistant`
-- second connecteur generique `webhook` pour valider l'extensibilite
+- connecteurs generiques `webhook` et `mqtt` pour valider l'extensibilite
 - endpoint d'upload d'enregistrement compatible avec les usages Nabaztag historiques
 
 ## Architecture

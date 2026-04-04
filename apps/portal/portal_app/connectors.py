@@ -148,6 +148,65 @@ CONNECTOR_REGISTRY = {
             ),
         ),
     ),
+    "mqtt": ConnectorDefinition(
+        key="mqtt",
+        label="MQTT",
+        description="Publie des messages sur un broker MQTT pour piloter un bridge local, de la domotique ou des automatismes.",
+        account_fields=(
+            ConnectorFieldDefinition(
+                name="host",
+                label="Hôte MQTT",
+                type="text",
+                placeholder="192.168.1.20",
+            ),
+            ConnectorFieldDefinition(
+                name="port",
+                label="Port MQTT",
+                type="text",
+                placeholder="1883",
+            ),
+            ConnectorFieldDefinition(
+                name="username",
+                label="Utilisateur optionnel",
+                type="text",
+                placeholder="mqtt-user",
+            ),
+            ConnectorFieldDefinition(
+                name="password",
+                label="Mot de passe optionnel",
+                type="password",
+                placeholder="Mot de passe déjà enregistré",
+            ),
+            ConnectorFieldDefinition(
+                name="topic_prefix",
+                label="Préfixe de topic optionnel",
+                type="text",
+                placeholder="nabaztag",
+                help_text="Si renseigne, les topics envoyés seront préfixés automatiquement.",
+            ),
+        ),
+        operations=(
+            ConnectorOperationDefinition(
+                key="publish",
+                description="Publier un message sur un topic MQTT.",
+                params_schema={
+                    "topic": "topic cible, par exemple salon/lumiere/set",
+                    "payload": "chaine ou objet JSON a publier",
+                    "qos": "0|1|2 optionnel",
+                    "retain": "true|false optionnel",
+                },
+            ),
+        ),
+        test_form=ConnectorTestFormDefinition(
+            description="Teste une publication MQTT simple depuis la fiche du lapin.",
+            fields=(
+                ConnectorTestFieldDefinition("topic", "Topic", "text", "music/play"),
+                ConnectorTestFieldDefinition("payload", "Payload", "textarea", '{"artist":"Leonard Cohen"}'),
+                ConnectorTestFieldDefinition("qos", "QoS", "text", "0"),
+                ConnectorTestFieldDefinition("retain", "Retain", "text", "false"),
+            ),
+        ),
+    ),
 }
 
 
@@ -209,6 +268,8 @@ def is_connector_configured(user, connector_key: str) -> bool:
         return bool(_normalize_url(config.get("base_url")) and config.get("token"))
     if connector_key == "webhook":
         return bool(_normalize_url(config.get("endpoint_url")))
+    if connector_key == "mqtt":
+        return bool(" ".join(str(config.get("host") or "").split()).strip())
     return False
 
 
@@ -248,6 +309,12 @@ def connector_context_for_user(user) -> dict:
         context["webhook"] = {
             "operations": ["trigger"],
             "description": "Webhook HTTP POST configurable vers un service ou un bridge local.",
+        }
+    if is_connector_configured(user, "mqtt"):
+        context["mqtt"] = {
+            "operations": ["publish"],
+            "topic_prefix": get_user_connector_config(user, "mqtt").get("topic_prefix") or "",
+            "description": "Publication de messages MQTT vers un broker local ou distant.",
         }
     return context
 
@@ -309,6 +376,37 @@ def normalize_connector_action(action_payload: object) -> dict | None:
             normalized["params"]["payload"] = payload
         return normalized
 
+    if connector_key == "mqtt" and operation == "publish":
+        topic = " ".join(str(params.get("topic") or "").split()).strip()
+        payload = params.get("payload")
+        qos = params.get("qos", 0)
+        retain = params.get("retain", False)
+        if not topic:
+            return None
+        if isinstance(qos, str) and qos.isdigit():
+            qos = int(qos)
+        if qos not in {0, 1, 2}:
+            return None
+        if isinstance(retain, str):
+            retain = retain.strip().lower() in {"1", "true", "yes", "on"}
+        if not isinstance(retain, bool):
+            return None
+        if payload is not None and not isinstance(payload, (dict, list, str, int, float, bool)):
+            return None
+        normalized = {
+            "name": "connector.invoke",
+            "connector": connector_key,
+            "operation": operation,
+            "params": {
+                "topic": topic,
+                "qos": qos,
+                "retain": retain,
+            },
+        }
+        if payload is not None:
+            normalized["params"]["payload"] = payload
+        return normalized
+
     return None
 
 
@@ -321,6 +419,9 @@ def execute_connector_action(user, action: dict) -> None:
         return
     if connector_key == "webhook" and operation == "trigger" and isinstance(params, dict):
         _execute_webhook_trigger(user, params)
+        return
+    if connector_key == "mqtt" and operation == "publish" and isinstance(params, dict):
+        _execute_mqtt_publish(user, params)
         return
     raise RuntimeError("Action de connecteur invalide.")
 
@@ -467,3 +568,49 @@ def _execute_webhook_trigger(user, params: dict) -> None:
         raise RuntimeError("Le payload webhook doit etre un objet JSON.")
     request_payload = {"event": event, "payload": payload or {}}
     _connector_http_request(url=endpoint_url, token=token, payload=request_payload)
+
+
+def _execute_mqtt_publish(user, params: dict) -> None:
+    try:
+        from paho.mqtt.publish import single as mqtt_publish_single
+    except Exception as exc:
+        raise RuntimeError("La dépendance paho-mqtt n'est pas installée sur le portail.") from exc
+
+    config = get_user_connector_config(user, "mqtt")
+    host = " ".join(str(config.get("host") or "").split()).strip()
+    if not host:
+        raise RuntimeError("Le connecteur MQTT n'est pas configuré pour ce compte.")
+    port_raw = " ".join(str(config.get("port") or "").split()).strip() or "1883"
+    try:
+        port = int(port_raw)
+    except ValueError as exc:
+        raise RuntimeError("Le port MQTT est invalide.") from exc
+    topic_prefix = " ".join(str(config.get("topic_prefix") or "").split()).strip().strip("/")
+    topic = " ".join(str(params.get("topic") or "").split()).strip().strip("/")
+    if not topic:
+        raise RuntimeError("Le topic MQTT est obligatoire.")
+    full_topic = f"{topic_prefix}/{topic}" if topic_prefix else topic
+    payload = params.get("payload")
+    if isinstance(payload, (dict, list)):
+        payload_to_send = json.dumps(payload, ensure_ascii=False)
+    elif payload is None:
+        payload_to_send = ""
+    else:
+        payload_to_send = str(payload)
+    auth = None
+    username = " ".join(str(config.get("username") or "").split()).strip()
+    password = str(config.get("password") or "").strip()
+    if username:
+        auth = {"username": username, "password": password}
+    try:
+        mqtt_publish_single(
+            topic=full_topic,
+            payload=payload_to_send,
+            hostname=host,
+            port=port,
+            qos=int(params.get("qos", 0)),
+            retain=bool(params.get("retain", False)),
+            auth=auth,
+        )
+    except Exception as exc:
+        raise RuntimeError(f"Publication MQTT impossible: {exc}") from exc
