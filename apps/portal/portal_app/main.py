@@ -11,6 +11,7 @@ import subprocess
 import threading
 import time
 from datetime import datetime, timedelta
+from functools import lru_cache
 from mimetypes import guess_type
 from pathlib import Path
 from urllib import error as urllib_error
@@ -755,6 +756,52 @@ def _next_precomputed_auto_performance(rabbit_id: int) -> RabbitPrecomputedPerfo
     )
 
 
+@lru_cache(maxsize=1)
+def _bundled_auto_performances() -> tuple[dict, ...]:
+    manifest_path = _bundled_audio_assets_dir() / "bundled-auto" / "manifest.json"
+    if not manifest_path.exists():
+        return tuple()
+    try:
+        raw_entries = json.loads(manifest_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        current_app.logger.exception("unable to load bundled auto performances manifest")
+        return tuple()
+
+    entries: list[dict] = []
+    for raw_entry in raw_entries:
+        if not isinstance(raw_entry, dict):
+            continue
+        asset_name = " ".join(str(raw_entry.get("asset_name") or "").split()).strip()
+        payload = raw_entry.get("payload")
+        if not asset_name or not isinstance(payload, dict):
+            continue
+        try:
+            normalized_payload = _normalize_generated_performance(payload)
+        except RuntimeError:
+            continue
+        bundled_asset_name = f"bundled-auto/{asset_name}"
+        if not (_bundled_audio_assets_dir() / bundled_asset_name).exists():
+            continue
+        entries.append(
+            {
+                "asset_name": bundled_asset_name,
+                "payload": normalized_payload,
+            }
+        )
+    return tuple(entries)
+
+
+def _bundled_auto_performance_count() -> int:
+    return len(_bundled_auto_performances())
+
+
+def _random_bundled_auto_performance() -> dict | None:
+    entries = _bundled_auto_performances()
+    if not entries:
+        return None
+    return random.choice(entries)
+
+
 def _generate_auto_performance_payload(rabbit: Rabbit, owner) -> dict:
     llm_model = _normalize_rabbit_llm_model(rabbit, _build_rabbit_llm_model_options())
     return _generate_mistral_rabbit_performance(
@@ -962,14 +1009,11 @@ def _run_auto_performance_for_rabbit(rabbit_id: int) -> None:
         return
 
     owner = rabbit.owner
-    if owner is None or not owner.mistral_api_key:
-        rabbit.auto_performance_next_at = _compute_next_auto_performance_at(rabbit, after_utc=datetime.utcnow())
-        db.session.commit()
-        return
 
     try:
         entry = _next_precomputed_auto_performance(rabbit.id)
-        if entry is None:
+        bundled_entry = None
+        if entry is None and owner is not None and owner.mistral_api_key:
             _refill_auto_performance_pool(
                 rabbit.id,
                 target_size=AUTO_PERFORMANCE_POOL_TARGET,
@@ -977,6 +1021,12 @@ def _run_auto_performance_for_rabbit(rabbit_id: int) -> None:
             )
             entry = _next_precomputed_auto_performance(rabbit.id)
         if entry is None:
+            bundled_entry = _random_bundled_auto_performance()
+        if entry is None and bundled_entry is None and (owner is None or not owner.mistral_api_key):
+            rabbit.auto_performance_next_at = _compute_next_auto_performance_at(rabbit, after_utc=datetime.utcnow())
+            db.session.commit()
+            return
+        if entry is None and bundled_entry is None:
             performance = _generate_auto_performance_payload(rabbit, owner)
             _queue_generated_performance(
                 rabbit,
@@ -985,7 +1035,8 @@ def _run_auto_performance_for_rabbit(rabbit_id: int) -> None:
                 source="auto",
                 mode="generate",
             )
-        else:
+            delivery_mode = "live"
+        elif bundled_entry is None:
             performance = json.loads(entry.payload)
             _queue_performance_asset(
                 rabbit,
@@ -996,6 +1047,17 @@ def _run_auto_performance_for_rabbit(rabbit_id: int) -> None:
             )
             entry.used_at = utc_now()
             db.session.delete(entry)
+            delivery_mode = "precomputed"
+        else:
+            performance = bundled_entry["payload"]
+            _queue_performance_asset(
+                rabbit,
+                performance=performance,
+                asset_name=bundled_entry["asset_name"],
+                source="auto",
+                mode="bundled",
+            )
+            delivery_mode = "bundled"
         _append_conversation_turn(
             rabbit,
             role="assistant",
@@ -1009,13 +1071,18 @@ def _run_auto_performance_for_rabbit(rabbit_id: int) -> None:
             event_type="rabbit.auto_performance.generated",
             payload={
                 **_performance_event_payload(performance),
-                "delivery": "precomputed" if entry is not None else "live",
+                "delivery": delivery_mode,
                 "remaining_precomputed": _available_precomputed_auto_performance_count(rabbit.id),
+                "bundled_available": _bundled_auto_performance_count(),
             },
         )
         rabbit.auto_performance_next_at = _compute_next_auto_performance_at(rabbit, after_utc=datetime.utcnow())
         db.session.commit()
-        if _available_precomputed_auto_performance_count(rabbit.id) < AUTO_PERFORMANCE_POOL_LOW_WATERMARK:
+        if (
+            owner is not None
+            and owner.mistral_api_key
+            and _available_precomputed_auto_performance_count(rabbit.id) < AUTO_PERFORMANCE_POOL_LOW_WATERMARK
+        ):
             _schedule_auto_performance_pool_refill(
                 current_app._get_current_object(),
                 rabbit.id,
@@ -3133,6 +3200,7 @@ def rabbit_detail(rabbit_id: int):
     home_assistant_entities: list[dict] = []
     home_assistant_error = None
     precomputed_auto_performance_count = _available_precomputed_auto_performance_count(rabbit.id)
+    bundled_auto_performance_count = _bundled_auto_performance_count()
 
     linked_device = (
         DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
@@ -3267,6 +3335,7 @@ def rabbit_detail(rabbit_id: int):
         home_assistant_entities=home_assistant_entities,
         home_assistant_error=home_assistant_error,
         precomputed_auto_performance_count=precomputed_auto_performance_count,
+        bundled_auto_performance_count=bundled_auto_performance_count,
         AUTO_PERFORMANCE_POOL_TARGET=AUTO_PERFORMANCE_POOL_TARGET,
     )
 

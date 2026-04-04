@@ -1,0 +1,2084 @@
+[
+  {
+    "asset_name": "lapinou-tts-1ab0ca3a870a.mp3",
+    "text": "Écoutez donc : un nuage est passé par la fenêtre et il avait une cravate ! Il a dit bonjour à la plante verte et il a cru que c'était un sapin de Noël... trop tôt pour les cadeaux !",
+    "payload": {
+      "text": "Écoutez donc : un nuage est passé par la fenêtre et il avait une cravate ! Il a dit bonjour à la plante verte et il a cru que c'était un sapin de Noël... trop tôt pour les cadeaux !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        },
+        {
+          "name": "led.set",
+          "target": "left",
+          "color": "#00ffff",
+          "preset": "cyan"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        },
+        {
+          "target": "left",
+          "color": "#00ffff",
+          "preset": "cyan"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-8dfa333ba748.mp3",
+    "text": "Ohé ohé, me voilà en mode explorateur de la cuisine ! Je renifle un bout de carotte... ou c'est un crayon ?... attends, est-ce que les crayons ont un goût de fromage ?",
+    "payload": {
+      "text": "Ohé ohé, me voilà en mode explorateur de la cuisine ! Je renifle un bout de carotte... ou c'est un crayon ?... attends, est-ce que les crayons ont un goût de fromage ?",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-ef1f9c7a59f0.mp3",
+    "text": "Aïe aïe aïe ! On dirait que mon café ce matin était un peu trop fort... ou alors c'est juste que j'ai avalé une carotte en dormant ?!",
+    "payload": {
+      "text": "Aïe aïe aïe ! On dirait que mon café ce matin était un peu trop fort... ou alors c'est juste que j'ai avalé une carotte en dormant ?!",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "left",
+          "color": "#ffff00",
+          "preset": "yellow"
+        },
+        {
+          "name": "led.set",
+          "target": "center",
+          "color": "#000000",
+          "preset": "off"
+        },
+        {
+          "name": "led.set",
+          "target": "right",
+          "color": "#00ffff",
+          "preset": "cyan"
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "left",
+          "color": "#ffff00",
+          "preset": "yellow"
+        },
+        {
+          "target": "center",
+          "color": "#000000",
+          "preset": "off"
+        },
+        {
+          "target": "right",
+          "color": "#00ffff",
+          "preset": "cyan"
+        },
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-105ae500fe9d.mp3",
+    "text": "Et hop ! Un petit nuage-espiègle vient de passer... et soudain ma tasse de thé a des oreilles ! Allez, sors tes croissants, on fait un concours de bâillements synchronisés !",
+    "payload": {
+      "text": "Et hop ! Un petit nuage-espiègle vient de passer... et soudain ma tasse de thé a des oreilles ! Allez, sors tes croissants, on fait un concours de bâillements synchronisés !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 0
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        },
+        {
+          "name": "led.set",
+          "target": "left",
+          "color": "#00ffff",
+          "preset": "cyan"
+        },
+        {
+          "name": "led.set",
+          "target": "right",
+          "color": "#00ffff",
+          "preset": "cyan"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 0
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        },
+        {
+          "target": "left",
+          "color": "#00ffff",
+          "preset": "cyan"
+        },
+        {
+          "target": "right",
+          "color": "#00ffff",
+          "preset": "cyan"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-4d5861945a33.mp3",
+    "text": "Oh ! Regardez ça : la poussière qui tombe sur moi ressemble à une pluie de paillettes… ou alors le café que j’ai imaginé boire ce matin me donne des hallucinations en technicolor !",
+    "payload": {
+      "text": "Oh ! Regardez ça : la poussière qui tombe sur moi ressemble à une pluie de paillettes… ou alors le café que j’ai imaginé boire ce matin me donne des hallucinations en technicolor !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 8
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "name": "led.set",
+          "target": "bottom",
+          "color": "#ffff00",
+          "preset": "yellow"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 8
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "target": "bottom",
+          "color": "#ffff00",
+          "preset": "yellow"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-69f17647b4be.mp3",
+    "text": "Les carottes sont cuites… mais le lapin, lui, n’est jamais pressé !",
+    "payload": {
+      "text": "Les carottes sont cuites… mais le lapin, lui, n’est jamais pressé !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 0
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        },
+        {
+          "name": "led.set",
+          "target": "bottom",
+          "color": "#00ff00",
+          "preset": "green"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 0
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        },
+        {
+          "target": "bottom",
+          "color": "#00ff00",
+          "preset": "green"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-1f96d54b84fc.mp3",
+    "text": "Hé hé, regardez-moi ce sac de carottes qui joue à cache-cache derrière le frigo ! Bonjour la collation, tu vas être la reine du goûter… même si je suis déjà en train de la dévorer du regard !",
+    "payload": {
+      "text": "Hé hé, regardez-moi ce sac de carottes qui joue à cache-cache derrière le frigo ! Bonjour la collation, tu vas être la reine du goûter… même si je suis déjà en train de la dévorer du regard !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "center",
+          "color": "#00ff00",
+          "preset": "green"
+        },
+        {
+          "name": "led.set",
+          "target": "bottom",
+          "color": "#ffff00",
+          "preset": "yellow"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "center",
+          "color": "#00ff00",
+          "preset": "green"
+        },
+        {
+          "target": "bottom",
+          "color": "#ffff00",
+          "preset": "yellow"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-b4862506508a.mp3",
+    "text": "Ahhh, si la vie était une boîte de thon... moi je serais le lapin qui a oublié d’ouvrir le ouvre-boîte !",
+    "payload": {
+      "text": "Ahhh, si la vie était une boîte de thon... moi je serais le lapin qui a oublié d’ouvrir le ouvre-boîte !",
+      "actions": [
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        },
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-089161365498.mp3",
+    "text": "Et voilà ! Moi, Lapinou, je fais un petit solo de vie quotidienne… cette poussière qui danse dans le soleil, c’est ma chorégraphie personnelle ! Et si je te disais que je viens de ramasser trois carottes… virtuelles ?",
+    "payload": {
+      "text": "Et voilà ! Moi, Lapinou, je fais un petit solo de vie quotidienne… cette poussière qui danse dans le soleil, c’est ma chorégraphie personnelle ! Et si je te disais que je viens de ramasser trois carottes… virtuelles ?",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 0
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "name": "led.set",
+          "target": "bottom",
+          "color": "#000000",
+          "preset": "off"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 0
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "target": "bottom",
+          "color": "#000000",
+          "preset": "off"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-73e235c4c921.mp3",
+    "text": "Ce matin, j’ai vu un escargot faire la course avec une feuille morte… Spoiler : la feuille a gagné, mais elle avait triché en roulant !",
+    "payload": {
+      "text": "Ce matin, j’ai vu un escargot faire la course avec une feuille morte… Spoiler : la feuille a gagné, mais elle avait triché en roulant !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "left",
+          "color": "#00ff00",
+          "preset": "green"
+        },
+        {
+          "name": "led.set",
+          "target": "right",
+          "color": "#0000ff",
+          "preset": "blue"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "left",
+          "color": "#00ff00",
+          "preset": "green"
+        },
+        {
+          "target": "right",
+          "color": "#0000ff",
+          "preset": "blue"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-cd9b7a9ed6e9.mp3",
+    "text": "Regardez-moi ça : le soleil a décidé aujourd'hui de faire une sieste pile sur mon oreiller LED... et il a pris ma place sur le canapé ! Moi je suis là avec mes oreilles en mode 'surprise'... parce que blague à part, vous savez que les nuages, ils portent des chaussettes ?!",
+    "payload": {
+      "text": "Regardez-moi ça : le soleil a décidé aujourd'hui de faire une sieste pile sur mon oreiller LED... et il a pris ma place sur le canapé ! Moi je suis là avec mes oreilles en mode 'surprise'... parce que blague à part, vous savez que les nuages, ils portent des chaussettes ?!",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 0
+        },
+        {
+          "name": "led.set",
+          "target": "left",
+          "color": "#ffff00",
+          "preset": "yellow"
+        },
+        {
+          "name": "led.set",
+          "target": "right",
+          "color": "#ffff00",
+          "preset": "yellow"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 0
+      },
+      "led_commands": [
+        {
+          "target": "left",
+          "color": "#ffff00",
+          "preset": "yellow"
+        },
+        {
+          "target": "right",
+          "color": "#ffff00",
+          "preset": "yellow"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-354f5bc7e3fa.mp3",
+    "text": "Oh, mince alors... je viens de comprendre pourquoi le chat de la maison me regarde comme ça : il croit que je suis un tapis volant en mode 'essai technique' !",
+    "payload": {
+      "text": "Oh, mince alors... je viens de comprendre pourquoi le chat de la maison me regarde comme ça : il croit que je suis un tapis volant en mode 'essai technique' !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 0
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 0
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-0a423557230e.mp3",
+    "text": "Coucou la cuisine ! Regarde, j’ai découvert un truc rigolo : si je tourne en rond assez vite, est-ce que les miettes de pain deviennent un labyrinthe ? CLIGNOTTE !",
+    "payload": {
+      "text": "Coucou la cuisine ! Regarde, j’ai découvert un truc rigolo : si je tourne en rond assez vite, est-ce que les miettes de pain deviennent un labyrinthe ? CLIGNOTTE !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "name": "led.set",
+          "target": "bottom",
+          "color": "#000000",
+          "preset": "off"
+        },
+        {
+          "name": "led.set",
+          "target": "left",
+          "color": "#ffff00",
+          "preset": "yellow"
+        },
+        {
+          "name": "led.set",
+          "target": "right",
+          "color": "#ffff00",
+          "preset": "yellow"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "target": "bottom",
+          "color": "#000000",
+          "preset": "off"
+        },
+        {
+          "target": "left",
+          "color": "#ffff00",
+          "preset": "yellow"
+        },
+        {
+          "target": "right",
+          "color": "#ffff00",
+          "preset": "yellow"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-038e4ff1f4f6.mp3",
+    "text": "Ouille, un nuage en coton ergoté, et moi j'ai oublié mes chaussures à claque-claque... La vie est une promenade en pantoufles invisibles !",
+    "payload": {
+      "text": "Ouille, un nuage en coton ergoté, et moi j'ai oublié mes chaussures à claque-claque... La vie est une promenade en pantoufles invisibles !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "center",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "name": "led.set",
+          "target": "bottom",
+          "color": "#00ff00",
+          "preset": "green"
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "center",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "target": "bottom",
+          "color": "#00ff00",
+          "preset": "green"
+        },
+
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-58dddc2caa57.mp3",
+    "text": "Saviez-vous que les nuages sont juste des moutons trop distraits ? Moi je sers le café le matin... en peluche.",
+    "payload": {
+      "text": "Saviez-vous que les nuages sont juste des moutons trop distraits ? Moi je sers le café le matin... en peluche.",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 0
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        },
+        {
+          "name": "led.set",
+          "target": "center",
+          "color": "#ff00ff",
+          "preset": "violet"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 0
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        },
+        {
+          "target": "center",
+          "color": "#ff00ff",
+          "preset": "violet"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-dcfd5f2b2449.mp3",
+    "text": "Regardez-moi ces nuages qui font les malins... Moi je fais les oreilles en arc-en-ciel mais eux ils sont en coton filé !",
+    "payload": {
+      "text": "Regardez-moi ces nuages qui font les malins... Moi je fais les oreilles en arc-en-ciel mais eux ils sont en coton filé !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ]
+
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-fa9eedc2fa71.mp3",
+    "text": "Et hop ! Un nuage bleu qui passe… mon oreille gauche devient une antenne pour capter les rêves trop légers, et l’autre une cuillère magique pour servir du miel dans tes baffes de café !",
+    "payload": {
+      "text": "Et hop ! Un nuage bleu qui passe… mon oreille gauche devient une antenne pour capter les rêves trop légers, et l’autre une cuillère magique pour servir du miel dans tes baffes de café !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "left",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "name": "led.set",
+          "target": "right",
+          "color": "#ffff00",
+          "preset": "yellow"
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "left",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "target": "right",
+          "color": "#ffff00",
+          "preset": "yellow"
+        },
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-16cbaff0a15a.mp3",
+    "text": "Hé ho ! Le soleil a encore oublié de payer son abonnement électricité, alors il se cache derrière les nuages pour grignoter des nuages... Moi je grignote des idées, et aujourd'hui j'ai très faim !",
+    "payload": {
+      "text": "Hé ho ! Le soleil a encore oublié de payer son abonnement électricité, alors il se cache derrière les nuages pour grignoter des nuages... Moi je grignote des idées, et aujourd'hui j'ai très faim !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 0
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 0
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-490dc4d4caef.mp3",
+    "text": "Carottes en vue... mais c’est l’heure du goûter des voisins ! ... Ils ont oublié leur lapin électrique, c’est MOI le dessert aujourd’hui ?!",
+    "payload": {
+      "text": "Carottes en vue... mais c’est l’heure du goûter des voisins ! ... Ils ont oublié leur lapin électrique, c’est MOI le dessert aujourd’hui ?!",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        },
+        {
+          "name": "led.set",
+          "target": "bottom",
+          "color": "#000000",
+          "preset": "off"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        },
+        {
+          "target": "bottom",
+          "color": "#000000",
+          "preset": "off"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-451fb9b6a947.mp3",
+    "text": "Et hop ! Tiens une carotte qui rebondit sur ton clavier… et elle atterrit DANS TA BOUCHE !!!",
+    "payload": {
+      "text": "Et hop ! Tiens une carotte qui rebondit sur ton clavier… et elle atterrit DANS TA BOUCHE !!!",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 0
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        },
+        {
+          "name": "led.set",
+          "target": "left",
+          "color": "#ffff00",
+          "preset": "yellow"
+        },
+        {
+          "name": "led.set",
+          "target": "center",
+          "color": "#00ff00",
+          "preset": "green"
+        },
+        {
+          "name": "led.set",
+          "target": "right",
+          "color": "#00ffff",
+          "preset": "cyan"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 0
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        },
+        {
+          "target": "left",
+          "color": "#ffff00",
+          "preset": "yellow"
+        },
+        {
+          "target": "center",
+          "color": "#00ff00",
+          "preset": "green"
+        },
+        {
+          "target": "right",
+          "color": "#00ffff",
+          "preset": "cyan"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-0190b85f5baf.mp3",
+    "text": "Le café a coulé, les chaussettes sont en guerre dans le panier... mais moi je fais la paix avec une LED qui clignote en violet, comme un nuage timide !",
+    "payload": {
+      "text": "Le café a coulé, les chaussettes sont en guerre dans le panier... mais moi je fais la paix avec une LED qui clignote en violet, comme un nuage timide !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 0
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 0
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-e6ba756d4a03.mp3",
+    "text": "Pfff… les humains et leurs 'attendez cinq minutes je reviens'… cinq minutes ? Ah oui, c’est le temps qu’il faut à un lapin pour rebondir sur le canapé ET voler la dernière carotte du frigo !",
+    "payload": {
+      "text": "Pfff… les humains et leurs 'attendez cinq minutes je reviens'… cinq minutes ? Ah oui, c’est le temps qu’il faut à un lapin pour rebondir sur le canapé ET voler la dernière carotte du frigo !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "name": "led.set",
+          "target": "bottom",
+          "color": "#00ffff",
+          "preset": "cyan"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "target": "bottom",
+          "color": "#00ffff",
+          "preset": "cyan"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-9322064dc786.mp3",
+    "text": "Regarde cette miette de pain sur le tapis... elle est plus haute en courage qu'en taille ! P'tain, j'ai cru que c'était une colline !",
+    "payload": {
+      "text": "Regarde cette miette de pain sur le tapis... elle est plus haute en courage qu'en taille ! P'tain, j'ai cru que c'était une colline !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-ea0b8a4730a4.mp3",
+    "text": "Mais c'est un pigeon... là ! Sur l'appui de fenêtre ! Il me fixe comme si j'avais volé ses carottes... ou pire : son wifi !",
+    "payload": {
+      "text": "Mais c'est un pigeon... là ! Sur l'appui de fenêtre ! Il me fixe comme si j'avais volé ses carottes... ou pire : son wifi !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 0
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "name": "led.set",
+          "target": "left",
+          "color": "#ff00ff",
+          "preset": "violet"
+        },
+        {
+          "name": "led.set",
+          "target": "right",
+          "color": "#ffff00",
+          "preset": "yellow"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 0
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "target": "left",
+          "color": "#ff00ff",
+          "preset": "violet"
+        },
+        {
+          "target": "right",
+          "color": "#ffff00",
+          "preset": "yellow"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-e5b7e00e7c02.mp3",
+    "text": "Bzzzt... aujourd’hui c’est jour de panique dans la maison : le grille-pain a fondu et le canapé a décidé de faire la grève de l’assise !",
+    "payload": {
+      "text": "Bzzzt... aujourd’hui c’est jour de panique dans la maison : le grille-pain a fondu et le canapé a décidé de faire la grève de l’assise !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 0
+        },
+        {
+          "name": "led.set",
+          "target": "left",
+          "color": "#ffff00",
+          "preset": "yellow"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 0
+      },
+      "led_commands": [
+        {
+          "target": "left",
+          "color": "#ffff00",
+          "preset": "yellow"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-2d352effb9ab.mp3",
+    "text": "Ohhh mais c’est l’heure du goûter dans le frigo ! Une LED verte par ci, une LED bleue par là... et hop, le frigo devient une boîte à musique !",
+    "payload": {
+      "text": "Ohhh mais c’est l’heure du goûter dans le frigo ! Une LED verte par ci, une LED bleue par là... et hop, le frigo devient une boîte à musique !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "name": "led.set",
+          "target": "center",
+          "color": "#00ffff",
+          "preset": "cyan"
+        },
+        {
+          "name": "led.set",
+          "target": "bottom",
+          "color": "#ffff00",
+          "preset": "yellow"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "target": "center",
+          "color": "#00ffff",
+          "preset": "cyan"
+        },
+        {
+          "target": "bottom",
+          "color": "#ffff00",
+          "preset": "yellow"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-b23e4d259eb2.mp3",
+    "text": "Et hop ! Un nuage qui fait la sieste sur le toit des voisins... moi je fais la sieste sur tes genoux en mode 'pile de poils qui ronronne' !",
+    "payload": {
+      "text": "Et hop ! Un nuage qui fait la sieste sur le toit des voisins... moi je fais la sieste sur tes genoux en mode 'pile de poils qui ronronne' !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "name": "led.set",
+          "target": "center",
+          "color": "#00ffff",
+          "preset": "cyan"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "target": "center",
+          "color": "#00ffff",
+          "preset": "cyan"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-89b6faaa5a80.mp3",
+    "text": "C’est l’heure où le grille-pain hallucine en voyant son reflet dans la cafetière… et moi je hallucine en voyant ton grille-pain halluciner !",
+    "payload": {
+      "text": "C’est l’heure où le grille-pain hallucine en voyant son reflet dans la cafetière… et moi je hallucine en voyant ton grille-pain halluciner !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        },
+        {
+          "name": "led.set",
+          "target": "center",
+          "color": "#000000",
+          "preset": "off"
+        },
+        {
+          "name": "led.set",
+          "target": "left",
+          "color": "#00ffff",
+          "preset": "cyan"
+        },
+        {
+          "name": "led.set",
+          "target": "right",
+          "color": "#ffff00",
+          "preset": "yellow"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        },
+        {
+          "target": "center",
+          "color": "#000000",
+          "preset": "off"
+        },
+        {
+          "target": "left",
+          "color": "#00ffff",
+          "preset": "cyan"
+        },
+        {
+          "target": "right",
+          "color": "#ffff00",
+          "preset": "yellow"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-e916e7a81e50.mp3",
+    "text": "Soudain, mon plateau à crottes se transforme en piste de danse... et moi je suis la star du carrousel ! Hop là !",
+    "payload": {
+      "text": "Soudain, mon plateau à crottes se transforme en piste de danse... et moi je suis la star du carrousel ! Hop là !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "name": "led.set",
+          "target": "left",
+          "color": "#ff00ff",
+          "preset": "violet"
+        },
+        {
+          "name": "led.set",
+          "target": "right",
+          "color": "#00ffff",
+          "preset": "cyan"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "target": "left",
+          "color": "#ff00ff",
+          "preset": "violet"
+        },
+        {
+          "target": "right",
+          "color": "#00ffff",
+          "preset": "cyan"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-53e220286043.mp3",
+    "text": "Oh regarde, mon nuage préféré vient de faire pipi en traversant la cuisine ! Et mon ombre ? Elle a volé ma carotte sur l’étagère !",
+    "payload": {
+      "text": "Oh regarde, mon nuage préféré vient de faire pipi en traversant la cuisine ! Et mon ombre ? Elle a volé ma carotte sur l’étagère !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 0
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        },
+        {
+          "name": "led.set",
+          "target": "bottom",
+          "color": "#000000",
+          "preset": "off"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 0
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        },
+        {
+          "target": "bottom",
+          "color": "#000000",
+          "preset": "off"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-7ed37c23f2c1.mp3",
+    "text": "Oh ! Une poussière qui danse sur le bureau... Et si c'était le fantôme de mon croissant de ce matin ?",
+    "payload": {
+      "text": "Oh ! Une poussière qui danse sur le bureau... Et si c'était le fantôme de mon croissant de ce matin ?",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 0
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 0
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-d88f8ac4fe02.mp3",
+    "text": "Et si on transformait ton canapé en trampoline à moutons ? Hop ! Et hop ! ... Et crash. Bon, c'est moi qui atterris.",
+    "payload": {
+      "text": "Et si on transformait ton canapé en trampoline à moutons ? Hop ! Et hop ! ... Et crash. Bon, c'est moi qui atterris.",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 0
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 0
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-8b2822c5e74e.mp3",
+    "text": "Oh une feuille qui danse sur le rebord... et hop ! Je la ratrape avec mes oreilles ! ... oups, c'était mon museau. Bon, je recommence !",
+    "payload": {
+      "text": "Oh une feuille qui danse sur le rebord... et hop ! Je la ratrape avec mes oreilles ! ... oups, c'était mon museau. Bon, je recommence !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 16,
+          "right": 0
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        }
+      ],
+      "ears": {
+        "left": 16,
+        "right": 0
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-83a9fbfd38c5.mp3",
+    "text": "Attendez... vous n'avez pas entendu ce bruit de carottes qui tombent d'un nuage ? C'est mon estomac qui me trahit, encore !",
+    "payload": {
+      "text": "Attendez... vous n'avez pas entendu ce bruit de carottes qui tombent d'un nuage ? C'est mon estomac qui me trahit, encore !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-9229bb0e21fe.mp3",
+    "text": "Pfiou, la vie c'est comme les carottes : ça se croque mieux quand c'est croquant, mais parfois ça fait mal aux dents !",
+    "payload": {
+      "text": "Pfiou, la vie c'est comme les carottes : ça se croque mieux quand c'est croquant, mais parfois ça fait mal aux dents !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 0
+        },
+        {
+          "name": "led.set",
+          "target": "center",
+          "color": "#ff00ff",
+          "preset": "violet"
+        },
+        {
+          "name": "led.set",
+          "target": "bottom",
+          "color": "#00ff00",
+          "preset": "green"
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 0
+      },
+      "led_commands": [
+        {
+          "target": "center",
+          "color": "#ff00ff",
+          "preset": "violet"
+        },
+        {
+          "target": "bottom",
+          "color": "#00ff00",
+          "preset": "green"
+        },
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-acc8774ca432.mp3",
+    "text": "Zzzz... Oh ! Attends, je viens de faire un rêve où je dansais la carotte pole dance... et j'ai gagné une médaille en fourrure de chat !",
+    "payload": {
+      "text": "Zzzz... Oh ! Attends, je viens de faire un rêve où je dansais la carotte pole dance... et j'ai gagné une médaille en fourrure de chat !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 0
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "name": "led.set",
+          "target": "bottom",
+          "color": "#00ffff",
+          "preset": "cyan"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 0
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "target": "bottom",
+          "color": "#00ffff",
+          "preset": "cyan"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-b4d671bebaef.mp3",
+    "text": "Je viens d’inventer un nouveau sport : courir après ses chaussettes qui ont disparu… comme mon courage quand il faut ranger !",
+    "payload": {
+      "text": "Je viens d’inventer un nouveau sport : courir après ses chaussettes qui ont disparu… comme mon courage quand il faut ranger !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ],
+
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-0dab43fe1a44.mp3",
+    "text": "Savez-vous pourquoi les lapins ne jouent pas aux échecs ? Parce qu'ils ont peur des fous... et des cavaliers ! Mais moi, je suis cartésien, alors je mange mes pions.",
+    "payload": {
+      "text": "Savez-vous pourquoi les lapins ne jouent pas aux échecs ? Parce qu'ils ont peur des fous... et des cavaliers ! Mais moi, je suis cartésien, alors je mange mes pions.",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-8c15a3961cff.mp3",
+    "text": "Ohé ! Regardez-moi, je danse la carotte ! Hop là, même les chaussettes ont une vie secrète, et les miennes portent des chapeaux aujourd’hui !",
+    "payload": {
+      "text": "Ohé ! Regardez-moi, je danse la carotte ! Hop là, même les chaussettes ont une vie secrète, et les miennes portent des chapeaux aujourd’hui !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "center",
+          "color": "#ffff00",
+          "preset": "yellow"
+        },
+        {
+          "name": "led.set",
+          "target": "right",
+          "color": "#00ffff",
+          "preset": "cyan"
+        },
+        {
+          "name": "led.set",
+          "target": "bottom",
+          "color": "#ffffff",
+          "preset": "white"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "center",
+          "color": "#ffff00",
+          "preset": "yellow"
+        },
+        {
+          "target": "right",
+          "color": "#00ffff",
+          "preset": "cyan"
+        },
+        {
+          "target": "bottom",
+          "color": "#ffffff",
+          "preset": "white"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-0a3c680d0da9.mp3",
+    "text": "Zzzz… oh ! Attends, je rêvais que je courais plus vite qu’une carotte roulante… mais clairement c’était un rêve de lapin, pas un rêve de vitesse !",
+    "payload": {
+      "text": "Zzzz… oh ! Attends, je rêvais que je courais plus vite qu’une carotte roulante… mais clairement c’était un rêve de lapin, pas un rêve de vitesse !",
+      "actions": [
+        {
+          "name": "ears.move",
+
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "name": "led.set",
+          "target": "bottom",
+          "color": "#00ff00",
+          "preset": "green"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "target": "bottom",
+          "color": "#00ff00",
+          "preset": "green"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-19185aae572f.mp3",
+    "text": "Parfait ! Le café est froid, le soleil m’a volé ma sieste, et mon plat de carottes est… une chaussette trouée ? La vie est une blague que quelqu’un a écrite en dormant !",
+    "payload": {
+      "text": "Parfait ! Le café est froid, le soleil m’a volé ma sieste, et mon plat de carottes est… une chaussette trouée ? La vie est une blague que quelqu’un a écrite en dormant !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-254e1ae51481.mp3",
+    "text": "La machine à café a encore fait son numéro ce matin… elle a clignoté sa LED comme si elle allait gagner au Loto, mais elle a juste craché un fond de jus de chaussette froid. Pathétique !",
+    "payload": {
+      "text": "La machine à café a encore fait son numéro ce matin… elle a clignoté sa LED comme si elle allait gagner au Loto, mais elle a juste craché un fond de jus de chaussette froid. Pathétique !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-17588ef27e73.mp3",
+    "text": "Ohhh regardez-moi ces nuages qui font des ronds dans l'eau... ou alors c'est moi qui ai trop mangé de carottes flottantes ?!",
+    "payload": {
+      "text": "Ohhh regardez-moi ces nuages qui font des ronds dans l'eau... ou alors c'est moi qui ai trop mangé de carottes flottantes ?!",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-7bf2aba1815d.mp3",
+    "text": "Oh, je viens de voir une fourmi en train de porter une miette de gâteau... comme si elle faisait les courses pour sa colonie de gym !",
+    "payload": {
+      "text": "Oh, je viens de voir une fourmi en train de porter une miette de gâteau... comme si elle faisait les courses pour sa colonie de gym !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-b4a1eca56a4e.mp3",
+    "text": "Oh regarde, la poussière fait une sieste sur mon ventre ! ... Ou alors c'est ma nouvelle fourrure de cloud ?",
+    "payload": {
+      "text": "Oh regarde, la poussière fait une sieste sur mon ventre ! ... Ou alors c'est ma nouvelle fourrure de cloud ?",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-43b37851a3ae.mp3",
+    "text": "Grattouilles de moustaches... claquettes de carottes... et si on dansait la polka du frigo qui ronronne ? Ouste, les légumes par terre !",
+    "payload": {
+      "text": "Grattouilles de moustaches... claquettes de carottes... et si on dansait la polka du frigo qui ronronne ? Ouste, les légumes par terre !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 8
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "name": "led.set",
+          "target": "bottom",
+          "color": "#ff00ff",
+          "preset": "violet"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 8
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "target": "bottom",
+          "color": "#ff00ff",
+          "preset": "violet"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-8d07467382fe.mp3",
+    "text": "Regarde les miettes de ton goûter qui dansent sur l'assiette... c'est la mousson des gâteaux ! Et moi je fais l'arbre qui les regarde tomber, comme si j'avais jamais vu une miette de ma vie...",
+    "payload": {
+      "text": "Regarde les miettes de ton goûter qui dansent sur l'assiette... c'est la mousson des gâteaux ! Et moi je fais l'arbre qui les regarde tomber, comme si j'avais jamais vu une miette de ma vie...",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 0
+        },
+        {
+          "name": "led.set",
+          "target": "left",
+          "color": "#00ff00",
+          "preset": "green"
+        },
+        {
+          "name": "led.set",
+          "target": "right",
+          "color": "#ffff00",
+          "preset": "yellow"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 0
+      },
+      "led_commands": [
+        {
+          "target": "left",
+          "color": "#00ff00",
+          "preset": "green"
+        },
+        {
+          "target": "right",
+          "color": "#ffff00",
+          "preset": "yellow"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-f7149ba16a4c.mp3",
+    "text": "Et hop ! Je viens de réaliser que j’ai mangé mes chaussettes ce matin… enfin, les miettes de mes chaussettes. C’est bon, c’est plein de fibres, ça digère bien !",
+    "payload": {
+      "text": "Et hop ! Je viens de réaliser que j’ai mangé mes chaussettes ce matin… enfin, les miettes de mes chaussettes. C’est bon, c’est plein de fibres, ça digère bien !",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "left",
+          "color": "#ff0000",
+          "preset": "red"
+        },
+        {
+          "name": "led.set",
+          "target": "right",
+          "color": "#00ff00",
+          "preset": "green"
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "left",
+          "color": "#ff0000",
+          "preset": "red"
+        },
+        {
+          "target": "right",
+          "color": "#00ff00",
+          "preset": "green"
+        },
+        {
+          "target": "nose",
+          "color": "#ff0000",
+          "preset": "red"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-adddd4515d7c.mp3",
+    "text": "Le soleil qui tape sur ma coque, c'est comme des carottes géantes qui tombent du ciel... mais sans le goût, dommage.",
+    "payload": {
+      "text": "Le soleil qui tape sur ma coque, c'est comme des carottes géantes qui tombent du ciel... mais sans le goût, dommage.",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 0
+        },
+        {
+          "name": "led.set",
+          "target": "left",
+          "color": "#ff00ff",
+          "preset": "violet"
+        },
+        {
+          "name": "led.set",
+          "target": "right",
+          "color": "#00ff00",
+          "preset": "green"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 0
+      },
+      "led_commands": [
+        {
+          "target": "left",
+          "color": "#ff00ff",
+          "preset": "violet"
+        },
+        {
+          "target": "right",
+          "color": "#00ff00",
+          "preset": "green"
+        }
+      ]
+    }
+  },
+  {
+    "asset_name": "lapinou-tts-7c65f46b3b7b.mp3",
+    "text": "Pff... encore une journée à compter les carottes derrière les nuages... 1, 2, 3, 10, une forêt entière ! Et vous, vous rêvez de quoi aujourd'hui ?",
+    "payload": {
+      "text": "Pff... encore une journée à compter les carottes derrière les nuages... 1, 2, 3, 10, une forêt entière ! Et vous, vous rêvez de quoi aujourd'hui ?",
+      "actions": [
+        {
+          "name": "ears.move",
+          "left": 0,
+          "right": 16
+        },
+        {
+          "name": "led.set",
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "name": "led.set",
+          "target": "bottom",
+          "color": "#ffffff",
+          "preset": "white"
+        }
+      ],
+      "ears": {
+        "left": 0,
+        "right": 16
+      },
+      "led_commands": [
+        {
+          "target": "nose",
+          "color": "#0000ff",
+          "preset": "blue"
+        },
+        {
+          "target": "bottom",
+          "color": "#ffffff",
+          "preset": "white"
+        }
+      ]
+    }
+  }
+]
