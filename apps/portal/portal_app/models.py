@@ -103,6 +103,12 @@ class Rabbit(db.Model):
         cascade="all, delete-orphan",
         order_by="RabbitConversationTurn.created_at.asc()",
     )
+    precomputed_performances = db.relationship(
+        "RabbitPrecomputedPerformance",
+        back_populates="rabbit",
+        cascade="all, delete-orphan",
+        order_by="RabbitPrecomputedPerformance.created_at.asc()",
+    )
 
 
 class RabbitFriendship(db.Model):
@@ -214,6 +220,18 @@ class RabbitConversationTurn(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
 
     rabbit = db.relationship("Rabbit", back_populates="conversation_turns")
+
+
+class RabbitPrecomputedPerformance(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    rabbit_id = db.Column(db.Integer, db.ForeignKey("rabbit.id"), nullable=False, index=True)
+    text = db.Column(db.Text, nullable=False)
+    payload = db.Column(db.Text, nullable=False)
+    asset_name = db.Column(db.String(255), nullable=False)
+    used_at = db.Column(db.DateTime(timezone=True))
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+
+    rabbit = db.relationship("Rabbit", back_populates="precomputed_performances")
 
 
 class Ztamp(db.Model):

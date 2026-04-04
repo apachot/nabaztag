@@ -51,6 +51,7 @@ from .models import (
     RabbitConversationTurn,
     RabbitDeviceCommand,
     RabbitEventLog,
+    RabbitPrecomputedPerformance,
     RabbitRecording,
     Ztamp,
     utc_now,
@@ -409,6 +410,9 @@ AUTO_PERFORMANCE_LOOP_SECONDS = 45
 AUTO_PERFORMANCE_CLAIM_MINUTES = 10
 AUTO_PERFORMANCE_MAX_BATCH = 3
 AUTO_PERFORMANCE_TIMEZONE = ZoneInfo("Europe/Paris")
+AUTO_PERFORMANCE_POOL_TARGET = 50
+AUTO_PERFORMANCE_POOL_LOW_WATERMARK = 10
+AUTO_PERFORMANCE_POOL_REFILL_BATCH = 5
 RABBIT_USE_CASE_SCENES = {
     "welcome": {
         "label": "Accueil",
@@ -460,6 +464,8 @@ RABBIT_USE_CASE_SCENES = {
 
 _auto_intervention_worker_lock = threading.Lock()
 _auto_intervention_worker_started = False
+_auto_performance_pool_refills_lock = threading.Lock()
+_auto_performance_pool_refills_inflight: set[int] = set()
 
 
 def _mobile_token_hash(token: str) -> str:
@@ -732,6 +738,211 @@ def _compute_next_auto_performance_at(
     return (next_local + timedelta(minutes=offset_minutes)).astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
 
 
+def _available_precomputed_auto_performance_count(rabbit_id: int) -> int:
+    return (
+        RabbitPrecomputedPerformance.query.filter_by(rabbit_id=rabbit_id)
+        .filter(RabbitPrecomputedPerformance.used_at.is_(None))
+        .count()
+    )
+
+
+def _next_precomputed_auto_performance(rabbit_id: int) -> RabbitPrecomputedPerformance | None:
+    return (
+        RabbitPrecomputedPerformance.query.filter_by(rabbit_id=rabbit_id)
+        .filter(RabbitPrecomputedPerformance.used_at.is_(None))
+        .order_by(RabbitPrecomputedPerformance.created_at.asc(), RabbitPrecomputedPerformance.id.asc())
+        .first()
+    )
+
+
+def _generate_auto_performance_payload(rabbit: Rabbit, owner) -> dict:
+    llm_model = _normalize_rabbit_llm_model(rabbit, _build_rabbit_llm_model_options())
+    return _generate_mistral_rabbit_performance(
+        api_key=owner.mistral_api_key,
+        model=llm_model,
+        rabbit_name=rabbit.name,
+        personality_prompt=rabbit.personality_prompt or DEFAULT_RABBIT_PERSONALITY_PROMPT,
+        conversation_messages=_conversation_messages_for_generation(rabbit),
+        user_prompt_override=(
+            f"Sans intervention humaine, genere maintenant pour {rabbit.name} une petite performance originale, "
+            "spontanee et divertissante. Le lapin peut faire un mini commentaire de vie quotidienne, une blague, "
+            "une observation absurde, une humeur du moment ou une fantaisie poetique. "
+            "Utilise la voix, et si utile, un langage corporel expressif avec oreilles et LEDs."
+        ),
+        home_assistant_context=_rabbit_home_assistant_action_context(rabbit),
+    )
+
+
+def _create_precomputed_auto_performance(rabbit: Rabbit, owner) -> RabbitPrecomputedPerformance:
+    performance = _generate_auto_performance_payload(rabbit, owner)
+    voice = _normalize_rabbit_tts_voice(rabbit, _build_rabbit_tts_voice_options())
+    _asset_path, asset_name = _synthesize_tts_asset(
+        api_key=owner.mistral_api_key,
+        rabbit_slug=rabbit.slug,
+        text=performance["text"],
+        voice=voice,
+    )
+    entry = RabbitPrecomputedPerformance(
+        rabbit_id=rabbit.id,
+        text=performance["text"],
+        payload=json.dumps(performance),
+        asset_name=asset_name,
+    )
+    db.session.add(entry)
+    db.session.commit()
+    return entry
+
+
+def _refill_auto_performance_pool(
+    rabbit_id: int,
+    *,
+    target_size: int = AUTO_PERFORMANCE_POOL_TARGET,
+    max_generate: int = AUTO_PERFORMANCE_POOL_REFILL_BATCH,
+) -> int:
+    rabbit = db.session.get(Rabbit, rabbit_id)
+    if rabbit is None or not rabbit.auto_performance_enabled:
+        return 0
+    owner = rabbit.owner
+    if owner is None or not owner.mistral_api_key:
+        return 0
+    available_count = _available_precomputed_auto_performance_count(rabbit.id)
+    missing_count = max(0, target_size - available_count)
+    if missing_count <= 0:
+        return 0
+    generated_count = 0
+    for _ in range(min(missing_count, max_generate)):
+        try:
+            _create_precomputed_auto_performance(rabbit, owner)
+            generated_count += 1
+        except Exception:
+            current_app.logger.exception("failed to precompute auto performance for rabbit %s", rabbit.id)
+            break
+    return generated_count
+
+
+def _auto_performance_pool_refill_worker(app, rabbit_id: int, *, target_size: int, max_generate: int) -> None:
+    try:
+        with app.app_context():
+            _refill_auto_performance_pool(
+                rabbit_id,
+                target_size=target_size,
+                max_generate=max_generate,
+            )
+    finally:
+        with _auto_performance_pool_refills_lock:
+            _auto_performance_pool_refills_inflight.discard(rabbit_id)
+
+
+def _schedule_auto_performance_pool_refill(
+    app,
+    rabbit_id: int,
+    *,
+    target_size: int = AUTO_PERFORMANCE_POOL_TARGET,
+    max_generate: int = AUTO_PERFORMANCE_POOL_REFILL_BATCH,
+) -> bool:
+    with _auto_performance_pool_refills_lock:
+        if rabbit_id in _auto_performance_pool_refills_inflight:
+            return False
+        _auto_performance_pool_refills_inflight.add(rabbit_id)
+    worker = threading.Thread(
+        target=_auto_performance_pool_refill_worker,
+        args=(app, rabbit_id),
+        kwargs={"target_size": target_size, "max_generate": max_generate},
+        name=f"rabbit-auto-pool-{rabbit_id}",
+        daemon=True,
+    )
+    worker.start()
+    return True
+
+
+def _queue_performance_asset(
+    rabbit: Rabbit,
+    *,
+    performance: dict,
+    asset_name: str,
+    source: str,
+    mode: str,
+) -> None:
+    text = performance["text"]
+
+    for action in performance.get("actions") or []:
+        if action.get("name") == "wakeup" and rabbit.remote_rabbit_id:
+            try:
+                send_remote_action(rabbit.remote_rabbit_id, "wakeup", {})
+                time.sleep(0.6)
+            except NabaztagApiError:
+                pass
+
+    left_position = performance["ears"]["left"]
+    right_position = performance["ears"]["right"]
+    if left_position is not None or right_position is not None:
+        current_left = 8
+        current_right = 8
+        if rabbit.remote_rabbit_id:
+            try:
+                remote_rabbit = fetch_remote_rabbit(rabbit.remote_rabbit_id)
+                remote_state = (remote_rabbit or {}).get("state") or {}
+                current_left = int(remote_state.get("left_ear", current_left))
+                current_right = int(remote_state.get("right_ear", current_right))
+            except (NabaztagApiError, TypeError, ValueError):
+                pass
+        _enqueue_device_command(
+            rabbit,
+            command_type="ears",
+            payload={
+                "left": left_position if left_position is not None else current_left,
+                "right": right_position if right_position is not None else current_right,
+            },
+        )
+
+    for led_command in performance["led_commands"]:
+        _enqueue_device_command(
+            rabbit,
+            command_type="led",
+            payload=led_command,
+        )
+
+    _enqueue_device_command(
+        rabbit,
+        command_type="audio",
+        payload={
+            "url": f"broadcast/ojn_local/audio/{asset_name}",
+            "source": source,
+            "filename": asset_name,
+            "text": text,
+            "mode": mode,
+        },
+    )
+
+    for action in performance.get("actions") or []:
+        action_name = action.get("name")
+        if action_name == "audio.stream":
+            _enqueue_device_command(
+                rabbit,
+                command_type="audio",
+                payload={
+                    "url": action["url"],
+                    "source": source,
+                    "mode": "stream",
+                },
+            )
+        elif action_name == "sleep" and rabbit.remote_rabbit_id:
+            try:
+                time.sleep(0.8)
+                send_remote_action(rabbit.remote_rabbit_id, "sleep", {})
+            except NabaztagApiError:
+                pass
+        elif action_name == "home_assistant.call_service" and rabbit.owner is not None:
+            try:
+                _execute_home_assistant_action(rabbit.owner, action)
+            except RuntimeError as exc:
+                current_app.logger.warning(
+                    "unable to execute Home Assistant action for rabbit %s: %s",
+                    rabbit.id,
+                    exc,
+                )
+
+
 def _claim_due_auto_performance(rabbit: Rabbit) -> bool:
     expected_next_at = rabbit.auto_performance_next_at
     claim_until = datetime.utcnow() + timedelta(minutes=AUTO_PERFORMANCE_CLAIM_MINUTES)
@@ -757,28 +968,34 @@ def _run_auto_performance_for_rabbit(rabbit_id: int) -> None:
         return
 
     try:
-        llm_model = _normalize_rabbit_llm_model(rabbit, _build_rabbit_llm_model_options())
-        performance = _generate_mistral_rabbit_performance(
-            api_key=owner.mistral_api_key,
-            model=llm_model,
-            rabbit_name=rabbit.name,
-            personality_prompt=rabbit.personality_prompt or DEFAULT_RABBIT_PERSONALITY_PROMPT,
-            conversation_messages=_conversation_messages_for_generation(rabbit),
-            user_prompt_override=(
-                f"Sans intervention humaine, genere maintenant pour {rabbit.name} une petite performance originale, "
-                "spontanee et divertissante. Le lapin peut faire un mini commentaire de vie quotidienne, une blague, "
-                "une observation absurde, une humeur du moment ou une fantaisie poetique. "
-                "Utilise la voix, et si utile, un langage corporel expressif avec oreilles et LEDs."
-            ),
-            home_assistant_context=_rabbit_home_assistant_action_context(rabbit),
-        )
-        _queue_generated_performance(
-            rabbit,
-            api_key=owner.mistral_api_key,
-            performance=performance,
-            source="auto",
-            mode="generate",
-        )
+        entry = _next_precomputed_auto_performance(rabbit.id)
+        if entry is None:
+            _refill_auto_performance_pool(
+                rabbit.id,
+                target_size=AUTO_PERFORMANCE_POOL_TARGET,
+                max_generate=AUTO_PERFORMANCE_POOL_REFILL_BATCH,
+            )
+            entry = _next_precomputed_auto_performance(rabbit.id)
+        if entry is None:
+            performance = _generate_auto_performance_payload(rabbit, owner)
+            _queue_generated_performance(
+                rabbit,
+                api_key=owner.mistral_api_key,
+                performance=performance,
+                source="auto",
+                mode="generate",
+            )
+        else:
+            performance = json.loads(entry.payload)
+            _queue_performance_asset(
+                rabbit,
+                performance=performance,
+                asset_name=entry.asset_name,
+                source="auto",
+                mode="precomputed",
+            )
+            entry.used_at = utc_now()
+            db.session.delete(entry)
         _append_conversation_turn(
             rabbit,
             role="assistant",
@@ -790,10 +1007,21 @@ def _run_auto_performance_for_rabbit(rabbit_id: int) -> None:
             rabbit,
             source="portal",
             event_type="rabbit.auto_performance.generated",
-            payload=_performance_event_payload(performance),
+            payload={
+                **_performance_event_payload(performance),
+                "delivery": "precomputed" if entry is not None else "live",
+                "remaining_precomputed": _available_precomputed_auto_performance_count(rabbit.id),
+            },
         )
         rabbit.auto_performance_next_at = _compute_next_auto_performance_at(rabbit, after_utc=datetime.utcnow())
         db.session.commit()
+        if _available_precomputed_auto_performance_count(rabbit.id) < AUTO_PERFORMANCE_POOL_LOW_WATERMARK:
+            _schedule_auto_performance_pool_refill(
+                current_app._get_current_object(),
+                rabbit.id,
+                target_size=AUTO_PERFORMANCE_POOL_TARGET,
+                max_generate=AUTO_PERFORMANCE_POOL_REFILL_BATCH,
+            )
     except Exception as exc:
         current_app.logger.exception("auto performance generation failed for rabbit %s", rabbit.id)
         _append_rabbit_event(
@@ -1299,90 +1527,19 @@ def _queue_generated_performance(
     text = performance["text"]
     voice = _normalize_rabbit_tts_voice(rabbit, _build_rabbit_tts_voice_options())
 
-    for action in performance.get("actions") or []:
-        if action.get("name") == "wakeup" and rabbit.remote_rabbit_id:
-            try:
-                send_remote_action(rabbit.remote_rabbit_id, "wakeup", {})
-                time.sleep(0.6)
-            except NabaztagApiError:
-                pass
-
     asset_path, asset_name = _synthesize_tts_asset(
         api_key=api_key,
         rabbit_slug=rabbit.slug,
         text=text,
         voice=voice,
     )
-
-    left_position = performance["ears"]["left"]
-    right_position = performance["ears"]["right"]
-    if left_position is not None or right_position is not None:
-        current_left = 8
-        current_right = 8
-        if rabbit.remote_rabbit_id:
-            try:
-                remote_rabbit = fetch_remote_rabbit(rabbit.remote_rabbit_id)
-                remote_state = (remote_rabbit or {}).get("state") or {}
-                current_left = int(remote_state.get("left_ear", current_left))
-                current_right = int(remote_state.get("right_ear", current_right))
-            except (NabaztagApiError, TypeError, ValueError):
-                pass
-        _enqueue_device_command(
-            rabbit,
-            command_type="ears",
-            payload={
-                "left": left_position if left_position is not None else current_left,
-                "right": right_position if right_position is not None else current_right,
-            },
-        )
-
-    for led_command in performance["led_commands"]:
-        _enqueue_device_command(
-            rabbit,
-            command_type="led",
-            payload=led_command,
-        )
-
-    asset_url = f"broadcast/ojn_local/audio/{asset_name}"
-    _enqueue_device_command(
+    _queue_performance_asset(
         rabbit,
-        command_type="audio",
-        payload={
-            "url": asset_url,
-            "source": source,
-            "filename": asset_path.name,
-            "text": text,
-            "mode": mode,
-        },
+        performance=performance,
+        asset_name=asset_name,
+        source=source,
+        mode=mode,
     )
-
-    for action in performance.get("actions") or []:
-        action_name = action.get("name")
-        if action_name == "audio.stream":
-            _enqueue_device_command(
-                rabbit,
-                command_type="audio",
-                payload={
-                    "url": action["url"],
-                    "source": source,
-                    "mode": "stream",
-                },
-            )
-        elif action_name == "sleep" and rabbit.remote_rabbit_id:
-            try:
-                time.sleep(0.8)
-                send_remote_action(rabbit.remote_rabbit_id, "sleep", {})
-            except NabaztagApiError:
-                pass
-        elif action_name == "home_assistant.call_service" and rabbit.owner is not None:
-            try:
-                _execute_home_assistant_action(rabbit.owner, action)
-            except RuntimeError as exc:
-                current_app.logger.warning(
-                    "unable to execute Home Assistant action for rabbit %s: %s",
-                    rabbit.id,
-                    exc,
-                )
     return asset_path, asset_name
 
 
@@ -2945,6 +3102,13 @@ def update_rabbit_auto_performance(rabbit_id: int):
         else None
     )
     db.session.commit()
+    if rabbit.auto_performance_enabled and current_user.mistral_api_key:
+        _schedule_auto_performance_pool_refill(
+            current_app._get_current_object(),
+            rabbit.id,
+            target_size=AUTO_PERFORMANCE_POOL_TARGET,
+            max_generate=AUTO_PERFORMANCE_POOL_TARGET,
+        )
     flash("Interventions aleatoires du lapin mises a jour.", "success")
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
@@ -2968,6 +3132,7 @@ def rabbit_detail(rabbit_id: int):
     available_mistral_models: list[dict] = []
     home_assistant_entities: list[dict] = []
     home_assistant_error = None
+    precomputed_auto_performance_count = _available_precomputed_auto_performance_count(rabbit.id)
 
     linked_device = (
         DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
@@ -3101,6 +3266,8 @@ def rabbit_detail(rabbit_id: int):
         home_assistant_configured=_home_assistant_is_configured(current_user),
         home_assistant_entities=home_assistant_entities,
         home_assistant_error=home_assistant_error,
+        precomputed_auto_performance_count=precomputed_auto_performance_count,
+        AUTO_PERFORMANCE_POOL_TARGET=AUTO_PERFORMANCE_POOL_TARGET,
     )
 
 

@@ -470,6 +470,12 @@
               Desactive : le lapin n'interviendra pas de lui-meme.
             {% endif %}
           </div>
+          <div class="meta">
+            Stock précalculé disponible : <span class="mono">{{ precomputed_auto_performance_count }}</span> / {{ AUTO_PERFORMANCE_POOL_TARGET }} interventions.
+          </div>
+          <div class="meta">
+            Quand les interventions aléatoires sont actives, le portail pré-génère et met en réserve leurs MP3 pour éviter un appel LLM + TTS à chaque déclenchement.
+          </div>
           <div class="actions">
             <button class="button primary" type="submit">Enregistrer les interventions</button>
           </div>
