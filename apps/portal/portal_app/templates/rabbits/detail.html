@@ -471,7 +471,8 @@
             {% endif %}
           </div>
           <div class="meta">
-            Stock précalculé disponible : <span class="mono">{{ precomputed_auto_performance_count }}</span> / {{ AUTO_PERFORMANCE_POOL_TARGET }} interventions.
+            Stock précalculé local : <span class="mono">{{ precomputed_auto_performance_count }}</span> intervention{{ "s" if precomputed_auto_performance_count != 1 else "" }} en réserve
+            (cible : {{ AUTO_PERFORMANCE_POOL_TARGET }}).
           </div>
           <div class="meta">
             Bibliothèque embarquée : <span class="mono">{{ bundled_auto_performance_count }}</span> interventions prêtes même sans token Mistral.
