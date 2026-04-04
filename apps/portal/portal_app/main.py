@@ -3354,6 +3354,232 @@ def mobile_api_rabbit_conversation(rabbit_id: int):
     )
 
 
+def _mobile_api_owned_rabbit(user, rabbit_id: int) -> Rabbit | None:
+    return Rabbit.query.filter_by(id=rabbit_id, owner_id=user.id).first()
+
+
+@main_bp.post("/mobile-api/v1/rabbits/<int:rabbit_id>/ears")
+def mobile_api_rabbit_ears(rabbit_id: int):
+    user, _token_record = _current_mobile_user()
+    if user is None:
+        return _mobile_api_unauthorized()
+    rabbit = _mobile_api_owned_rabbit(user, rabbit_id)
+    if rabbit is None:
+        return jsonify({"ok": False, "message": "Lapin introuvable."}), 404
+
+    payload = request.get_json(silent=True) or {}
+    left = payload.get("left")
+    right = payload.get("right")
+    if not isinstance(left, int) or not isinstance(right, int):
+        return jsonify({"ok": False, "message": "Positions d'oreilles invalides."}), 400
+    if not rabbit.remote_rabbit_id:
+        return jsonify({"ok": False, "message": "Ce lapin n'est pas encore synchronisé avec l'API device."}), 400
+
+    wakeup_message = None
+    if rabbit.connection_status != "online":
+        try:
+            result = send_remote_action(rabbit.remote_rabbit_id, "wakeup", {})
+            rabbit.connection_status = result.get("rabbit", {}).get("connection_status", rabbit.connection_status)
+            db.session.add(
+                RabbitEventLog(
+                    rabbit_id=rabbit.id,
+                    source="api",
+                    event_type="rabbit.ears.wakeup",
+                    payload=json.dumps({"wakeup": result}),
+                )
+            )
+            db.session.commit()
+            wakeup_message = "Réveil automatique envoyé avant la commande oreilles."
+            time.sleep(0.6)
+        except NabaztagApiError:
+            db.session.rollback()
+    _enqueue_device_command(
+        rabbit,
+        command_type="ears",
+        payload={"left": left, "right": right},
+    )
+    message = "Commande oreilles mise en file."
+    if wakeup_message:
+        message = f"{wakeup_message} {message}"
+    return jsonify({"ok": True, "message": message})
+
+
+@main_bp.post("/mobile-api/v1/rabbits/<int:rabbit_id>/led")
+def mobile_api_rabbit_led(rabbit_id: int):
+    user, _token_record = _current_mobile_user()
+    if user is None:
+        return _mobile_api_unauthorized()
+    rabbit = _mobile_api_owned_rabbit(user, rabbit_id)
+    if rabbit is None:
+        return jsonify({"ok": False, "message": "Lapin introuvable."}), 404
+
+    payload = request.get_json(silent=True) or {}
+    target = " ".join(str(payload.get("target") or "").split()).strip().lower()
+    color_preset = " ".join(str(payload.get("color_preset") or "").split()).strip().lower()
+    color = LED_COLOR_PRESETS.get(color_preset)
+    if target not in {"nose", "left", "center", "right", "bottom"} or color is None:
+        return jsonify({"ok": False, "message": "Commande LED invalide."}), 400
+    _enqueue_device_command(
+        rabbit,
+        command_type="led",
+        payload={"target": target, "color": color, "preset": color_preset},
+    )
+    return jsonify({"ok": True, "message": "Commande LED mise en file."})
+
+
+@main_bp.post("/mobile-api/v1/rabbits/<int:rabbit_id>/radio")
+def mobile_api_rabbit_radio(rabbit_id: int):
+    user, _token_record = _current_mobile_user()
+    if user is None:
+        return _mobile_api_unauthorized()
+    rabbit = _mobile_api_owned_rabbit(user, rabbit_id)
+    if rabbit is None:
+        return jsonify({"ok": False, "message": "Lapin introuvable."}), 404
+
+    payload = request.get_json(silent=True) or {}
+    stream_url = " ".join(str(payload.get("stream_url") or "").split()).strip()
+    if not stream_url:
+        return jsonify({"ok": False, "message": "URL de stream obligatoire."}), 400
+    _enqueue_device_command(
+        rabbit,
+        command_type="audio",
+        payload={"url": stream_url, "source": "radio"},
+    )
+    _append_rabbit_event(
+        rabbit,
+        source="portal",
+        event_type="rabbit.use_case.radio.queued",
+        payload={"url": stream_url},
+    )
+    db.session.commit()
+    return jsonify({"ok": True, "message": "Stream audio mis en file."})
+
+
+@main_bp.post("/mobile-api/v1/rabbits/<int:rabbit_id>/radio/stop")
+def mobile_api_rabbit_radio_stop(rabbit_id: int):
+    user, _token_record = _current_mobile_user()
+    if user is None:
+        return _mobile_api_unauthorized()
+    rabbit = _mobile_api_owned_rabbit(user, rabbit_id)
+    if rabbit is None:
+        return jsonify({"ok": False, "message": "Lapin introuvable."}), 404
+
+    filename, states = _ensure_stream_interrupt_choreography()
+    _enqueue_device_command(
+        rabbit,
+        command_type="ears",
+        payload={"left": 6, "right": 10},
+    )
+    _enqueue_device_command(
+        rabbit,
+        command_type="choreography",
+        payload={"filename": filename, "states": states, "purpose": "radio-stop"},
+    )
+    _append_rabbit_event(
+        rabbit,
+        source="portal",
+        event_type="rabbit.use_case.radio.interrupted",
+        payload={"animation": "stream-interrupt"},
+    )
+    db.session.commit()
+    return jsonify({"ok": True, "message": "Animation d'interruption mise en file."})
+
+
+@main_bp.post("/mobile-api/v1/rabbits/<int:rabbit_id>/sleep")
+def mobile_api_rabbit_sleep(rabbit_id: int):
+    user, _token_record = _current_mobile_user()
+    if user is None:
+        return _mobile_api_unauthorized()
+    rabbit = _mobile_api_owned_rabbit(user, rabbit_id)
+    if rabbit is None:
+        return jsonify({"ok": False, "message": "Lapin introuvable."}), 404
+
+    linked_device = (
+        DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(DeviceObservation.last_seen_at.desc())
+        .first()
+    )
+    remote_id = _sync_remote_rabbit(
+        rabbit,
+        linked_serial=linked_device.serial if linked_device else None,
+    )
+    if not remote_id:
+        return jsonify({"ok": False, "message": "Ce lapin n'est pas encore enregistré dans l'API device."}), 400
+    try:
+        _enqueue_device_command(
+            rabbit,
+            command_type="audio",
+            payload={
+                "url": "broadcast/ojn_local/audio/sleep-chime.mp3",
+                "source": "sleep",
+                "filename": "sleep-chime.mp3",
+                "text": None,
+                "mode": "sleep",
+            },
+        )
+        time.sleep(0.8)
+        result = send_remote_action(remote_id, "sleep", {})
+        rabbit.connection_status = result.get("rabbit", {}).get("connection_status", rabbit.connection_status)
+        db.session.add(
+            RabbitEventLog(
+                rabbit_id=rabbit.id,
+                source="api",
+                event_type="rabbit.sleep.sequence",
+                payload=json.dumps({"audio": "sleep-chime.mp3", "sleep": result}),
+            )
+        )
+        db.session.commit()
+    except NabaztagApiError as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 400
+    return jsonify({"ok": True, "message": "Mise en sommeil envoyée."})
+
+
+@main_bp.post("/mobile-api/v1/rabbits/<int:rabbit_id>/wakeup")
+def mobile_api_rabbit_wakeup(rabbit_id: int):
+    user, _token_record = _current_mobile_user()
+    if user is None:
+        return _mobile_api_unauthorized()
+    rabbit = _mobile_api_owned_rabbit(user, rabbit_id)
+    if rabbit is None:
+        return jsonify({"ok": False, "message": "Lapin introuvable."}), 404
+    if not user.mistral_api_key:
+        return jsonify({"ok": False, "message": "Ajoute d'abord ton token Mistral dans Mon compte."}), 400
+
+    linked_device = (
+        DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(DeviceObservation.last_seen_at.desc())
+        .first()
+    )
+    remote_id = _sync_remote_rabbit(
+        rabbit,
+        linked_serial=linked_device.serial if linked_device else None,
+    )
+    if not remote_id:
+        return jsonify({"ok": False, "message": "Ce lapin n'est pas encore enregistré dans l'API device."}), 400
+    try:
+        result = send_remote_action(remote_id, "wakeup", {})
+        rabbit.connection_status = result.get("rabbit", {}).get("connection_status", rabbit.connection_status)
+        payload = _queue_sleep_or_wakeup_sequence(
+            rabbit,
+            api_key=user.mistral_api_key,
+            action="wakeup",
+        )
+        db.session.add(
+            RabbitEventLog(
+                rabbit_id=rabbit.id,
+                source="api",
+                event_type="rabbit.wakeup.sequence",
+                payload=json.dumps({"wakeup": result, **payload}),
+            )
+        )
+        db.session.commit()
+    except NabaztagApiError as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 400
+    except RuntimeError as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 400
+    return jsonify({"ok": True, "message": "Réveil envoyé."})
+
+
 @main_bp.post("/rabbits/<int:rabbit_id>/prompt")
 @login_required
 def update_rabbit_prompt(rabbit_id: int):

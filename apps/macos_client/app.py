@@ -31,6 +31,12 @@ class BridgeApp:
         self.rabbit_status_var = tk.StringVar(value="Compagnon non appairé.")
         self.selected_rabbit_id: int | None = None
         self.rabbits_by_name: dict[str, dict] = {}
+        self.ear_left_var = tk.IntVar(value=4)
+        self.ear_right_var = tk.IntVar(value=12)
+        self.led_target_var = tk.StringVar(value="nose")
+        self.led_color_var = tk.StringVar(value="blue")
+        self.radio_url_var = tk.StringVar(value="http://live02.rfi.fr/rfimonde-64.mp3")
+        self.radio_preset_var = tk.StringVar(value="RFI Monde")
 
         self.log_queue: queue.Queue[str] = queue.Queue()
         self.run_thread: threading.Thread | None = None
@@ -108,6 +114,68 @@ class BridgeApp:
         self.message_text = scrolledtext.ScrolledText(talk_frame, wrap=tk.WORD, height=8)
         self.message_text.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
         ttk.Button(talk_frame, text="Envoyer au lapin", command=self.send_message_to_rabbit).pack(anchor=tk.E, padx=8, pady=(0, 8))
+
+        control_frame = ttk.LabelFrame(companion_tab, text="Pilotage direct")
+        control_frame.pack(fill=tk.X, pady=(12, 0))
+
+        ears_frame = ttk.Frame(control_frame)
+        ears_frame.pack(fill=tk.X, padx=8, pady=(8, 6))
+        ttk.Label(ears_frame, text="Oreille gauche").grid(row=0, column=0, sticky="w")
+        ttk.Spinbox(ears_frame, from_=0, to=16, textvariable=self.ear_left_var, width=6).grid(row=0, column=1, padx=(8, 16))
+        ttk.Label(ears_frame, text="Oreille droite").grid(row=0, column=2, sticky="w")
+        ttk.Spinbox(ears_frame, from_=0, to=16, textvariable=self.ear_right_var, width=6).grid(row=0, column=3, padx=(8, 16))
+        ttk.Button(ears_frame, text="Bouger les oreilles", command=self.move_rabbit_ears).grid(row=0, column=4, sticky="e")
+
+        led_frame = ttk.Frame(control_frame)
+        led_frame.pack(fill=tk.X, padx=8, pady=6)
+        ttk.Label(led_frame, text="LED").grid(row=0, column=0, sticky="w")
+        ttk.Combobox(
+            led_frame,
+            state="readonly",
+            textvariable=self.led_target_var,
+            values=("nose", "left", "center", "right", "bottom"),
+            width=10,
+        ).grid(row=0, column=1, padx=(8, 16))
+        ttk.Label(led_frame, text="Couleur").grid(row=0, column=2, sticky="w")
+        ttk.Combobox(
+            led_frame,
+            state="readonly",
+            textvariable=self.led_color_var,
+            values=("red", "green", "blue", "cyan", "violet", "yellow", "white"),
+            width=10,
+        ).grid(row=0, column=3, padx=(8, 16))
+        ttk.Button(led_frame, text="Allumer la LED", command=self.set_rabbit_led).grid(row=0, column=4, sticky="e")
+
+        radio_frame = ttk.Frame(control_frame)
+        radio_frame.pack(fill=tk.X, padx=8, pady=6)
+        ttk.Label(radio_frame, text="Radio").grid(row=0, column=0, sticky="w")
+        radio_presets = {
+            "RFI Monde": "http://live02.rfi.fr/rfimonde-64.mp3",
+            "Radio Swiss Jazz": "https://stream.srg-ssr.ch/srgssr/rsj/mp3/128",
+            "SomaFM Groove Salad": "https://ice2.somafm.com/groovesalad-128-mp3",
+            "SomaFM Drone Zone": "https://ice2.somafm.com/dronezone-128-mp3",
+        }
+        preset_combo = ttk.Combobox(
+            radio_frame,
+            state="readonly",
+            textvariable=self.radio_preset_var,
+            values=tuple(radio_presets.keys()),
+            width=22,
+        )
+        preset_combo.grid(row=0, column=1, padx=(8, 12))
+        preset_combo.bind(
+            "<<ComboboxSelected>>",
+            lambda _event=None: self.radio_url_var.set(radio_presets.get(self.radio_preset_var.get(), "")),
+        )
+        ttk.Entry(radio_frame, textvariable=self.radio_url_var).grid(row=0, column=2, sticky="ew")
+        ttk.Button(radio_frame, text="Lancer", command=self.start_rabbit_radio).grid(row=0, column=3, padx=(12, 0))
+        ttk.Button(radio_frame, text="Stop", command=self.stop_rabbit_radio).grid(row=0, column=4, padx=(8, 0))
+        radio_frame.columnconfigure(2, weight=1)
+
+        power_frame = ttk.Frame(control_frame)
+        power_frame.pack(fill=tk.X, padx=8, pady=(6, 8))
+        ttk.Button(power_frame, text="Dormir", command=self.put_rabbit_to_sleep).pack(side=tk.LEFT)
+        ttk.Button(power_frame, text="Réveiller", command=self.wake_rabbit).pack(side=tk.LEFT, padx=(8, 0))
 
         log_frame = ttk.LabelFrame(container, text="Journal")
         log_frame.pack(fill=tk.BOTH, expand=True)
@@ -264,12 +332,8 @@ class BridgeApp:
         self.selected_rabbit_id = int(rabbit_id) if isinstance(rabbit_id, int) else None
 
     def send_message_to_rabbit(self) -> None:
-        portal, token = self._companion_token()
+        portal, token = self._require_companion_context()
         if not portal or not token:
-            messagebox.showerror("Nabaztag Bridge", "Appaire d'abord le compagnon.")
-            return
-        if self.selected_rabbit_id is None:
-            messagebox.showerror("Nabaztag Bridge", "Choisis un lapin.")
             return
         message = " ".join(self.message_text.get("1.0", tk.END).split()).strip()
         if not message:
@@ -292,6 +356,89 @@ class BridgeApp:
             self.root.after(0, lambda: self.message_text.delete("1.0", tk.END))
 
         self._run_in_thread(do_send, on_error="Impossible d'envoyer le message au lapin.")
+
+    def _require_companion_context(self) -> tuple[str, str]:
+        portal, token = self._companion_token()
+        if not portal or not token:
+            messagebox.showerror("Nabaztag Bridge", "Appaire d'abord le compagnon.")
+            return "", ""
+        if self.selected_rabbit_id is None:
+            messagebox.showerror("Nabaztag Bridge", "Choisis un lapin.")
+            return "", ""
+        return portal, token
+
+    def _invoke_rabbit_api(self, path: str, payload: dict, *, success_message: str, error_message: str) -> None:
+        portal, token = self._require_companion_context()
+        if not portal or not token:
+            return
+
+        def do_invoke() -> None:
+            response = bridge_agent.http_json(
+                url=f"{portal}{path}",
+                method="POST",
+                token=token,
+                payload=payload,
+            )
+            if not response.get("ok"):
+                raise RuntimeError(response.get("message") or error_message)
+            detail = " ".join(str(response.get("message") or "").split()).strip()
+            self.log_queue.put(success_message)
+            if detail:
+                self.log_queue.put(detail)
+
+        self._run_in_thread(do_invoke, on_error=error_message)
+
+    def move_rabbit_ears(self) -> None:
+        self._invoke_rabbit_api(
+            f"/mobile-api/v1/rabbits/{self.selected_rabbit_id}/ears",
+            {"left": int(self.ear_left_var.get()), "right": int(self.ear_right_var.get())},
+            success_message="Commande oreilles envoyée.",
+            error_message="Impossible de bouger les oreilles.",
+        )
+
+    def set_rabbit_led(self) -> None:
+        self._invoke_rabbit_api(
+            f"/mobile-api/v1/rabbits/{self.selected_rabbit_id}/led",
+            {"target": self.led_target_var.get().strip(), "color_preset": self.led_color_var.get().strip()},
+            success_message="Commande LED envoyée.",
+            error_message="Impossible d'allumer la LED.",
+        )
+
+    def start_rabbit_radio(self) -> None:
+        stream_url = " ".join(self.radio_url_var.get().split()).strip()
+        if not stream_url:
+            messagebox.showerror("Nabaztag Bridge", "Saisis une URL de radio.")
+            return
+        self._invoke_rabbit_api(
+            f"/mobile-api/v1/rabbits/{self.selected_rabbit_id}/radio",
+            {"stream_url": stream_url},
+            success_message="Stream radio envoyé.",
+            error_message="Impossible de lancer la radio.",
+        )
+
+    def stop_rabbit_radio(self) -> None:
+        self._invoke_rabbit_api(
+            f"/mobile-api/v1/rabbits/{self.selected_rabbit_id}/radio/stop",
+            {},
+            success_message="Interruption radio envoyée.",
+            error_message="Impossible d'interrompre le stream.",
+        )
+
+    def put_rabbit_to_sleep(self) -> None:
+        self._invoke_rabbit_api(
+            f"/mobile-api/v1/rabbits/{self.selected_rabbit_id}/sleep",
+            {},
+            success_message="Mise en sommeil envoyée.",
+            error_message="Impossible d'endormir le lapin.",
+        )
+
+    def wake_rabbit(self) -> None:
+        self._invoke_rabbit_api(
+            f"/mobile-api/v1/rabbits/{self.selected_rabbit_id}/wakeup",
+            {},
+            success_message="Réveil envoyé.",
+            error_message="Impossible de réveiller le lapin.",
+        )
 
     def refresh_status(self) -> None:
         config = bridge_agent.load_config()

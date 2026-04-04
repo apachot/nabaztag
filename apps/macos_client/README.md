@@ -8,6 +8,7 @@ Client macOS minimal pour:
 - appairer un compagnon macOS
 - récupérer la liste des lapins
 - parler à un lapin depuis le bureau
+- piloter un lapin directement depuis le bureau
 
 Le client est volontairement léger et réutilise le protocole du bridge local déjà présent dans le portail.
 
@@ -38,9 +39,9 @@ L'app générée se trouve ensuite dans `dist/`.
 - appairage compagnon via le code mobile du portail
 - affichage des lapins du compte
 - envoi d'un message texte à un lapin
+- pilotage direct des oreilles, LEDs, radio et sommeil/réveil
 
 ## Limites
 
-- pas encore de pilotage graphique complet des oreilles, LEDs ou radios
 - pas encore de packaging `.dmg`
 - pas encore de login utilisateur dédié dans l'app
