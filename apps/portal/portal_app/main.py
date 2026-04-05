@@ -3861,6 +3861,7 @@ def rabbit_detail(rabbit_id: int):
         .order_by(DeviceObservation.last_seen_at.desc())
         .first()
     )
+    rabbit.connection_status = _effective_rabbit_connection_status(rabbit, linked_device=linked_device)
 
     if rabbit.remote_rabbit_id:
         try:
@@ -4176,7 +4177,7 @@ def rabbit_live_summary(rabbit_id: int):
 
     remote_state = None
     remote_error = None
-    connection_status = rabbit.connection_status
+    connection_status = _effective_rabbit_connection_status(rabbit, linked_device=linked_device)
 
     if rabbit.remote_rabbit_id:
         try:
@@ -4202,6 +4203,7 @@ def rabbit_live_summary(rabbit_id: int):
         {
             "rabbit": {
                 "connection_status": connection_status,
+                "connection_label": "Connecté" if connection_status == "online" else "Non connecté",
                 "target": f"{rabbit.target_host}:{rabbit.target_port}" if rabbit.target_host else None,
             },
             "linked_device": {
