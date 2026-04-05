@@ -64,6 +64,7 @@ class NabaztagMacApp:
         self.rabbit_pairing_combo: ttk.Combobox | None = None
         self.message_text: scrolledtext.ScrolledText | None = None
         self.log_widget: scrolledtext.ScrolledText | None = None
+        self.setup_mode_photo: tk.PhotoImage | None = None
 
         self._build_ui()
         self._load_existing_config()
@@ -121,6 +122,23 @@ class NabaztagMacApp:
             ),
             wraplength=700,
         ).pack(anchor=tk.W, padx=12, pady=(12, 8))
+
+        illustration_path = provisioning_support.setup_mode_image_path()
+        if illustration_path.exists():
+            try:
+                self.setup_mode_photo = tk.PhotoImage(file=str(illustration_path)).subsample(4, 4)
+                ttk.Label(
+                    provisioning_frame,
+                    image=self.setup_mode_photo,
+                    text="Maintenir le bouton pendant le branchement",
+                    compound="top",
+                ).pack(anchor=tk.CENTER, padx=12, pady=(0, 10))
+            except tk.TclError:
+                ttk.Label(
+                    provisioning_frame,
+                    text="Maintenir le bouton du Nabaztag appuyé pendant que tu le branches.",
+                    wraplength=700,
+                ).pack(anchor=tk.W, padx=12, pady=(0, 10))
 
         provisioning_form = ttk.Frame(provisioning_frame)
         provisioning_form.pack(fill=tk.X, padx=12, pady=(0, 8))

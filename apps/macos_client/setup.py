@@ -2,7 +2,7 @@ from setuptools import setup
 
 
 APP = ["app.py"]
-DATA_FILES = []
+DATA_FILES = [("assets", ["assets/setup-mode-button-hold.png"])]
 OPTIONS = {
     "argv_emulation": False,
     "includes": ["client_support", "provisioning_support"],

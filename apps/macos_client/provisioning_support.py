@@ -3,9 +3,11 @@ from __future__ import annotations
 import html
 import re
 import subprocess
+import sys
 import webbrowser
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
+from pathlib import Path
 from http.cookiejar import CookieJar
 from urllib import parse as urllib_parse
 from urllib import request as urllib_request
@@ -394,3 +396,10 @@ def configure_bootstrap_host(
 def open_bootstrap_page(host: str = "192.168.0.1") -> bool:
     url = f"http://{host.strip().rstrip('/')}/"
     return bool(webbrowser.open(url))
+
+
+def setup_mode_image_path() -> Path:
+    if getattr(sys, "frozen", False):
+        resources_dir = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent.parent / "Resources"))
+        return resources_dir / "assets" / "setup-mode-button-hold.png"
+    return Path(__file__).resolve().parent / "assets" / "setup-mode-button-hold.png"

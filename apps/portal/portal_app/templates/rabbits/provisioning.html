@@ -76,6 +76,16 @@
       margin-bottom: 6px;
     }
 
+    .assistant-shot {
+      display: block;
+      width: 100%;
+      max-width: 760px;
+      height: auto;
+      border: 1px solid rgba(24, 23, 21, 0.08);
+      box-shadow: var(--shadow);
+      background: white;
+    }
+
     .rabbit-visual {
       position: relative;
       width: 180px;
@@ -235,15 +245,7 @@
           <h2>Démarrer le lapin en mode paramétrage</h2>
           <p>Maintiens le bouton du Nabaztag appuyé pendant que tu le branches.</p>
           <div class="assistant-visual">
-            <div>
-              <strong>Maintenir le bouton pendant le branchement</strong>
-              <div class="rabbit-visual">
-                <div class="ear left"></div>
-                <div class="ear right"></div>
-                <div class="head"></div>
-                <div class="button"></div>
-              </div>
-            </div>
+            <img class="assistant-shot" src="{{ url_for('static', filename='setup-mode-button-hold.png') }}" alt="Illustration du bouton du Nabaztag maintenu pendant le branchement">
           </div>
         </div>
       </article>
