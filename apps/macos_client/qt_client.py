@@ -140,8 +140,8 @@ class ProvisioningWorker(QThread):
                 self.finished_ok.emit({"interface": interface, "ssid": ssid or "", "password": password or ""})
                 return
             if self.action == "scan_setup_networks":
-                interface, networks = provisioning_support.scan_nearby_setup_networks()
-                self.finished_ok.emit({"interface": interface or "", "networks": networks})
+                interface, networks, message = provisioning_support.scan_nearby_setup_networks()
+                self.finished_ok.emit({"interface": interface or "", "networks": networks, "message": message or ""})
                 return
             if self.action == "probe":
                 result = provisioning_support.probe_bootstrap_host(str(self.payload.get("host") or "192.168.0.1"))
@@ -552,6 +552,7 @@ class MainWindow(QMainWindow):
     def _on_scan_setup_networks_success(self, result: dict) -> None:
         interface = str(result.get("interface") or "").strip()
         networks = [str(item).strip() for item in result.get("networks") or [] if str(item).strip()]
+        diagnostic = " ".join(str(result.get("message") or "").split()).strip()
         self.provisioning_view.set_detected_setup_networks(networks)
         if networks:
             self.provisioning_view.detected_setup_list.setCurrentRow(0)
@@ -561,7 +562,8 @@ class MainWindow(QMainWindow):
             )
         else:
             self.provisioning_view.status_label.setText(
-                "Aucun réseau Nabaztag détecté à proximité. Mets le lapin en mode configuration puis relance la recherche."
+                diagnostic
+                or "Aucun réseau Nabaztag détecté à proximité. Mets le lapin en mode configuration puis relance la recherche."
             )
 
     def _on_provisioning_failed(self, message: str) -> None:

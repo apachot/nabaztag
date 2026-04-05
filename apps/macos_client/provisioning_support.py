@@ -12,6 +12,11 @@ from http.cookiejar import CookieJar
 from urllib import parse as urllib_parse
 from urllib import request as urllib_request
 
+try:
+    import CoreLocation  # type: ignore
+except Exception:  # pragma: no cover - optional on some environments
+    CoreLocation = None
+
 
 def normalize_portal_base(portal: str) -> str:
     normalized = portal.strip().rstrip("/")
@@ -80,12 +85,29 @@ def read_wifi_password(ssid: str) -> str | None:
     return password or None
 
 
-def scan_nearby_setup_networks() -> tuple[str | None, list[str]]:
+def location_authorization_status() -> str:
+    if CoreLocation is None:
+        return "unavailable"
+    try:
+        status = int(CoreLocation.CLLocationManager.authorizationStatus())
+    except Exception:
+        return "unavailable"
+    mapping = {
+        0: "not_determined",
+        1: "restricted",
+        2: "denied",
+        3: "authorized_always",
+        4: "authorized_when_in_use",
+    }
+    return mapping.get(status, f"unknown:{status}")
+
+
+def scan_nearby_setup_networks() -> tuple[str | None, list[str], str | None]:
     airport_path = Path(
         "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport"
     )
     if not airport_path.exists():
-        return None, []
+        return None, [], "Outil de scan Wi-Fi indisponible sur ce Mac."
     result = subprocess.run(
         [str(airport_path), "-s"],
         capture_output=True,
@@ -94,19 +116,43 @@ def scan_nearby_setup_networks() -> tuple[str | None, list[str]]:
     )
     output = f"{result.stdout or ''}\n{result.stderr or ''}".strip()
     if result.returncode != 0 and not output:
-        return None, []
+        return None, [], "Le scan Wi-Fi macOS n'a renvoyé aucun résultat."
 
     networks: list[str] = []
     for line in (result.stdout or "").splitlines():
         stripped = line.strip()
-        if not stripped or stripped.startswith("SSID "):
+        lowered = stripped.lower()
+        if (
+            not stripped
+            or stripped.startswith("SSID ")
+            or lowered.startswith("warning:")
+            or "wireless diagnostics" in lowered
+        ):
             continue
         match = re.match(r"^(Nabaztag[^\s]*)\s{2,}", stripped, re.IGNORECASE)
         if match:
             ssid = " ".join(match.group(1).split()).strip()
             if ssid and ssid not in networks:
                 networks.append(ssid)
-    return detect_wifi_interface(), networks
+
+    interface, current_ssid = current_wifi_ssid()
+    if current_ssid and current_ssid.lower().startswith("nabaztag") and current_ssid not in networks:
+        networks.insert(0, current_ssid)
+
+    if networks:
+        return interface, networks, None
+
+    auth_status = location_authorization_status()
+    if auth_status in {"not_determined", "restricted", "denied"}:
+        return (
+            interface,
+            [],
+            "Le scan Wi-Fi macOS semble bloqué par l'autorisation de localisation. "
+            "Autorise Terminal/Python dans Réglages Système > Confidentialité et sécurité > Service de localisation.",
+        )
+    if not interface:
+        return None, [], "Aucune interface Wi-Fi active n'a été détectée sur ce Mac."
+    return interface, [], "Aucun réseau Nabaztag détecté à proximité."
 
 
 @dataclass

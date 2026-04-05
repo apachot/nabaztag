@@ -94,6 +94,7 @@ Il couvre déjà :
 - reconnexion automatique via le token stocké
 - affichage direct de l'assistant `Connectez votre lapin` si aucun lapin n'est rattaché
 - recherche des réseaux `Nabaztag...` à proximité pour repérer les lapins en mode configuration
+- message de diagnostic si macOS bloque le scan Wi‑Fi localisation / interface inactive
 - sélection d'un lapin détecté puis bouton `Rattacher ce lapin`
 - liste des lapins si le compte en possède déjà
 - envoi d'un message texte
