@@ -76,6 +76,18 @@
         <div class="meta">Aucun code d'appairage application actif pour l’instant.</div>
       {% endif %}
     </article>
+
+    <article class="panel stack">
+      <div>
+        <h2 style="margin-bottom: 8px;">Application macOS</h2>
+        <div class="meta">
+          Télécharge l’application macOS pour te connecter à ton compte, voir tes lapins et leur parler depuis ton bureau.
+        </div>
+      </div>
+      <div class="actions">
+        <a class="button primary" href="{{ url_for('static', filename='downloads/nabaztag-macos-client.dmg') }}">Télécharger le .dmg</a>
+      </div>
+    </article>
   </section>
   {% if mobile_pairing and mobile_pairing_url %}
     <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>

@@ -1,18 +1,11 @@
 from __future__ import annotations
 
 import queue
-import sys
 import threading
 import tkinter as tk
-from pathlib import Path
 from tkinter import messagebox, scrolledtext, ttk
 
-
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-from apps.local_bridge import bridge_agent
+import client_support
 
 
 RADIO_PRESETS = {
@@ -237,7 +230,7 @@ class NabaztagMacApp:
             return
 
     def _load_existing_config(self) -> None:
-        config = bridge_agent.load_config()
+        config = client_support.load_config()
         if not config:
             self._show_auth_view()
             return
@@ -265,8 +258,8 @@ class NabaztagMacApp:
         threading.Thread(target=target, daemon=True).start()
 
     def _companion_token(self) -> tuple[str, str]:
-        config = bridge_agent.load_config()
-        portal = bridge_agent.normalize_portal_base(str(config.get("portal") or self.portal_var.get() or ""))
+        config = client_support.load_config()
+        portal = client_support.normalize_portal_base(str(config.get("portal") or self.portal_var.get() or ""))
         companion = config.get("companion") if isinstance(config.get("companion"), dict) else {}
         token = str(companion.get("api_token") or "").strip()
         return portal, token
@@ -282,17 +275,17 @@ class NabaztagMacApp:
         self.status_var.set("Connexion en cours…")
 
         def do_login() -> None:
-            response = bridge_agent.http_json(
-                url=f"{bridge_agent.normalize_portal_base(portal)}/mobile-api/v1/session/login",
+            response = client_support.http_json(
+                url=f"{client_support.normalize_portal_base(portal)}/mobile-api/v1/session/login",
                 method="POST",
                 payload={"email": email, "password": password, "device_name": "Nabaztag macOS"},
             )
             if not response.get("ok"):
                 raise RuntimeError(response.get("message") or "Connexion impossible.")
-            config = bridge_agent.load_config()
-            config["portal"] = bridge_agent.normalize_portal_base(portal)
+            config = client_support.load_config()
+            config["portal"] = client_support.normalize_portal_base(portal)
             config["companion"] = {"api_token": response["api_token"], "email": email}
-            bridge_agent.save_config(config)
+            client_support.save_config(config)
             rabbit_count = len(response.get("rabbits") or []) if isinstance(response.get("rabbits"), list) else 0
             self.log_queue.put("Application macOS connectée au compte.")
             self.root.after(0, lambda: self.account_password_var.set(""))
@@ -303,10 +296,10 @@ class NabaztagMacApp:
         self._run_in_thread(do_login, on_error="Impossible de connecter l'application macOS.")
 
     def logout(self) -> None:
-        config = bridge_agent.load_config()
+        config = client_support.load_config()
         companion = config.get("companion") if isinstance(config.get("companion"), dict) else {}
         config["companion"] = {"email": str(companion.get("email") or self.account_email_var.get() or "").strip().lower()}
-        bridge_agent.save_config(config)
+        client_support.save_config(config)
         self.rabbits_by_label = {}
         self.selected_rabbit_id = None
         self.selected_rabbit_status_var.set("Aucun lapin sélectionné.")
@@ -324,7 +317,7 @@ class NabaztagMacApp:
             return
 
         def do_refresh() -> None:
-            response = bridge_agent.http_json(
+            response = client_support.http_json(
                 url=f"{portal}/mobile-api/v1/rabbits",
                 method="GET",
                 token=token,
@@ -407,14 +400,14 @@ class NabaztagMacApp:
                 return
 
     def load_rabbit_pairing_code(self) -> None:
-        portal = bridge_agent.normalize_portal_base(self.portal_var.get().strip())
+        portal = client_support.normalize_portal_base(self.portal_var.get().strip())
         pairing_token = "".join(self.rabbit_app_pairing_code_var.get().upper().split())
         if not portal or not pairing_token:
             messagebox.showerror("Nabaztag", "Saisis le portail et le code temporaire.")
             return
 
         def do_load() -> None:
-            response = bridge_agent.http_json(
+            response = client_support.http_json(
                 url=f"{portal}/mobile-api/v1/rabbit-pairing/claim",
                 method="POST",
                 payload={"pairing_token": pairing_token},
@@ -474,7 +467,7 @@ class NabaztagMacApp:
         self._run_in_thread(do_load, on_error="Impossible de charger le code d'appairage lapin.")
 
     def attach_rabbit_from_code(self) -> None:
-        portal = bridge_agent.normalize_portal_base(self.portal_var.get().strip())
+        portal = client_support.normalize_portal_base(self.portal_var.get().strip())
         pairing_token = "".join(self.rabbit_app_pairing_code_var.get().upper().split())
         label = self.rabbit_pairing_combo.get().strip() if self.rabbit_pairing_combo is not None else ""
         device = self.rabbit_pairing_devices_by_label.get(label) or {}
@@ -487,7 +480,7 @@ class NabaztagMacApp:
             return
 
         def do_attach() -> None:
-            response = bridge_agent.http_json(
+            response = client_support.http_json(
                 url=f"{portal}/mobile-api/v1/rabbit-pairing/attach",
                 method="POST",
                 payload={"pairing_token": pairing_token, "observation_id": observation_id},
@@ -538,7 +531,7 @@ class NabaztagMacApp:
         self.status_var.set("Envoi du message au lapin…")
 
         def do_send() -> None:
-            response = bridge_agent.http_json(
+            response = client_support.http_json(
                 url=f"{portal}/mobile-api/v1/rabbits/{rabbit_id}/conversation",
                 method="POST",
                 token=token,
@@ -562,7 +555,7 @@ class NabaztagMacApp:
             return
 
         def do_invoke() -> None:
-            response = bridge_agent.http_json(
+            response = client_support.http_json(
                 url=f"{portal}{path}",
                 method="POST",
                 token=token,

@@ -14,17 +14,20 @@ Client macOS minimal pour :
 python3 apps/macos_client/app.py
 ```
 
-## Construire une app macOS
+## Construire une app macOS / DMG
 
-Le dossier contient une base `py2app` pour produire une application macOS.
+Le dossier contient une base `py2app` pour produire une application macOS, puis un `.dmg`.
 
 ```bash
 cd apps/macos_client
-python3 -m pip install -e .
-python3 setup.py py2app
+./build_dmg.sh
 ```
 
-L'app générée se trouve ensuite dans `dist/`.
+L'app générée se trouve dans `dist/` et le `.dmg` final dans :
+
+```bash
+apps/portal/portal_app/static/downloads/nabaztag-macos-client.dmg
+```
 
 ## Ce que fait cette version
 
@@ -36,4 +39,4 @@ L'app générée se trouve ensuite dans `dist/`.
 
 ## Limites
 
-- pas encore de packaging `.dmg`
+- packaging macOS prévu pour une construction sur macOS

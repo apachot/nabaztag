@@ -5,12 +5,13 @@ APP = ["app.py"]
 DATA_FILES = []
 OPTIONS = {
     "argv_emulation": False,
+    "includes": ["client_support"],
     "plist": {
-        "CFBundleName": "Nabaztag Bridge",
-        "CFBundleDisplayName": "Nabaztag Bridge",
-        "CFBundleIdentifier": "org.nabaztag.bridge",
-        "CFBundleShortVersionString": "0.1.0",
-        "CFBundleVersion": "0.1.0",
+        "CFBundleName": "Nabaztag",
+        "CFBundleDisplayName": "Nabaztag",
+        "CFBundleIdentifier": "org.nabaztag.macos",
+        "CFBundleShortVersionString": "0.2.0",
+        "CFBundleVersion": "0.2.0",
     },
     "packages": [],
 }
