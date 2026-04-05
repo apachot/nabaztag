@@ -92,6 +92,7 @@ Il couvre déjà :
 
 - connexion au compte
 - reconnexion automatique via le token stocké
-- liste des lapins
-- sélection d'un lapin
+- affichage direct de l'assistant `Connectez votre lapin` si aucun lapin n'est rattaché
+- assistant local de mise en service sur `192.168.0.1`
+- liste des lapins si le compte en possède déjà
 - envoi d'un message texte
