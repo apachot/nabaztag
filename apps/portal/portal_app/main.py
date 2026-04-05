@@ -88,6 +88,8 @@ LIVE_EVENT_TYPES = {
     "rabbit.auto_performance.generated",
 }
 
+RABBIT_ONLINE_FRESHNESS_SECONDS = 180
+
 
 def _default_rabbit_name() -> str:
     next_index = Rabbit.query.filter_by(owner_id=current_user.id).count() + 1
@@ -137,6 +139,27 @@ def _recent_provisioning_candidates(*, limit: int = 8) -> tuple[DeviceObservatio
         if (device.last_path or "") == "xmpp:rabbit.button"
     ]
     return (button_candidates[0] if button_candidates else None, devices)
+
+
+def _latest_device_observation_for_rabbit(rabbit: Rabbit) -> DeviceObservation | None:
+    return (
+        DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(DeviceObservation.last_seen_at.desc())
+        .first()
+    )
+
+
+def _effective_rabbit_connection_status(
+    rabbit: Rabbit,
+    *,
+    linked_device: DeviceObservation | None = None,
+) -> str:
+    if linked_device is None:
+        linked_device = _latest_device_observation_for_rabbit(rabbit)
+    if linked_device is None or linked_device.last_seen_at is None:
+        return "offline"
+    freshness_deadline = utc_now() - timedelta(seconds=RABBIT_ONLINE_FRESHNESS_SECONDS)
+    return "online" if linked_device.last_seen_at >= freshness_deadline else "offline"
 
 
 def _serialize_device_observation(device: DeviceObservation | None) -> dict | None:
@@ -561,11 +584,7 @@ def _mobile_api_unauthorized(message: str = "Authentification mobile invalide.")
 
 
 def _rabbit_pairing_candidates_payload(rabbit: Rabbit) -> dict:
-    linked_device = (
-        DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
-        .order_by(DeviceObservation.last_seen_at.desc())
-        .first()
-    )
+    linked_device = _latest_device_observation_for_rabbit(rabbit)
     button_candidate, recent_unclaimed_devices = _recent_provisioning_candidates()
     return {
         "rabbit": _serialize_mobile_rabbit(rabbit),
@@ -703,15 +722,11 @@ def _enqueue_connector_execution_result(rabbit: Rabbit, result: dict | None, *, 
 
 
 def _serialize_mobile_rabbit(rabbit: Rabbit) -> dict:
-    linked_device = (
-        DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
-        .order_by(DeviceObservation.last_seen_at.desc())
-        .first()
-    )
+    linked_device = _latest_device_observation_for_rabbit(rabbit)
     return {
         "id": rabbit.id,
         "name": rabbit.name,
-        "status": rabbit.connection_status,
+        "status": _effective_rabbit_connection_status(rabbit, linked_device=linked_device),
         "photo_url": _absolute_url(_rabbit_photo_url(rabbit) or url_for("main.default_rabbit_photo")),
         "device_serial": linked_device.serial if linked_device else None,
         "friends": [{"id": friend.id, "name": friend.name} for friend in _friends_for_rabbit(rabbit)],
@@ -2976,6 +2991,7 @@ def dashboard():
     )
     for rabbit in rabbits:
         rabbit.photo_url = _rabbit_photo_url(rabbit) or url_for("main.default_rabbit_photo")
+        rabbit.connection_status = _effective_rabbit_connection_status(rabbit)
     return render_template("dashboard.html", rabbits=rabbits)
 
 
@@ -2987,6 +3003,7 @@ def _mobile_rabbits_for_current_user() -> list[Rabbit]:
     )
     for rabbit in rabbits:
         rabbit.photo_url = _rabbit_photo_url(rabbit) or url_for("main.default_rabbit_photo")
+        rabbit.connection_status = _effective_rabbit_connection_status(rabbit)
     return rabbits
 
 
