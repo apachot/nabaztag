@@ -3282,6 +3282,31 @@ def mobile_api_pairing_claim():
     )
 
 
+@main_bp.post("/mobile-api/v1/session/login")
+def mobile_api_session_login():
+    payload = request.get_json(silent=True) or {}
+    email = " ".join(str(payload.get("email") or "").split()).strip().lower()
+    password = str(payload.get("password") or "")
+    device_name = " ".join(str(payload.get("device_name") or "").split()).strip() or "Nabaztag macOS"
+    if not email or not password:
+        return jsonify({"ok": False, "message": "email et mot de passe obligatoires."}), 400
+
+    user = User.query.filter_by(email=email).first()
+    if user is None or not user.check_password(password):
+        return jsonify({"ok": False, "message": "Identifiants invalides."}), 401
+
+    api_token = _issue_mobile_api_token(user, label=device_name)
+    rabbits = Rabbit.query.filter_by(owner_id=user.id).order_by(Rabbit.created_at.desc()).all()
+    return jsonify(
+        {
+            "ok": True,
+            "api_token": api_token,
+            "user": {"email": user.email},
+            "rabbits": [_serialize_mobile_rabbit(rabbit) for rabbit in rabbits],
+        }
+    )
+
+
 @main_bp.post("/mobile-api/v1/rabbit-pairing/claim")
 def mobile_api_rabbit_pairing_claim():
     payload = request.get_json(silent=True) or {}

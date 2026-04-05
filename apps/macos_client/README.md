@@ -5,8 +5,7 @@ Client macOS minimal pour:
 - appairer un `bridge local`
 - lancer ou arrêter la boucle du bridge
 - visualiser l'état du bridge
-- appairer un compagnon macOS
-- appairer l'application macOS au compte
+- connecter l'application macOS au compte
 - récupérer la liste des lapins
 - parler à un lapin depuis le bureau
 - piloter un lapin directement depuis le bureau
@@ -38,8 +37,7 @@ L'app générée se trouve ensuite dans `dist/`.
 - stockage local de la config bridge
 - démarrage local de la boucle `run`
 - affichage de l'état du bridge
-- appairage compagnon via le code mobile du portail
-- appairage de l'application au compte via un code temporaire généré sur le portail
+- connexion de l'application au compte via email et mot de passe
 - affichage des lapins du compte
 - envoi d'un message texte à un lapin
 - pilotage direct des oreilles, LEDs, radio et sommeil/réveil
@@ -48,4 +46,3 @@ L'app générée se trouve ensuite dans `dist/`.
 ## Limites
 
 - pas encore de packaging `.dmg`
-- pas encore de login utilisateur dédié dans l'app
