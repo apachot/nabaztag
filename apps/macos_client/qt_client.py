@@ -294,6 +294,11 @@ class RabbitPanel(QWidget):
     def append_log(self, text: str) -> None:
         self.log_output.append(text)
 
+    def clear_selection_state(self) -> None:
+        self.rabbits_list.clearSelection()
+        self.status_label.setText("Aucun lapin sélectionné.")
+        self.message_input.clear()
+
 
 class ProvisioningView(QWidget):
     detect_wifi_requested = Signal()
@@ -511,6 +516,7 @@ class MainWindow(QMainWindow):
     def _on_refresh_success(self, response: dict) -> None:
         self.rabbits = response.get("rabbits") if isinstance(response.get("rabbits"), list) else []
         self.rabbit_panel.rabbits_list.clear()
+        self.selected_rabbit_id = None
         for rabbit in self.rabbits:
             name = str(rabbit.get("name") or "").strip() or "Lapin"
             status = str(rabbit.get("status") or "unknown").strip()
@@ -522,6 +528,7 @@ class MainWindow(QMainWindow):
             self.rabbit_panel.rabbits_list.setCurrentRow(0)
             self.rabbit_panel.append_log("Liste des lapins rafraîchie.")
         else:
+            self.rabbit_panel.clear_selection_state()
             self.provisioning_view.status_label.setText("Aucun lapin rattaché pour l'instant. Connectez votre premier lapin.")
 
     def _on_refresh_failed(self, message: str) -> None:
@@ -539,7 +546,7 @@ class MainWindow(QMainWindow):
         self.rabbits = []
         self.selected_rabbit_id = None
         self.rabbit_panel.rabbits_list.clear()
-        self.rabbit_panel.status_label.setText("Aucun lapin sélectionné.")
+        self.rabbit_panel.clear_selection_state()
         self.login_view.password_input.clear()
         self.login_view.set_status("Déconnecté. Connecte-toi pour accéder à tes lapins.")
         self.stack.setCurrentWidget(self.login_view)
@@ -688,6 +695,8 @@ class MainWindow(QMainWindow):
 
     def _on_delete_rabbit_success(self, response: dict) -> None:
         message = " ".join(str(response.get("message") or "").split()).strip() or "Lapin supprimé."
+        self.selected_rabbit_id = None
+        self.rabbit_panel.clear_selection_state()
         self.rabbit_panel.append_log(message)
         self.refresh_rabbits()
 
