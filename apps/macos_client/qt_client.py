@@ -140,6 +140,10 @@ class ProvisioningWorker(QThread):
                 password = provisioning_support.read_wifi_password(ssid or "") if ssid else None
                 self.finished_ok.emit({"interface": interface, "ssid": ssid or "", "password": password or ""})
                 return
+            if self.action == "scan_setup_networks":
+                interface, networks = provisioning_support.scan_nearby_setup_networks()
+                self.finished_ok.emit({"interface": interface or "", "networks": networks})
+                return
             if self.action == "probe":
                 result = provisioning_support.probe_bootstrap_host(str(self.payload.get("host") or "192.168.0.1"))
                 self.finished_ok.emit(result)
@@ -302,6 +306,7 @@ class RabbitPanel(QWidget):
 
 class ProvisioningView(QWidget):
     detect_wifi_requested = Signal()
+    scan_setup_networks_requested = Signal()
     probe_requested = Signal(str)
     configure_requested = Signal(dict)
     back_requested = Signal()
@@ -317,6 +322,8 @@ class ProvisioningView(QWidget):
         self.violet_platform_input.setReadOnly(True)
         self.wifi_status_label = QLabel("Wi-Fi du Mac non détecté.")
         self.status_label = QLabel("Connectez votre lapin en suivant cette procédure.")
+        self.detected_setup_list = QListWidget()
+        self.detected_setup_list.setMaximumHeight(110)
         self.wifi_status_label.setWordWrap(True)
         self.status_label.setWordWrap(True)
 
@@ -359,9 +366,16 @@ class ProvisioningView(QWidget):
         form.addRow("Violet Platform", self.violet_platform_input)
         card_layout.addLayout(form)
 
+        nearby_label = QLabel("Lapins détectés à proximité")
+        card_layout.addWidget(nearby_label)
+        card_layout.addWidget(self.detected_setup_list)
+        self.detected_setup_list.itemSelectionChanged.connect(self._apply_selected_setup_network)
+
         buttons = QHBoxLayout()
         detect_button = QPushButton("Détecter le Wi-Fi du Mac")
         detect_button.clicked.connect(self.detect_wifi_requested.emit)
+        scan_button = QPushButton("Rechercher les Nabaztag à proximité")
+        scan_button.clicked.connect(self.scan_setup_networks_requested.emit)
         probe_button = QPushButton("Tester 192.168.0.1")
         probe_button.clicked.connect(lambda: self.probe_requested.emit(self.host_input.text().strip()))
         open_button = QPushButton("Ouvrir le configurateur")
@@ -369,6 +383,7 @@ class ProvisioningView(QWidget):
         configure_button = QPushButton("Configurer le lapin")
         configure_button.clicked.connect(self._emit_configure)
         buttons.addWidget(detect_button)
+        buttons.addWidget(scan_button)
         buttons.addWidget(probe_button)
         buttons.addWidget(open_button)
         buttons.addStretch(1)
@@ -382,6 +397,16 @@ class ProvisioningView(QWidget):
 
     def set_portal(self, portal: str) -> None:
         self.violet_platform_input.setText(provisioning_support.build_violet_platform_value(portal))
+
+    def set_detected_setup_networks(self, networks: list[str]) -> None:
+        self.detected_setup_list.clear()
+        for network in networks:
+            self.detected_setup_list.addItem(network)
+
+    def _apply_selected_setup_network(self) -> None:
+        item = self.detected_setup_list.currentItem()
+        if item is not None:
+            self.setup_ssid_input.setText(item.text().strip())
 
     def _emit_configure(self) -> None:
         self.configure_requested.emit(
@@ -430,6 +455,7 @@ class MainWindow(QMainWindow):
         self.rabbit_panel.delete_requested.connect(self.delete_selected_rabbit)
         self.rabbit_panel.rabbits_list.currentItemChanged.connect(self._on_rabbit_selected)
         self.provisioning_view.detect_wifi_requested.connect(self.detect_mac_wifi)
+        self.provisioning_view.scan_setup_networks_requested.connect(self.scan_setup_networks)
         self.provisioning_view.probe_requested.connect(self.probe_local_bootstrap)
         self.provisioning_view.configure_requested.connect(self.configure_local_bootstrap)
         self.provisioning_view.back_requested.connect(self.show_rabbit_or_login_view)
@@ -570,6 +596,13 @@ class MainWindow(QMainWindow):
         self.provisioning_worker.failed.connect(self._on_provisioning_failed)
         self.provisioning_worker.start()
 
+    def scan_setup_networks(self) -> None:
+        self.provisioning_view.status_label.setText("Recherche des réseaux Nabaztag à proximité…")
+        self.provisioning_worker = ProvisioningWorker(action="scan_setup_networks")
+        self.provisioning_worker.finished_ok.connect(self._on_scan_setup_networks_success)
+        self.provisioning_worker.failed.connect(self._on_provisioning_failed)
+        self.provisioning_worker.start()
+
     def _on_detect_wifi_success(self, result: dict) -> None:
         interface = str(result.get("interface") or "").strip()
         ssid = str(result.get("ssid") or "").strip()
@@ -589,6 +622,21 @@ class MainWindow(QMainWindow):
         else:
             self.provisioning_view.wifi_status_label.setText(
                 f"Interface Wi-Fi détectée : {interface}, mais aucun SSID actif n'a été trouvé."
+            )
+
+    def _on_scan_setup_networks_success(self, result: dict) -> None:
+        interface = str(result.get("interface") or "").strip()
+        networks = [str(item).strip() for item in result.get("networks") or [] if str(item).strip()]
+        self.provisioning_view.set_detected_setup_networks(networks)
+        if networks:
+            self.provisioning_view.setup_ssid_input.setText(networks[0])
+            prefix = f"sur {interface} " if interface else ""
+            self.provisioning_view.status_label.setText(
+                f"{len(networks)} réseau(x) Nabaztag détecté(s) {prefix}à proximité."
+            )
+        else:
+            self.provisioning_view.status_label.setText(
+                "Aucun réseau Nabaztag détecté à proximité. Mets le lapin en mode configuration puis relance la recherche."
             )
 
     def probe_local_bootstrap(self, host: str) -> None:

@@ -80,6 +80,35 @@ def read_wifi_password(ssid: str) -> str | None:
     return password or None
 
 
+def scan_nearby_setup_networks() -> tuple[str | None, list[str]]:
+    airport_path = Path(
+        "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport"
+    )
+    if not airport_path.exists():
+        return None, []
+    result = subprocess.run(
+        [str(airport_path), "-s"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    output = f"{result.stdout or ''}\n{result.stderr or ''}".strip()
+    if result.returncode != 0 and not output:
+        return None, []
+
+    networks: list[str] = []
+    for line in (result.stdout or "").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("SSID "):
+            continue
+        match = re.match(r"^(Nabaztag[^\s]*)\s{2,}", stripped, re.IGNORECASE)
+        if match:
+            ssid = " ".join(match.group(1).split()).strip()
+            if ssid and ssid not in networks:
+                networks.append(ssid)
+    return detect_wifi_interface(), networks
+
+
 @dataclass
 class HtmlOption:
     value: str

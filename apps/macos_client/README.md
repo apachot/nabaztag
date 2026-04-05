@@ -94,5 +94,6 @@ Il couvre déjà :
 - reconnexion automatique via le token stocké
 - affichage direct de l'assistant `Connectez votre lapin` si aucun lapin n'est rattaché
 - assistant local de mise en service sur `192.168.0.1`
+- recherche des réseaux `Nabaztag...` à proximité pour repérer les lapins en mode configuration
 - liste des lapins si le compte en possède déjà
 - envoi d'un message texte
