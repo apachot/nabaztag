@@ -126,34 +126,17 @@ class NabaztagMacApp:
         self.password_entry = self._labeled_entry(form, 2, "Mot de passe", self.account_password_var, field_type="password")
         self.password_entry.bind("<Return>", lambda _event: self.login())
 
-        actions = tk.Frame(auth_card, bg="#fffdfa")
+        actions = ttk.Frame(auth_card)
         actions.pack(fill=tk.X, pady=(18, 10))
-        tk.Button(
+        ttk.Button(
             actions,
             text="Connexion",
             command=self.login,
-            bg="#f1e4d7",
-            fg="#243b37",
-            activebackground="#ead7c7",
-            activeforeground="#243b37",
-            relief=tk.GROOVE,
-            borderwidth=1,
-            padx=18,
-            pady=10,
-            cursor="hand2",
         ).pack(anchor=tk.CENTER)
-        tk.Button(
+        ttk.Button(
             actions,
             text="Créer un compte",
             command=self.open_account_registration,
-            bg="#fffdfa",
-            fg="#b8633e",
-            activebackground="#f7eee8",
-            activeforeground="#b8633e",
-            relief=tk.FLAT,
-            padx=12,
-            pady=8,
-            cursor="hand2",
         ).pack(anchor=tk.CENTER, pady=(8, 0))
 
         tk.Label(
@@ -356,7 +339,7 @@ class NabaztagMacApp:
         self.root.geometry("540x720")
         self.root.deiconify()
         self.root.lift()
-        self.root.after(50, self._focus_auth_form)
+        self.root.after_idle(self._focus_auth_form)
 
     def _show_app_view(self) -> None:
         if self.auth_container is not None:
