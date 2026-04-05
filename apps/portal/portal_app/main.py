@@ -3861,7 +3861,7 @@ def rabbit_detail(rabbit_id: int):
         .order_by(DeviceObservation.last_seen_at.desc())
         .first()
     )
-    rabbit.connection_status = _effective_rabbit_connection_status(rabbit, linked_device=linked_device)
+    local_connection_status = _effective_rabbit_connection_status(rabbit, linked_device=linked_device)
 
     if rabbit.remote_rabbit_id:
         try:
@@ -3871,7 +3871,6 @@ def rabbit_detail(rabbit_id: int):
                 if remote_id:
                     remote_rabbit = fetch_remote_rabbit(remote_id)
             remote_events = fetch_remote_events(rabbit.remote_rabbit_id)
-            rabbit.connection_status = remote_rabbit.get("connection_status", rabbit.connection_status)
             db.session.commit()
         except NabaztagApiError as exc:
             if exc.status_code == 404:
@@ -3883,7 +3882,6 @@ def rabbit_detail(rabbit_id: int):
                     if remote_id:
                         remote_rabbit = fetch_remote_rabbit(remote_id)
                         remote_events = fetch_remote_events(remote_id)
-                        rabbit.connection_status = remote_rabbit.get("connection_status", rabbit.connection_status)
                         db.session.commit()
                 except NabaztagApiError as sync_exc:
                     remote_error = str(sync_exc)
@@ -3955,6 +3953,7 @@ def rabbit_detail(rabbit_id: int):
     return render_template(
         "rabbits/detail.html",
         rabbit=rabbit,
+        local_connection_status=local_connection_status,
         remote_rabbit=remote_rabbit,
         remote_events=remote_events,
         remote_error=remote_error,
@@ -4189,7 +4188,6 @@ def rabbit_live_summary(rabbit_id: int):
                 "device_serial": remote_rabbit.get("device_serial"),
                 "state": remote_rabbit.get("state"),
             }
-            connection_status = remote_rabbit.get("connection_status", connection_status)
         except NabaztagApiError as exc:
             remote_error = str(exc)
 

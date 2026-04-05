@@ -58,7 +58,7 @@
         <div>
           <h1>{{ rabbit.name }}</h1>
           <div class="meta">Slug: <span class="mono">{{ rabbit.slug }}</span></div>
-          <div class="meta">Statut: <span id="rabbit-status">{{ "Connecté" if rabbit.connection_status == "online" else "Non connecté" }}</span></div>
+          <div class="meta">Statut: <span id="rabbit-status">{{ "Connecté" if local_connection_status == "online" else "Non connecté" }}</span></div>
           <div class="meta">
             Connexion device:
             <span id="rabbit-remote-connection">
