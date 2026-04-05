@@ -455,10 +455,16 @@ class NabaztagMacApp:
             self.portal_var.set(portal)
         companion = config.get("companion") if isinstance(config.get("companion"), dict) else {}
         email = str(companion.get("email") or "").strip()
+        token = str(companion.get("api_token") or "").strip()
         if email:
             self.account_email_var.set(email)
-        self.status_var.set("Connecte-toi pour accéder à tes lapins.")
         self._update_violet_platform()
+        if token:
+            self.status_var.set("Reconnexion automatique au compte…")
+            self._show_app_view()
+            self.root.after_idle(self.refresh_rabbits)
+            return
+        self.status_var.set("Connecte-toi pour accéder à tes lapins.")
         self._show_auth_view()
 
     def _run_in_thread(self, fn, *, on_error: str) -> None:
