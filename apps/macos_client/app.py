@@ -480,6 +480,7 @@ class NabaztagMacApp:
 
     def open_account_registration(self) -> None:
         if self.register_window is not None and self.register_window.winfo_exists():
+            self.register_window.deiconify()
             self.register_window.lift()
             self.register_window.focus_force()
             return
@@ -495,6 +496,7 @@ class NabaztagMacApp:
         window.configure(bg="#f4f1eb")
         window.transient(self.root)
         window.grab_set()
+        window.protocol("WM_DELETE_WINDOW", self.close_registration_window)
         self.register_window = window
 
         card = tk.Frame(
@@ -533,32 +535,15 @@ class NabaztagMacApp:
 
         actions = tk.Frame(card, bg="#fffdfa")
         actions.pack(fill=tk.X, pady=(16, 8))
-        tk.Button(
+        ttk.Button(
             actions,
             text="Créer le compte",
             command=self.submit_account_registration,
-            bg="#f1e4d7",
-            fg="#243b37",
-            activebackground="#ead7c7",
-            activeforeground="#243b37",
-            relief=tk.GROOVE,
-            borderwidth=1,
-            padx=14,
-            pady=8,
-            cursor="hand2",
         ).pack(side=tk.LEFT)
-        tk.Button(
+        ttk.Button(
             actions,
             text="Annuler",
             command=self.close_registration_window,
-            bg="#fffdfa",
-            fg="#7d776d",
-            activebackground="#f7eee8",
-            activeforeground="#7d776d",
-            relief=tk.FLAT,
-            padx=10,
-            pady=8,
-            cursor="hand2",
         ).pack(side=tk.RIGHT)
 
         tk.Label(
@@ -573,6 +558,10 @@ class NabaztagMacApp:
 
     def close_registration_window(self) -> None:
         if self.register_window is not None and self.register_window.winfo_exists():
+            try:
+                self.register_window.grab_release()
+            except tk.TclError:
+                pass
             self.register_window.destroy()
         self.register_window = None
 
