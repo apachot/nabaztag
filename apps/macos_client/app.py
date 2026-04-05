@@ -56,6 +56,9 @@ class NabaztagMacApp:
         self.log_queue: queue.Queue[str] = queue.Queue()
 
         self.auth_container: ttk.Frame | None = None
+        self.app_shell: ttk.Frame | None = None
+        self.app_canvas: tk.Canvas | None = None
+        self.app_scrollbar: ttk.Scrollbar | None = None
         self.app_container: ttk.Frame | None = None
         self.portal_entry: ttk.Entry | None = None
         self.email_entry: ttk.Entry | None = None
@@ -99,7 +102,19 @@ class NabaztagMacApp:
         status_frame.pack(fill=tk.X)
         ttk.Label(status_frame, textvariable=self.status_var, wraplength=680).pack(anchor=tk.W, padx=12, pady=12)
 
-        self.app_container = ttk.Frame(self.root, padding=16)
+        self.app_shell = ttk.Frame(self.root)
+        self.app_canvas = tk.Canvas(self.app_shell, highlightthickness=0)
+        self.app_scrollbar = ttk.Scrollbar(self.app_shell, orient=tk.VERTICAL, command=self.app_canvas.yview)
+        self.app_canvas.configure(yscrollcommand=self.app_scrollbar.set)
+        self.app_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.app_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self.app_container = ttk.Frame(self.app_canvas, padding=16)
+        self.app_canvas_window = self.app_canvas.create_window((0, 0), window=self.app_container, anchor="nw")
+        self.app_container.bind("<Configure>", self._on_app_container_configure)
+        self.app_canvas.bind("<Configure>", self._on_app_canvas_configure)
+        self.app_canvas.bind("<Enter>", self._bind_app_mousewheel)
+        self.app_canvas.bind("<Leave>", self._unbind_app_mousewheel)
 
         topbar = ttk.Frame(self.app_container)
         topbar.pack(fill=tk.X, pady=(0, 12))
@@ -269,8 +284,8 @@ class NabaztagMacApp:
         self.root.after(200, self._schedule_log_poll)
 
     def _show_auth_view(self) -> None:
-        if self.app_container is not None:
-            self.app_container.pack_forget()
+        if self.app_shell is not None:
+            self.app_shell.pack_forget()
         if self.auth_container is not None:
             self.auth_container.pack(fill=tk.BOTH, expand=True)
         self.root.deiconify()
@@ -280,10 +295,42 @@ class NabaztagMacApp:
     def _show_app_view(self) -> None:
         if self.auth_container is not None:
             self.auth_container.pack_forget()
-        if self.app_container is not None:
-            self.app_container.pack(fill=tk.BOTH, expand=True)
+        if self.app_shell is not None:
+            self.app_shell.pack(fill=tk.BOTH, expand=True)
+        if self.app_canvas is not None:
+            self.app_canvas.yview_moveto(0)
         self.root.deiconify()
         self.root.lift()
+
+    def _on_app_container_configure(self, _event=None) -> None:
+        if self.app_canvas is None:
+            return
+        self.app_canvas.configure(scrollregion=self.app_canvas.bbox("all"))
+
+    def _on_app_canvas_configure(self, event) -> None:
+        if self.app_canvas is None:
+            return
+        self.app_canvas.itemconfigure(self.app_canvas_window, width=event.width)
+
+    def _on_mousewheel(self, event) -> None:
+        if self.app_canvas is None:
+            return
+        if event.delta:
+            self.app_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        elif getattr(event, "num", None) == 4:
+            self.app_canvas.yview_scroll(-1, "units")
+        elif getattr(event, "num", None) == 5:
+            self.app_canvas.yview_scroll(1, "units")
+
+    def _bind_app_mousewheel(self, _event=None) -> None:
+        self.root.bind_all("<MouseWheel>", self._on_mousewheel)
+        self.root.bind_all("<Button-4>", self._on_mousewheel)
+        self.root.bind_all("<Button-5>", self._on_mousewheel)
+
+    def _unbind_app_mousewheel(self, _event=None) -> None:
+        self.root.unbind_all("<MouseWheel>")
+        self.root.unbind_all("<Button-4>")
+        self.root.unbind_all("<Button-5>")
 
     def _focus_auth_form(self) -> None:
         target = self.password_entry if self.account_email_var.get().strip() else self.email_entry
