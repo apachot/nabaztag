@@ -12,6 +12,9 @@ OPTIONS = {
         "CFBundleIdentifier": "org.nabaztag.macos",
         "CFBundleShortVersionString": "0.2.0",
         "CFBundleVersion": "0.2.0",
+        "NSLocationWhenInUseUsageDescription": (
+            "Nabaztag a besoin de la localisation pour détecter les réseaux Wi-Fi Nabaztag à proximité."
+        ),
     },
     "packages": [],
 }

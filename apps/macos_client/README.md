@@ -98,3 +98,9 @@ Il couvre déjà :
 - sélection d'un lapin détecté puis bouton `Rattacher ce lapin`
 - liste des lapins si le compte en possède déjà
 - envoi d'un message texte
+
+Sur macOS, le scan des réseaux Wi‑Fi visibles peut nécessiter l'autorisation de localisation.
+Le client Qt propose donc :
+
+- `Autoriser la localisation`
+- `Ouvrir Réglages Système`

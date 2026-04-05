@@ -17,6 +17,8 @@ try:
 except Exception:  # pragma: no cover - optional on some environments
     CoreLocation = None
 
+_location_manager = None
+
 
 def normalize_portal_base(portal: str) -> str:
     normalized = portal.strip().rstrip("/")
@@ -100,6 +102,32 @@ def location_authorization_status() -> str:
         4: "authorized_when_in_use",
     }
     return mapping.get(status, f"unknown:{status}")
+
+
+def request_location_authorization() -> str:
+    if CoreLocation is None:
+        return "unavailable"
+    global _location_manager
+    try:
+        if _location_manager is None:
+            _location_manager = CoreLocation.CLLocationManager.alloc().init()
+        _location_manager.requestWhenInUseAuthorization()
+    except Exception:
+        return "unavailable"
+    return location_authorization_status()
+
+
+def open_location_settings() -> bool:
+    candidates = [
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices",
+        "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_LocationServices",
+    ]
+    for candidate in candidates:
+        result = subprocess.run(["open", candidate], capture_output=True, text=True, check=False)
+        if result.returncode == 0:
+            return True
+    fallback = subprocess.run(["open", "/System/Applications/System Settings.app"], check=False)
+    return fallback.returncode == 0
 
 
 def scan_nearby_setup_networks() -> tuple[str | None, list[str], str | None]:

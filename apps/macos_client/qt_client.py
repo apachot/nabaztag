@@ -306,6 +306,8 @@ class RabbitPanel(QWidget):
 class ProvisioningView(QWidget):
     scan_setup_networks_requested = Signal()
     attach_requested = Signal(str)
+    request_location_requested = Signal()
+    open_location_settings_requested = Signal()
     back_requested = Signal()
 
     def __init__(self) -> None:
@@ -359,6 +361,16 @@ class ProvisioningView(QWidget):
         buttons.addStretch(1)
         buttons.addWidget(attach_button)
         card_layout.addLayout(buttons)
+
+        location_buttons = QHBoxLayout()
+        request_location_button = QPushButton("Autoriser la localisation")
+        request_location_button.clicked.connect(self.request_location_requested.emit)
+        open_settings_button = QPushButton("Ouvrir Réglages Système")
+        open_settings_button.clicked.connect(self.open_location_settings_requested.emit)
+        location_buttons.addWidget(request_location_button)
+        location_buttons.addWidget(open_settings_button)
+        location_buttons.addStretch(1)
+        card_layout.addLayout(location_buttons)
         card_layout.addWidget(self.status_label)
 
         root.addWidget(card)
@@ -409,6 +421,8 @@ class MainWindow(QMainWindow):
         self.rabbit_panel.rabbits_list.currentItemChanged.connect(self._on_rabbit_selected)
         self.provisioning_view.scan_setup_networks_requested.connect(self.scan_setup_networks)
         self.provisioning_view.attach_requested.connect(self.attach_detected_rabbit)
+        self.provisioning_view.request_location_requested.connect(self.request_location_authorization)
+        self.provisioning_view.open_location_settings_requested.connect(self.open_location_settings)
         self.provisioning_view.back_requested.connect(self.show_rabbit_or_login_view)
 
         self._apply_styles()
@@ -581,6 +595,27 @@ class MainWindow(QMainWindow):
             "Nabaztag",
             f"Lapin détecté : {setup_ssid}\n\nLe rattachement complet sera branché dans l'étape suivante.",
         )
+
+    def request_location_authorization(self) -> None:
+        status = provisioning_support.request_location_authorization()
+        if status == "unavailable":
+            self.provisioning_view.status_label.setText(
+                "Impossible de demander automatiquement l'autorisation de localisation sur ce Mac."
+            )
+            return
+        self.provisioning_view.status_label.setText(
+            "Demande d'autorisation envoyée à macOS. Si aucune popup n'apparaît, ouvre les Réglages Système."
+        )
+
+    def open_location_settings(self) -> None:
+        if provisioning_support.open_location_settings():
+            self.provisioning_view.status_label.setText(
+                "Réglages Système ouverts. Autorise l'application à accéder à la localisation puis relance la recherche."
+            )
+        else:
+            self.provisioning_view.status_label.setText(
+                "Impossible d'ouvrir automatiquement les Réglages Système."
+            )
 
     def _on_rabbit_selected(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None) -> None:
         rabbit = current.data(Qt.UserRole) if current is not None else {}
