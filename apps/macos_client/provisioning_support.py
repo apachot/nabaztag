@@ -398,6 +398,10 @@ def open_bootstrap_page(host: str = "192.168.0.1") -> bool:
     return bool(webbrowser.open(url))
 
 
+def open_external_url(url: str) -> bool:
+    return bool(webbrowser.open(url))
+
+
 def setup_mode_image_path() -> Path:
     if getattr(sys, "frozen", False):
         resources_dir = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent.parent / "Resources"))

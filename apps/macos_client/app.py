@@ -143,6 +143,19 @@ class NabaztagMacApp:
             pady=10,
             cursor="hand2",
         ).pack(anchor=tk.CENTER)
+        tk.Button(
+            actions,
+            text="Créer un compte",
+            command=self.open_account_registration,
+            bg="#fffdfa",
+            fg="#b8633e",
+            activebackground="#f7eee8",
+            activeforeground="#b8633e",
+            relief=tk.FLAT,
+            padx=12,
+            pady=8,
+            cursor="hand2",
+        ).pack(anchor=tk.CENTER, pady=(8, 0))
 
         tk.Label(
             auth_card,
@@ -465,6 +478,10 @@ class NabaztagMacApp:
         self.bootstrap_violet_platform_var.set(
             provisioning_support.build_violet_platform_value(self.portal_var.get())
         )
+
+    def open_account_registration(self) -> None:
+        portal = client_support.normalize_portal_base(self.portal_var.get())
+        provisioning_support.open_external_url(f"{portal}/register")
 
     def _companion_token(self) -> tuple[str, str]:
         config = client_support.load_config()
