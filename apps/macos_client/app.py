@@ -105,20 +105,13 @@ class NabaztagMacApp:
                 self.auth_logo_photo = None
         tk.Label(
             hero,
-            text="Nabaztag",
-            font=("Helvetica", 24, "bold"),
-            fg="#243b37",
-            bg="#fffdfa",
-        ).pack(anchor=tk.CENTER)
-        tk.Label(
-            hero,
             text="Identifie-toi pour retrouver immédiatement tes lapins.",
             wraplength=420,
             justify=tk.CENTER,
             fg="#7d776d",
             bg="#fffdfa",
             font=("Helvetica", 12),
-        ).pack(anchor=tk.CENTER, pady=(8, 0))
+        ).pack(anchor=tk.CENTER, pady=(4, 0))
 
         form = ttk.Frame(auth_card)
         form.pack(fill=tk.X)
