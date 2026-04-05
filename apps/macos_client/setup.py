@@ -2,7 +2,7 @@ from setuptools import setup
 
 
 APP = ["app.py"]
-DATA_FILES = [("assets", ["assets/setup-mode-button-hold.png"])]
+DATA_FILES = [("assets", ["assets/setup-mode-button-hold.png", "assets/logo-nabaztag-org.png"])]
 OPTIONS = {
     "argv_emulation": False,
     "includes": ["client_support", "provisioning_support"],

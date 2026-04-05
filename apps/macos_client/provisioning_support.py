@@ -403,3 +403,10 @@ def setup_mode_image_path() -> Path:
         resources_dir = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent.parent / "Resources"))
         return resources_dir / "assets" / "setup-mode-button-hold.png"
     return Path(__file__).resolve().parent / "assets" / "setup-mode-button-hold.png"
+
+
+def app_logo_image_path() -> Path:
+    if getattr(sys, "frozen", False):
+        resources_dir = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent.parent / "Resources"))
+        return resources_dir / "assets" / "logo-nabaztag-org.png"
+    return Path(__file__).resolve().parent / "assets" / "logo-nabaztag-org.png"

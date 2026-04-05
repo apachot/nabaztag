@@ -22,6 +22,7 @@ class NabaztagMacApp:
         self.root = root
         self.root.title("Nabaztag")
         self.root.geometry("860x760")
+        self.root.configure(bg="#f4f1eb")
 
         self.portal_var = tk.StringVar(value="https://nabaztag.org")
         self.account_email_var = tk.StringVar()
@@ -68,6 +69,7 @@ class NabaztagMacApp:
         self.message_text: scrolledtext.ScrolledText | None = None
         self.log_widget: scrolledtext.ScrolledText | None = None
         self.setup_mode_photo: tk.PhotoImage | None = None
+        self.auth_logo_photo: tk.PhotoImage | None = None
         self.provisioning_frame: ttk.LabelFrame | None = None
         self.rabbit_selection_frame: ttk.Frame | None = None
         self.talk_frame: ttk.LabelFrame | None = None
@@ -79,33 +81,78 @@ class NabaztagMacApp:
         self._schedule_log_poll()
 
     def _build_ui(self) -> None:
-        self.auth_container = ttk.Frame(self.root, padding=24)
+        self.auth_container = tk.Frame(self.root, bg="#f4f1eb", padx=24, pady=24)
         self.auth_container.pack(fill=tk.BOTH, expand=True)
 
-        hero = ttk.Frame(self.auth_container)
-        hero.pack(fill=tk.X, pady=(0, 18))
-        ttk.Label(hero, text="Nabaztag", font=("Helvetica", 24, "bold")).pack(anchor=tk.W)
-        ttk.Label(
-            hero,
-            text="Connecte-toi avec ton compte nabaztag.org pour retrouver immédiatement tes lapins.",
-            wraplength=680,
-        ).pack(anchor=tk.W, pady=(6, 0))
+        auth_card = tk.Frame(
+            self.auth_container,
+            bg="#fffdfa",
+            highlightbackground="#d8d1c4",
+            highlightthickness=1,
+            padx=28,
+            pady=26,
+        )
+        auth_card.pack(expand=True)
 
-        form = ttk.Frame(self.auth_container)
+        hero = tk.Frame(auth_card, bg="#fffdfa")
+        hero.pack(fill=tk.X, pady=(0, 18))
+        logo_path = provisioning_support.app_logo_image_path()
+        if logo_path.exists():
+            try:
+                self.auth_logo_photo = tk.PhotoImage(file=str(logo_path)).subsample(2, 2)
+                tk.Label(hero, image=self.auth_logo_photo, bg="#fffdfa").pack(anchor=tk.CENTER, pady=(0, 10))
+            except tk.TclError:
+                self.auth_logo_photo = None
+        tk.Label(
+            hero,
+            text="Nabaztag",
+            font=("Helvetica", 24, "bold"),
+            fg="#243b37",
+            bg="#fffdfa",
+        ).pack(anchor=tk.CENTER)
+        tk.Label(
+            hero,
+            text="Identifie-toi pour retrouver immédiatement tes lapins.",
+            wraplength=420,
+            justify=tk.CENTER,
+            fg="#7d776d",
+            bg="#fffdfa",
+            font=("Helvetica", 12),
+        ).pack(anchor=tk.CENTER, pady=(8, 0))
+
+        form = ttk.Frame(auth_card)
         form.pack(fill=tk.X)
         form.columnconfigure(1, weight=1)
         self.portal_entry = self._labeled_entry(form, 0, "Portail", self.portal_var)
-        self.email_entry = self._labeled_entry(form, 1, "Email", self.account_email_var)
+        self.email_entry = self._labeled_entry(form, 1, "Identifiant", self.account_email_var)
         self.password_entry = self._labeled_entry(form, 2, "Mot de passe", self.account_password_var, field_type="password")
         self.password_entry.bind("<Return>", lambda _event: self.login())
 
-        actions = ttk.Frame(self.auth_container)
-        actions.pack(fill=tk.X, pady=(18, 14))
-        ttk.Button(actions, text="Se connecter", command=self.login).pack(side=tk.LEFT)
+        actions = tk.Frame(auth_card, bg="#fffdfa")
+        actions.pack(fill=tk.X, pady=(18, 10))
+        tk.Button(
+            actions,
+            text="Connexion",
+            command=self.login,
+            bg="#243b37",
+            fg="white",
+            activebackground="#1d312d",
+            activeforeground="white",
+            relief=tk.FLAT,
+            padx=18,
+            pady=10,
+            cursor="hand2",
+        ).pack(anchor=tk.CENTER)
 
-        status_frame = ttk.LabelFrame(self.auth_container, text="État")
-        status_frame.pack(fill=tk.X)
-        ttk.Label(status_frame, textvariable=self.status_var, wraplength=680).pack(anchor=tk.W, padx=12, pady=12)
+        tk.Label(
+            auth_card,
+            textvariable=self.status_var,
+            wraplength=420,
+            justify=tk.CENTER,
+            fg="#7d776d",
+            bg="#fffdfa",
+            font=("Helvetica", 11),
+        ).pack(anchor=tk.CENTER, pady=(6, 0))
 
         self.app_shell = ttk.Frame(self.root)
         self.app_canvas = tk.Canvas(self.app_shell, highlightthickness=0)
@@ -294,6 +341,7 @@ class NabaztagMacApp:
             self.app_shell.pack_forget()
         if self.auth_container is not None:
             self.auth_container.pack(fill=tk.BOTH, expand=True)
+        self.root.geometry("540x720")
         self.root.deiconify()
         self.root.lift()
         self.root.after(50, self._focus_auth_form)
@@ -305,6 +353,7 @@ class NabaztagMacApp:
             self.app_shell.pack(fill=tk.BOTH, expand=True)
         if self.app_canvas is not None:
             self.app_canvas.yview_moveto(0)
+        self.root.geometry("860x760")
         self.root.deiconify()
         self.root.lift()
 
