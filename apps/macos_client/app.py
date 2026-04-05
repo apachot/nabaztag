@@ -35,7 +35,7 @@ class NabaztagMacApp:
         self.status_var = tk.StringVar(value="Connecte-toi pour accéder à tes lapins.")
         self.selected_rabbit_status_var = tk.StringVar(value="Aucun lapin sélectionné.")
         self.selected_rabbit_id: int | None = None
-        self.rabbits_by_name: dict[str, dict] = {}
+        self.rabbits_by_label: dict[str, dict] = {}
 
         self.rabbit_app_pairing_code_var = tk.StringVar()
         self.rabbit_app_pairing_status_var = tk.StringVar(value="Aucun code d'appairage lapin chargé.")
@@ -53,7 +53,10 @@ class NabaztagMacApp:
 
         self.auth_container: ttk.Frame | None = None
         self.app_container: ttk.Frame | None = None
-        self.rabbit_combo: ttk.Combobox | None = None
+        self.portal_entry: ttk.Entry | None = None
+        self.email_entry: ttk.Entry | None = None
+        self.password_entry: ttk.Entry | None = None
+        self.rabbit_listbox: tk.Listbox | None = None
         self.rabbit_pairing_combo: ttk.Combobox | None = None
         self.message_text: scrolledtext.ScrolledText | None = None
         self.log_widget: scrolledtext.ScrolledText | None = None
@@ -78,10 +81,10 @@ class NabaztagMacApp:
         form = ttk.Frame(self.auth_container)
         form.pack(fill=tk.X)
         form.columnconfigure(1, weight=1)
-        self._labeled_entry(form, 0, "Portail", self.portal_var)
-        self._labeled_entry(form, 1, "Email", self.account_email_var)
-        password_entry = self._labeled_entry(form, 2, "Mot de passe", self.account_password_var, field_type="password")
-        password_entry.bind("<Return>", lambda _event: self.login())
+        self.portal_entry = self._labeled_entry(form, 0, "Portail", self.portal_var)
+        self.email_entry = self._labeled_entry(form, 1, "Email", self.account_email_var)
+        self.password_entry = self._labeled_entry(form, 2, "Mot de passe", self.account_password_var, field_type="password")
+        self.password_entry.bind("<Return>", lambda _event: self.login())
 
         actions = ttk.Frame(self.auth_container)
         actions.pack(fill=tk.X, pady=(18, 14))
@@ -106,9 +109,14 @@ class NabaztagMacApp:
         rabbit_selection = ttk.Frame(self.app_container)
         rabbit_selection.pack(fill=tk.X, pady=(0, 12))
         ttk.Label(rabbit_selection, text="Lapin").pack(anchor=tk.W)
-        self.rabbit_combo = ttk.Combobox(rabbit_selection, state="readonly")
-        self.rabbit_combo.pack(fill=tk.X, pady=(6, 0))
-        self.rabbit_combo.bind("<<ComboboxSelected>>", self.on_rabbit_selected)
+        rabbit_list_frame = ttk.Frame(rabbit_selection)
+        rabbit_list_frame.pack(fill=tk.X, pady=(6, 0))
+        self.rabbit_listbox = tk.Listbox(rabbit_list_frame, height=4, exportselection=False)
+        self.rabbit_listbox.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        rabbit_scrollbar = ttk.Scrollbar(rabbit_list_frame, orient=tk.VERTICAL, command=self.rabbit_listbox.yview)
+        rabbit_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.rabbit_listbox.configure(yscrollcommand=rabbit_scrollbar.set)
+        self.rabbit_listbox.bind("<<ListboxSelect>>", self.on_rabbit_selected)
         ttk.Label(rabbit_selection, textvariable=self.selected_rabbit_status_var).pack(anchor=tk.W, pady=(6, 0))
 
         talk_frame = ttk.LabelFrame(self.app_container, text="Lui parler")
@@ -206,12 +214,27 @@ class NabaztagMacApp:
             self.app_container.pack_forget()
         if self.auth_container is not None:
             self.auth_container.pack(fill=tk.BOTH, expand=True)
+        self.root.deiconify()
+        self.root.lift()
+        self.root.after(50, self._focus_auth_form)
 
     def _show_app_view(self) -> None:
         if self.auth_container is not None:
             self.auth_container.pack_forget()
         if self.app_container is not None:
             self.app_container.pack(fill=tk.BOTH, expand=True)
+        self.root.deiconify()
+        self.root.lift()
+
+    def _focus_auth_form(self) -> None:
+        target = self.password_entry if self.account_email_var.get().strip() else self.email_entry
+        if target is None:
+            return
+        try:
+            target.focus_force()
+            target.icursor(tk.END)
+        except tk.TclError:
+            return
 
     def _load_existing_config(self) -> None:
         config = bridge_agent.load_config()
@@ -223,23 +246,21 @@ class NabaztagMacApp:
             self.portal_var.set(portal)
         companion = config.get("companion") if isinstance(config.get("companion"), dict) else {}
         email = str(companion.get("email") or "").strip()
-        token = str(companion.get("api_token") or "").strip()
         if email:
             self.account_email_var.set(email)
-        if token:
-            self.status_var.set("Connexion restaurée, récupération des lapins…")
-            self._show_app_view()
-            self.refresh_rabbits()
-        else:
-            self._show_auth_view()
+        self.status_var.set("Connecte-toi pour accéder à tes lapins.")
+        self._show_auth_view()
 
     def _run_in_thread(self, fn, *, on_error: str) -> None:
         def target() -> None:
+            self.root.after(0, lambda: self.root.configure(cursor="watch"))
             try:
                 fn()
             except Exception as exc:
                 self.log_queue.put(f"Erreur: {exc}")
-                self.root.after(0, lambda: messagebox.showerror("Nabaztag", f"{on_error}\n\n{exc}"))
+                self.root.after(0, lambda: self.status_var.set(f"{on_error} {exc}"))
+            finally:
+                self.root.after(0, lambda: self.root.configure(cursor=""))
 
         threading.Thread(target=target, daemon=True).start()
 
@@ -286,12 +307,11 @@ class NabaztagMacApp:
         companion = config.get("companion") if isinstance(config.get("companion"), dict) else {}
         config["companion"] = {"email": str(companion.get("email") or self.account_email_var.get() or "").strip().lower()}
         bridge_agent.save_config(config)
-        self.rabbits_by_name = {}
+        self.rabbits_by_label = {}
         self.selected_rabbit_id = None
         self.selected_rabbit_status_var.set("Aucun lapin sélectionné.")
-        if self.rabbit_combo is not None:
-            self.rabbit_combo["values"] = ()
-            self.rabbit_combo.set("")
+        if self.rabbit_listbox is not None:
+            self.rabbit_listbox.delete(0, tk.END)
         self.status_var.set("Déconnecté. Connecte-toi pour accéder à tes lapins.")
         self._show_auth_view()
         self.log_queue.put("Application macOS déconnectée du compte.")
@@ -323,22 +343,31 @@ class NabaztagMacApp:
                 labels.append(label)
 
             def update_ui() -> None:
-                self.rabbits_by_name = rabbit_map
-                if self.rabbit_combo is not None:
-                    self.rabbit_combo["values"] = labels
+                self.rabbits_by_label = rabbit_map
+                if self.rabbit_listbox is not None:
+                    current_index = None
                     if labels:
-                        current = self.rabbit_combo.get().strip()
-                        if current in labels:
-                            self.rabbit_combo.set(current)
+                        current_selection = self.rabbit_listbox.curselection()
+                        if current_selection:
+                            current_index = current_selection[0]
+                        self.rabbit_listbox.delete(0, tk.END)
+                        for label in labels:
+                            self.rabbit_listbox.insert(tk.END, label)
+                        if current_index is not None and 0 <= current_index < len(labels):
+                            self.rabbit_listbox.selection_set(current_index)
+                        else:
+                            self.rabbit_listbox.selection_set(0)
+                        self.rabbit_listbox.activate(self.rabbit_listbox.curselection()[0])
                     else:
-                        self.rabbit_combo.current(0)
+                        self.rabbit_listbox.delete(0, tk.END)
+                        self.selected_rabbit_id = None
+                        self.selected_rabbit_status_var.set("Aucun lapin sélectionné.")
                     self.on_rabbit_selected()
-                    self.status_var.set(f"Connecté au compte. {len(labels)} lapin(s) disponible(s).")
-                else:
-                    self.rabbit_combo.set("")
-                    self.selected_rabbit_id = None
-                    self.selected_rabbit_status_var.set("Aucun lapin sélectionné.")
-                    self.status_var.set("Connecté au compte, mais aucun lapin n'est disponible.")
+                    self.status_var.set(
+                        f"Connecté au compte. {len(labels)} lapin(s) disponible(s)."
+                        if labels
+                        else "Connecté au compte, mais aucun lapin n'est disponible."
+                    )
                 self._show_app_view()
 
             self.root.after(0, update_ui)
@@ -347,10 +376,15 @@ class NabaztagMacApp:
         self._run_in_thread(do_refresh, on_error="Impossible de récupérer les lapins.")
 
     def on_rabbit_selected(self, _event=None) -> None:
-        if self.rabbit_combo is None:
+        if self.rabbit_listbox is None:
             return
-        label = self.rabbit_combo.get().strip()
-        rabbit = self.rabbits_by_name.get(label) or {}
+        selection = self.rabbit_listbox.curselection()
+        if not selection:
+            self.selected_rabbit_id = None
+            self.selected_rabbit_status_var.set("Aucun lapin sélectionné.")
+            return
+        label = " ".join(str(self.rabbit_listbox.get(selection[0]) or "").split()).strip()
+        rabbit = self.rabbits_by_label.get(label) or {}
         rabbit_id = rabbit.get("id")
         self.selected_rabbit_id = int(rabbit_id) if isinstance(rabbit_id, int) else None
         status = " ".join(str(rabbit.get("status") or "").split()).strip().lower()
@@ -362,11 +396,13 @@ class NabaztagMacApp:
             self.selected_rabbit_status_var.set("Statut du lapin : inconnu")
 
     def _select_rabbit_by_id(self, rabbit_id: int) -> None:
-        if self.rabbit_combo is None:
+        if self.rabbit_listbox is None:
             return
-        for label, rabbit in self.rabbits_by_name.items():
+        for index, (label, rabbit) in enumerate(self.rabbits_by_label.items()):
             if rabbit.get("id") == rabbit_id:
-                self.rabbit_combo.set(label)
+                self.rabbit_listbox.selection_clear(0, tk.END)
+                self.rabbit_listbox.selection_set(index)
+                self.rabbit_listbox.activate(index)
                 self.on_rabbit_selected()
                 return
 
@@ -498,21 +534,25 @@ class NabaztagMacApp:
         if not message:
             messagebox.showerror("Nabaztag", "Saisis un message.")
             return
+        rabbit_id = self.selected_rabbit_id
+        self.status_var.set("Envoi du message au lapin…")
 
         def do_send() -> None:
             response = bridge_agent.http_json(
-                url=f"{portal}/mobile-api/v1/rabbits/{self.selected_rabbit_id}/conversation",
+                url=f"{portal}/mobile-api/v1/rabbits/{rabbit_id}/conversation",
                 method="POST",
                 token=token,
                 payload={"text": message},
+                timeout=180,
             )
             if not response.get("ok"):
                 raise RuntimeError(response.get("message") or "Envoi impossible.")
             reply = " ".join(str(response.get("reply") or "").split()).strip()
-            self.log_queue.put(f"Message envoyé au lapin {self.selected_rabbit_id}.")
+            self.log_queue.put(f"Message envoyé au lapin {rabbit_id}.")
             if reply:
                 self.log_queue.put(f"Réponse du lapin : {reply}")
             self.root.after(0, lambda: self.message_text.delete("1.0", tk.END))
+            self.root.after(0, lambda: self.status_var.set("Message envoyé au lapin."))
 
         self._run_in_thread(do_send, on_error="Impossible d'envoyer le message au lapin.")
 

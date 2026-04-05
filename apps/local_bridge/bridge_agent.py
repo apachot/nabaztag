@@ -41,7 +41,14 @@ def normalize_portal_base(portal: str) -> str:
     return normalized
 
 
-def http_json(*, url: str, method: str = "GET", token: str | None = None, payload: dict | None = None) -> dict:
+def http_json(
+    *,
+    url: str,
+    method: str = "GET",
+    token: str | None = None,
+    payload: dict | None = None,
+    timeout: float = 30,
+) -> dict:
     headers = {"Accept": "application/json"}
     body = None
     if token:
@@ -50,7 +57,7 @@ def http_json(*, url: str, method: str = "GET", token: str | None = None, payloa
         body = json.dumps(payload).encode("utf-8")
         headers["Content-Type"] = "application/json"
     request_object = urllib_request.Request(url, data=body, headers=headers, method=method.upper())
-    with urllib_request.urlopen(request_object, timeout=30) as response:
+    with urllib_request.urlopen(request_object, timeout=timeout) as response:
         raw = response.read().decode("utf-8")
     return json.loads(raw) if raw else {}
 
