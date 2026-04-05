@@ -405,7 +405,7 @@ def _create_mobile_pairing_session(user) -> MobileAppPairingSession:
     )
     session = MobileAppPairingSession(
         user_id=user.id,
-        token=secrets.token_urlsafe(24),
+        token=_human_pairing_code(),
         expires_at=now + timedelta(minutes=MOBILE_PAIRING_EXPIRY_MINUTES),
     )
     db.session.add(session)
@@ -3238,7 +3238,7 @@ def account():
 
 @main_bp.get("/mobile-app/pair/<token>")
 def mobile_app_pairing_bridge(token: str):
-    session = MobileAppPairingSession.query.filter_by(token=token).first()
+    session = MobileAppPairingSession.query.filter_by(token=_normalize_pairing_code(token)).first()
     if session is None:
         return render_template("mobile_pairing.html", status="invalid", pairing_token=token), 404
     if session.user is None:
@@ -3263,7 +3263,7 @@ def mobile_app_pairing_bridge(token: str):
 @main_bp.post("/mobile-api/v1/pairing/claim")
 def mobile_api_pairing_claim():
     payload = request.get_json(silent=True) or {}
-    pairing_token = str(payload.get("pairing_token") or "").strip()
+    pairing_token = _normalize_pairing_code(str(payload.get("pairing_token") or ""))
     device_name = " ".join(str(payload.get("device_name") or "").split()).strip()
     if not pairing_token:
         return jsonify({"ok": False, "message": "pairing_token obligatoire."}), 400

@@ -28,7 +28,7 @@ class BridgeApp:
         self.bridge_name_var = tk.StringVar(value="maison")
         self.status_var = tk.StringVar(value="Bridge non appairé.")
         self.mobile_pairing_token_var = tk.StringVar()
-        self.rabbit_status_var = tk.StringVar(value="Compagnon non appairé.")
+        self.rabbit_status_var = tk.StringVar(value="Application non appairée au compte.")
         self.selected_rabbit_id: int | None = None
         self.rabbits_by_name: dict[str, dict] = {}
         self.rabbit_app_pairing_code_var = tk.StringVar()
@@ -95,14 +95,14 @@ class BridgeApp:
         companion_form.pack(fill=tk.X)
         companion_form.columnconfigure(1, weight=1)
         self._labeled_entry(companion_form, 0, "Portail", self.portal_var)
-        self._labeled_entry(companion_form, 1, "Code d'appairage compagnon", self.mobile_pairing_token_var)
+        self._labeled_entry(companion_form, 1, "Code d'appairage application", self.mobile_pairing_token_var)
 
         companion_actions = ttk.Frame(companion_tab)
         companion_actions.pack(fill=tk.X, pady=(16, 12))
-        ttk.Button(companion_actions, text="Appairer le compagnon", command=self.pair_companion).pack(side=tk.LEFT)
+        ttk.Button(companion_actions, text="Appairer l'application", command=self.pair_companion).pack(side=tk.LEFT)
         ttk.Button(companion_actions, text="Rafraîchir les lapins", command=self.refresh_rabbits).pack(side=tk.LEFT, padx=(8, 0))
 
-        rabbit_status_frame = ttk.LabelFrame(companion_tab, text="État du compagnon")
+        rabbit_status_frame = ttk.LabelFrame(companion_tab, text="État de l'application")
         rabbit_status_frame.pack(fill=tk.X, pady=(0, 12))
         ttk.Label(rabbit_status_frame, textvariable=self.rabbit_status_var, wraplength=680).pack(anchor=tk.W, padx=12, pady=12)
 
@@ -234,7 +234,7 @@ class BridgeApp:
         companion = config.get("companion") if isinstance(config.get("companion"), dict) else {}
         companion_token = str(companion.get("api_token") or "").strip()
         if companion_token:
-            self.rabbit_status_var.set("Compagnon appairé.")
+            self.rabbit_status_var.set("Application appairée au compte.")
             self.refresh_rabbits()
 
     def _run_in_thread(self, fn, *, on_error: str) -> None:
@@ -274,7 +274,7 @@ class BridgeApp:
         portal = self.portal_var.get().strip()
         pairing_token = self.mobile_pairing_token_var.get().strip()
         if not portal or not pairing_token:
-            messagebox.showerror("Nabaztag Bridge", "Saisis le portail et le code d'appairage compagnon.")
+            messagebox.showerror("Nabaztag Bridge", "Saisis le portail et le code d'appairage application.")
             return
 
         def do_pair() -> None:
@@ -292,11 +292,17 @@ class BridgeApp:
             config["portal"] = bridge_agent.normalize_portal_base(portal)
             config["companion"] = {"api_token": response["api_token"]}
             bridge_agent.save_config(config)
-            self.log_queue.put("Compagnon macOS appairé.")
-            self.root.after(0, lambda: self.rabbit_status_var.set("Compagnon appairé."))
+            rabbit_count = len(response.get("rabbits") or []) if isinstance(response.get("rabbits"), list) else 0
+            self.log_queue.put("Application macOS appairée au compte.")
+            self.root.after(
+                0,
+                lambda: self.rabbit_status_var.set(
+                    f"Application appairée au compte. {rabbit_count} lapin(s) disponible(s)."
+                ),
+            )
             self.root.after(0, self.refresh_rabbits)
 
-        self._run_in_thread(do_pair, on_error="Impossible d'appairer le compagnon macOS.")
+        self._run_in_thread(do_pair, on_error="Impossible d'appairer l'application macOS.")
 
     def _companion_token(self) -> tuple[str, str]:
         config = bridge_agent.load_config()
@@ -308,7 +314,7 @@ class BridgeApp:
     def refresh_rabbits(self) -> None:
         portal, token = self._companion_token()
         if not portal or not token:
-            self.rabbit_status_var.set("Compagnon non appairé.")
+            self.rabbit_status_var.set("Application non appairée au compte.")
             return
 
         def do_refresh() -> None:
@@ -338,11 +344,11 @@ class BridgeApp:
                     else:
                         self.rabbit_combo.current(0)
                     self.on_rabbit_selected()
-                    self.rabbit_status_var.set(f"{len(labels)} lapin(s) disponible(s).")
+                    self.rabbit_status_var.set(f"Application appairée au compte. {len(labels)} lapin(s) disponible(s).")
                 else:
                     self.rabbit_combo.set("")
                     self.selected_rabbit_id = None
-                    self.rabbit_status_var.set("Aucun lapin disponible.")
+                    self.rabbit_status_var.set("Application appairée au compte, mais aucun lapin n'est disponible.")
             self.root.after(0, update_ui)
             self.log_queue.put("Liste des lapins rafraîchie.")
 
@@ -499,7 +505,7 @@ class BridgeApp:
     def _require_companion_context(self) -> tuple[str, str]:
         portal, token = self._companion_token()
         if not portal or not token:
-            messagebox.showerror("Nabaztag Bridge", "Appaire d'abord le compagnon.")
+            messagebox.showerror("Nabaztag Bridge", "Appaire d'abord l'application au compte.")
             return "", ""
         if self.selected_rabbit_id is None:
             messagebox.showerror("Nabaztag Bridge", "Choisis un lapin.")
