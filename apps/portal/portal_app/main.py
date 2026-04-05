@@ -3568,7 +3568,7 @@ def mobile_api_delete_rabbit(rabbit_id: int):
     _delete_rabbit_related_rows(rabbit)
 
     if rabbit.photo_filename:
-        photo_path = _rabbit_photo_storage_path(rabbit.photo_filename)
+        photo_path = _rabbit_photos_dir() / rabbit.photo_filename
         try:
             photo_path.unlink(missing_ok=True)
         except OSError as exc:
@@ -4383,12 +4383,10 @@ def delete_rabbit(rabbit_id: int):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
     rabbit_name = rabbit.name
 
-    RabbitFriendship.query.filter(
-        (RabbitFriendship.rabbit_low_id == rabbit.id) | (RabbitFriendship.rabbit_high_id == rabbit.id)
-    ).delete(synchronize_session=False)
+    _delete_rabbit_related_rows(rabbit)
 
     if rabbit.photo_filename:
-        photo_path = _rabbit_photo_storage_path(rabbit.photo_filename)
+        photo_path = _rabbit_photos_dir() / rabbit.photo_filename
         try:
             photo_path.unlink(missing_ok=True)
         except OSError as exc:
