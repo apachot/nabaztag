@@ -4,6 +4,34 @@
 
 {% block content %}
   <style>
+    .rabbit-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .rabbit-status-badge::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: currentColor;
+    }
+
+    .rabbit-status-badge.online {
+      color: #1f7a52;
+      background: rgba(31, 122, 82, 0.12);
+    }
+
+    .rabbit-status-badge.offline {
+      color: #8a3f21;
+      background: rgba(138, 63, 33, 0.12);
+    }
+
     #led-layout [data-led-target] {
       cursor: pointer !important;
     }
@@ -58,7 +86,15 @@
         <div>
           <h1>{{ rabbit.name }}</h1>
           <div class="meta">Slug: <span class="mono">{{ rabbit.slug }}</span></div>
-          <div class="meta">Statut: <span id="rabbit-status">{{ "Connecté" if local_connection_status == "online" else "Non connecté" }}</span></div>
+          <div class="meta" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <span>Statut:</span>
+            <span
+              id="rabbit-status"
+              class="rabbit-status-badge {{ 'online' if local_connection_status == 'online' else 'offline' }}"
+            >
+              {{ "Connecté" if local_connection_status == "online" else "Non connecté" }}
+            </span>
+          </div>
           <div class="meta">
             Connexion device:
             <span id="rabbit-remote-connection">
@@ -916,7 +952,11 @@
           if (!response.ok) return;
           const data = await response.json();
 
-          if (rabbitStatus) rabbitStatus.textContent = data.rabbit?.connection_label || "Non connecté";
+          if (rabbitStatus) {
+            rabbitStatus.textContent = data.rabbit?.connection_label || "Non connecté";
+            rabbitStatus.classList.toggle("online", data.rabbit?.connection_status === "online");
+            rabbitStatus.classList.toggle("offline", data.rabbit?.connection_status !== "online");
+          }
           if (rabbitTarget && data.rabbit?.target) rabbitTarget.textContent = data.rabbit.target;
           if (linkedDeviceSerial) linkedDeviceSerial.textContent = data.linked_device?.serial || "non rattaché";
           if (rabbitRemoteConnection) {
