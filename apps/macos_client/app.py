@@ -79,7 +79,8 @@ class NabaztagMacApp:
         form.columnconfigure(1, weight=1)
         self._labeled_entry(form, 0, "Portail", self.portal_var)
         self._labeled_entry(form, 1, "Email", self.account_email_var)
-        self._labeled_entry(form, 2, "Mot de passe", self.account_password_var, field_type="password")
+        password_entry = self._labeled_entry(form, 2, "Mot de passe", self.account_password_var, field_type="password")
+        password_entry.bind("<Return>", lambda _event: self.login())
 
         actions = ttk.Frame(self.auth_container)
         actions.pack(fill=tk.X, pady=(18, 14))
@@ -190,9 +191,11 @@ class NabaztagMacApp:
         self.log_widget = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, height=12, state=tk.DISABLED)
         self.log_widget.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
 
-    def _labeled_entry(self, parent: ttk.Frame, row: int, label: str, variable: tk.StringVar, *, field_type: str = "text") -> None:
+    def _labeled_entry(self, parent: ttk.Frame, row: int, label: str, variable: tk.StringVar, *, field_type: str = "text") -> ttk.Entry:
         ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", padx=(0, 12), pady=6)
-        ttk.Entry(parent, textvariable=variable, show="*" if field_type == "password" else "").grid(row=row, column=1, sticky="ew", pady=6)
+        entry = ttk.Entry(parent, textvariable=variable, show="*" if field_type == "password" else "")
+        entry.grid(row=row, column=1, sticky="ew", pady=6)
+        return entry
 
     def _append_log(self, message: str) -> None:
         if self.log_widget is None:
