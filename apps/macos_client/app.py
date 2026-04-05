@@ -68,6 +68,11 @@ class NabaztagMacApp:
         self.message_text: scrolledtext.ScrolledText | None = None
         self.log_widget: scrolledtext.ScrolledText | None = None
         self.setup_mode_photo: tk.PhotoImage | None = None
+        self.provisioning_frame: ttk.LabelFrame | None = None
+        self.rabbit_selection_frame: ttk.Frame | None = None
+        self.talk_frame: ttk.LabelFrame | None = None
+        self.control_frame: ttk.LabelFrame | None = None
+        self.log_frame: ttk.LabelFrame | None = None
 
         self._build_ui()
         self._load_existing_config()
@@ -120,17 +125,18 @@ class NabaztagMacApp:
         topbar.pack(fill=tk.X, pady=(0, 12))
         ttk.Label(topbar, text="Mes lapins", font=("Helvetica", 20, "bold")).pack(side=tk.LEFT)
         ttk.Button(topbar, text="Rafraîchir", command=self.refresh_rabbits).pack(side=tk.RIGHT)
+        ttk.Button(topbar, text="Ajouter un lapin", command=self.show_add_rabbit_flow).pack(side=tk.RIGHT, padx=(0, 8))
         ttk.Button(topbar, text="Se déconnecter", command=self.logout).pack(side=tk.RIGHT, padx=(0, 8))
 
         account_status = ttk.LabelFrame(self.app_container, text="Compte")
         account_status.pack(fill=tk.X, pady=(0, 12))
         ttk.Label(account_status, textvariable=self.status_var, wraplength=680).pack(anchor=tk.W, padx=12, pady=12)
 
-        provisioning_frame = ttk.LabelFrame(self.app_container, text="Mettre en service un lapin")
-        provisioning_frame.pack(fill=tk.X, pady=(0, 12))
+        self.provisioning_frame = ttk.LabelFrame(self.app_container, text="Connectez votre lapin")
+        self.provisioning_frame.pack(fill=tk.X, pady=(0, 12))
 
         ttk.Label(
-            provisioning_frame,
+            self.provisioning_frame,
             text=(
                 "Détecte le Wi-Fi du Mac, vérifie le configurateur local sur 192.168.0.1 "
                 "et prépare la configuration du lapin avec nabaztag.org/vl."
@@ -143,19 +149,19 @@ class NabaztagMacApp:
             try:
                 self.setup_mode_photo = tk.PhotoImage(file=str(illustration_path)).subsample(4, 4)
                 ttk.Label(
-                    provisioning_frame,
+                    self.provisioning_frame,
                     image=self.setup_mode_photo,
                     text="Maintenir le bouton pendant le branchement",
                     compound="top",
                 ).pack(anchor=tk.CENTER, padx=12, pady=(0, 10))
             except tk.TclError:
                 ttk.Label(
-                    provisioning_frame,
+                    self.provisioning_frame,
                     text="Maintenir le bouton du Nabaztag appuyé pendant que tu le branches.",
                     wraplength=700,
                 ).pack(anchor=tk.W, padx=12, pady=(0, 10))
 
-        provisioning_form = ttk.Frame(provisioning_frame)
+        provisioning_form = ttk.Frame(self.provisioning_frame)
         provisioning_form.pack(fill=tk.X, padx=12, pady=(0, 8))
         provisioning_form.columnconfigure(1, weight=1)
 
@@ -170,20 +176,20 @@ class NabaztagMacApp:
         ttk.Label(provisioning_form, text="Violet Platform").grid(row=4, column=0, sticky="w", padx=(0, 10), pady=4)
         ttk.Entry(provisioning_form, textvariable=self.bootstrap_violet_platform_var, state="readonly").grid(row=4, column=1, sticky="ew", pady=4)
 
-        provisioning_actions = ttk.Frame(provisioning_frame)
+        provisioning_actions = ttk.Frame(self.provisioning_frame)
         provisioning_actions.pack(fill=tk.X, padx=12, pady=(0, 8))
         ttk.Button(provisioning_actions, text="Détecter le Wi-Fi du Mac", command=self.detect_mac_wifi).pack(side=tk.LEFT)
         ttk.Button(provisioning_actions, text="Tester 192.168.0.1", command=self.probe_local_bootstrap).pack(side=tk.LEFT, padx=(8, 0))
         ttk.Button(provisioning_actions, text="Ouvrir le configurateur", command=self.open_local_bootstrap).pack(side=tk.LEFT, padx=(8, 0))
         ttk.Button(provisioning_actions, text="Configurer le lapin", command=self.configure_local_bootstrap).pack(side=tk.RIGHT)
 
-        ttk.Label(provisioning_frame, textvariable=self.bootstrap_wifi_status_var, wraplength=700).pack(anchor=tk.W, padx=12)
-        ttk.Label(provisioning_frame, textvariable=self.bootstrap_status_var, wraplength=700).pack(anchor=tk.W, padx=12, pady=(4, 12))
+        ttk.Label(self.provisioning_frame, textvariable=self.bootstrap_wifi_status_var, wraplength=700).pack(anchor=tk.W, padx=12)
+        ttk.Label(self.provisioning_frame, textvariable=self.bootstrap_status_var, wraplength=700).pack(anchor=tk.W, padx=12, pady=(4, 12))
 
-        rabbit_selection = ttk.Frame(self.app_container)
-        rabbit_selection.pack(fill=tk.X, pady=(0, 12))
-        ttk.Label(rabbit_selection, text="Lapin").pack(anchor=tk.W)
-        rabbit_list_frame = ttk.Frame(rabbit_selection)
+        self.rabbit_selection_frame = ttk.Frame(self.app_container)
+        self.rabbit_selection_frame.pack(fill=tk.X, pady=(0, 12))
+        ttk.Label(self.rabbit_selection_frame, text="Lapin").pack(anchor=tk.W)
+        rabbit_list_frame = ttk.Frame(self.rabbit_selection_frame)
         rabbit_list_frame.pack(fill=tk.X, pady=(6, 0))
         self.rabbit_listbox = tk.Listbox(rabbit_list_frame, height=4, exportselection=False)
         self.rabbit_listbox.pack(side=tk.LEFT, fill=tk.X, expand=True)
@@ -191,18 +197,18 @@ class NabaztagMacApp:
         rabbit_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.rabbit_listbox.configure(yscrollcommand=rabbit_scrollbar.set)
         self.rabbit_listbox.bind("<<ListboxSelect>>", self.on_rabbit_selected)
-        ttk.Label(rabbit_selection, textvariable=self.selected_rabbit_status_var).pack(anchor=tk.W, pady=(6, 0))
+        ttk.Label(self.rabbit_selection_frame, textvariable=self.selected_rabbit_status_var).pack(anchor=tk.W, pady=(6, 0))
 
-        talk_frame = ttk.LabelFrame(self.app_container, text="Lui parler")
-        talk_frame.pack(fill=tk.BOTH, expand=True)
-        self.message_text = scrolledtext.ScrolledText(talk_frame, wrap=tk.WORD, height=7)
+        self.talk_frame = ttk.LabelFrame(self.app_container, text="Lui parler")
+        self.talk_frame.pack(fill=tk.BOTH, expand=True)
+        self.message_text = scrolledtext.ScrolledText(self.talk_frame, wrap=tk.WORD, height=7)
         self.message_text.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
-        ttk.Button(talk_frame, text="Envoyer au lapin", command=self.send_message_to_rabbit).pack(anchor=tk.E, padx=8, pady=(0, 8))
+        ttk.Button(self.talk_frame, text="Envoyer au lapin", command=self.send_message_to_rabbit).pack(anchor=tk.E, padx=8, pady=(0, 8))
 
-        control_frame = ttk.LabelFrame(self.app_container, text="Pilotage direct")
-        control_frame.pack(fill=tk.X, pady=(12, 0))
+        self.control_frame = ttk.LabelFrame(self.app_container, text="Pilotage direct")
+        self.control_frame.pack(fill=tk.X, pady=(12, 0))
 
-        ears_frame = ttk.Frame(control_frame)
+        ears_frame = ttk.Frame(self.control_frame)
         ears_frame.pack(fill=tk.X, padx=8, pady=(8, 6))
         ttk.Label(ears_frame, text="Oreille gauche").grid(row=0, column=0, sticky="w")
         ttk.Spinbox(ears_frame, from_=0, to=16, textvariable=self.ear_left_var, width=6).grid(row=0, column=1, padx=(8, 16))
@@ -210,7 +216,7 @@ class NabaztagMacApp:
         ttk.Spinbox(ears_frame, from_=0, to=16, textvariable=self.ear_right_var, width=6).grid(row=0, column=3, padx=(8, 16))
         ttk.Button(ears_frame, text="Bouger les oreilles", command=self.move_rabbit_ears).grid(row=0, column=4, sticky="e")
 
-        led_frame = ttk.Frame(control_frame)
+        led_frame = ttk.Frame(self.control_frame)
         led_frame.pack(fill=tk.X, padx=8, pady=6)
         ttk.Label(led_frame, text="LED").grid(row=0, column=0, sticky="w")
         ttk.Combobox(
@@ -230,7 +236,7 @@ class NabaztagMacApp:
         ).grid(row=0, column=3, padx=(8, 16))
         ttk.Button(led_frame, text="Allumer la LED", command=self.set_rabbit_led).grid(row=0, column=4, sticky="e")
 
-        radio_frame = ttk.Frame(control_frame)
+        radio_frame = ttk.Frame(self.control_frame)
         radio_frame.pack(fill=tk.X, padx=8, pady=6)
         ttk.Label(radio_frame, text="Radio").grid(row=0, column=0, sticky="w")
         preset_combo = ttk.Combobox(
@@ -250,14 +256,14 @@ class NabaztagMacApp:
         ttk.Button(radio_frame, text="Stop", command=self.stop_rabbit_radio).grid(row=0, column=4, padx=(8, 0))
         radio_frame.columnconfigure(2, weight=1)
 
-        power_frame = ttk.Frame(control_frame)
+        power_frame = ttk.Frame(self.control_frame)
         power_frame.pack(fill=tk.X, padx=8, pady=(6, 8))
         ttk.Button(power_frame, text="Dormir", command=self.put_rabbit_to_sleep).pack(side=tk.LEFT)
         ttk.Button(power_frame, text="Réveiller", command=self.wake_rabbit).pack(side=tk.LEFT, padx=(8, 0))
 
-        log_frame = ttk.LabelFrame(self.app_container, text="Journal")
-        log_frame.pack(fill=tk.BOTH, expand=True, pady=(12, 0))
-        self.log_widget = scrolledtext.ScrolledText(log_frame, wrap=tk.WORD, height=12, state=tk.DISABLED)
+        self.log_frame = ttk.LabelFrame(self.app_container, text="Journal")
+        self.log_frame.pack(fill=tk.BOTH, expand=True, pady=(12, 0))
+        self.log_widget = scrolledtext.ScrolledText(self.log_frame, wrap=tk.WORD, height=12, state=tk.DISABLED)
         self.log_widget.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
 
     def _labeled_entry(self, parent: ttk.Frame, row: int, label: str, variable: tk.StringVar, *, field_type: str = "text") -> ttk.Entry:
@@ -301,6 +307,41 @@ class NabaztagMacApp:
             self.app_canvas.yview_moveto(0)
         self.root.deiconify()
         self.root.lift()
+
+    def _set_app_mode(self, *, has_rabbits: bool) -> None:
+        if self.provisioning_frame is not None:
+            if has_rabbits:
+                self.provisioning_frame.pack_forget()
+            else:
+                self.provisioning_frame.pack(fill=tk.X, pady=(0, 12))
+        if self.rabbit_selection_frame is not None:
+            if has_rabbits:
+                self.rabbit_selection_frame.pack(fill=tk.X, pady=(0, 12))
+            else:
+                self.rabbit_selection_frame.pack_forget()
+        if self.talk_frame is not None:
+            if has_rabbits:
+                self.talk_frame.pack(fill=tk.BOTH, expand=True)
+            else:
+                self.talk_frame.pack_forget()
+        if self.control_frame is not None:
+            if has_rabbits:
+                self.control_frame.pack(fill=tk.X, pady=(12, 0))
+            else:
+                self.control_frame.pack_forget()
+        if self.log_frame is not None:
+            if has_rabbits:
+                self.log_frame.pack(fill=tk.BOTH, expand=True, pady=(12, 0))
+            else:
+                self.log_frame.pack_forget()
+        if self.app_canvas is not None:
+            self.root.after(0, lambda: self.app_canvas.configure(scrollregion=self.app_canvas.bbox("all")))
+
+    def show_add_rabbit_flow(self) -> None:
+        self._set_app_mode(has_rabbits=False)
+        self.bootstrap_status_var.set("Connecte un nouveau lapin en suivant cette procédure.")
+        if self.app_canvas is not None:
+            self.app_canvas.yview_moveto(0)
 
     def _on_app_container_configure(self, _event=None) -> None:
         if self.app_canvas is None:
@@ -410,6 +451,7 @@ class NabaztagMacApp:
             self.root.after(0, lambda: self.account_password_var.set(""))
             self.root.after(0, self._update_violet_platform)
             self.root.after(0, self._show_app_view)
+            self.root.after(0, lambda: self._set_app_mode(has_rabbits=rabbit_count > 0))
             self.root.after(0, lambda: self.status_var.set(f"Connecté au compte. {rabbit_count} lapin(s) disponible(s)."))
             self.root.after(0, self.refresh_rabbits)
 
@@ -544,6 +586,8 @@ class NabaztagMacApp:
 
             def update_ui() -> None:
                 self.rabbits_by_label = rabbit_map
+                has_rabbits = bool(labels)
+                self._set_app_mode(has_rabbits=has_rabbits)
                 if self.rabbit_listbox is not None:
                     current_index = None
                     if labels:
@@ -566,7 +610,7 @@ class NabaztagMacApp:
                     self.status_var.set(
                         f"Connecté au compte. {len(labels)} lapin(s) disponible(s)."
                         if labels
-                        else "Connecté au compte, mais aucun lapin n'est disponible."
+                        else "Aucun lapin rattaché pour l'instant. Connectez votre lapin."
                     )
                 self._show_app_view()
 
