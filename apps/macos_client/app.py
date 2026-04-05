@@ -351,6 +351,18 @@ class NabaztagMacApp:
         self.root.geometry("860x760")
         self.root.deiconify()
         self.root.lift()
+        self.root.after_idle(self._focus_app_view)
+
+    def _focus_app_view(self) -> None:
+        try:
+            self.root.focus_force()
+        except tk.TclError:
+            return
+        if self.rabbit_listbox is not None and self.rabbit_listbox.size() > 0:
+            try:
+                self.rabbit_listbox.focus_set()
+            except tk.TclError:
+                return
 
     def _set_app_mode(self, *, has_rabbits: bool) -> None:
         if self.provisioning_frame is not None:
@@ -642,7 +654,6 @@ class NabaztagMacApp:
             self.log_queue.put("Application macOS connectée au compte.")
             self.root.after(0, lambda: self.account_password_var.set(""))
             self.root.after(0, self._update_violet_platform)
-            self.root.after(0, self._show_app_view)
             self.root.after(0, lambda: self._set_app_mode(has_rabbits=rabbit_count > 0))
             self.root.after(0, lambda: self.status_var.set(f"Connecté au compte. {rabbit_count} lapin(s) disponible(s)."))
             self.root.after(0, self.refresh_rabbits)
@@ -794,6 +805,7 @@ class NabaztagMacApp:
                         else:
                             self.rabbit_listbox.selection_set(0)
                         self.rabbit_listbox.activate(self.rabbit_listbox.curselection()[0])
+                        self.rabbit_listbox.focus_set()
                     else:
                         self.rabbit_listbox.delete(0, tk.END)
                         self.selected_rabbit_id = None
