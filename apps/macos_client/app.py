@@ -352,10 +352,6 @@ class NabaztagMacApp:
         self.root.after_idle(self._focus_app_view)
 
     def _focus_app_view(self) -> None:
-        try:
-            self.root.focus_force()
-        except tk.TclError:
-            return
         if self.rabbit_listbox is not None and self.rabbit_listbox.size() > 0:
             try:
                 self.rabbit_listbox.focus_set()
@@ -432,7 +428,7 @@ class NabaztagMacApp:
         if target is None:
             return
         try:
-            target.focus_force()
+            target.focus_set()
             target.icursor(tk.END)
         except tk.TclError:
             return
