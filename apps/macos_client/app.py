@@ -461,8 +461,8 @@ class NabaztagMacApp:
         self._update_violet_platform()
         if token:
             self.status_var.set("Reconnexion automatique au compte…")
-            self._show_app_view()
-            self.root.after_idle(self.refresh_rabbits)
+            self._show_auth_view()
+            self.root.after(50, self.refresh_rabbits)
             return
         self.status_var.set("Connecte-toi pour accéder à tes lapins.")
         self._show_auth_view()
