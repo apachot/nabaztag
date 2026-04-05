@@ -3327,6 +3327,37 @@ def mobile_api_session_login():
     )
 
 
+@main_bp.post("/mobile-api/v1/session/register")
+def mobile_api_session_register():
+    payload = request.get_json(silent=True) or {}
+    email = " ".join(str(payload.get("email") or "").split()).strip().lower()
+    password = str(payload.get("password") or "")
+    confirm_password = str(payload.get("confirm_password") or "")
+    device_name = " ".join(str(payload.get("device_name") or "").split()).strip() or "Nabaztag macOS"
+    if not email or not password:
+        return jsonify({"ok": False, "message": "email et mot de passe obligatoires."}), 400
+    if password != confirm_password:
+        return jsonify({"ok": False, "message": "Les mots de passe ne correspondent pas."}), 400
+    if User.query.filter_by(email=email).first() is not None:
+        return jsonify({"ok": False, "message": "Un compte existe déjà avec cet email."}), 409
+
+    user = User(email=email)
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+
+    api_token = _issue_mobile_api_token(user, label=device_name)
+    rabbits = Rabbit.query.filter_by(owner_id=user.id).order_by(Rabbit.created_at.desc()).all()
+    return jsonify(
+        {
+            "ok": True,
+            "api_token": api_token,
+            "user": {"email": user.email},
+            "rabbits": [_serialize_mobile_rabbit(rabbit) for rabbit in rabbits],
+        }
+    )
+
+
 @main_bp.post("/mobile-api/v1/rabbit-pairing/claim")
 def mobile_api_rabbit_pairing_claim():
     payload = request.get_json(silent=True) or {}

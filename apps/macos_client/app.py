@@ -75,6 +75,11 @@ class NabaztagMacApp:
         self.talk_frame: ttk.LabelFrame | None = None
         self.control_frame: ttk.LabelFrame | None = None
         self.log_frame: ttk.LabelFrame | None = None
+        self.register_window: tk.Toplevel | None = None
+        self.register_email_var = tk.StringVar()
+        self.register_password_var = tk.StringVar()
+        self.register_confirm_password_var = tk.StringVar()
+        self.register_status_var = tk.StringVar(value="")
 
         self._build_ui()
         self._load_existing_config()
@@ -474,8 +479,163 @@ class NabaztagMacApp:
         )
 
     def open_account_registration(self) -> None:
-        portal = client_support.normalize_portal_base(self.portal_var.get())
-        provisioning_support.open_external_url(f"{portal}/auth/register")
+        if self.register_window is not None and self.register_window.winfo_exists():
+            self.register_window.lift()
+            self.register_window.focus_force()
+            return
+
+        self.register_email_var.set(self.account_email_var.get())
+        self.register_password_var.set("")
+        self.register_confirm_password_var.set("")
+        self.register_status_var.set("")
+
+        window = tk.Toplevel(self.root)
+        window.title("Créer un compte")
+        window.geometry("420x320")
+        window.configure(bg="#f4f1eb")
+        window.transient(self.root)
+        window.grab_set()
+        self.register_window = window
+
+        card = tk.Frame(
+            window,
+            bg="#fffdfa",
+            highlightbackground="#d8d1c4",
+            highlightthickness=1,
+            padx=24,
+            pady=22,
+        )
+        card.pack(expand=True, fill=tk.BOTH, padx=20, pady=20)
+
+        tk.Label(
+            card,
+            text="Créer un compte",
+            bg="#fffdfa",
+            fg="#243b37",
+            font=("Helvetica", 18, "bold"),
+        ).pack(anchor=tk.CENTER)
+        tk.Label(
+            card,
+            text="Le compte sera créé directement dans l'application puis connecté automatiquement.",
+            bg="#fffdfa",
+            fg="#7d776d",
+            justify=tk.CENTER,
+            wraplength=320,
+        ).pack(anchor=tk.CENTER, pady=(8, 14))
+
+        form = ttk.Frame(card)
+        form.pack(fill=tk.X)
+        form.columnconfigure(1, weight=1)
+        self._labeled_entry(form, 0, "Email", self.register_email_var)
+        password_entry = self._labeled_entry(form, 1, "Mot de passe", self.register_password_var, field_type="password")
+        confirm_entry = self._labeled_entry(form, 2, "Confirmation", self.register_confirm_password_var, field_type="password")
+        confirm_entry.bind("<Return>", lambda _event: self.submit_account_registration())
+
+        actions = tk.Frame(card, bg="#fffdfa")
+        actions.pack(fill=tk.X, pady=(16, 8))
+        tk.Button(
+            actions,
+            text="Créer le compte",
+            command=self.submit_account_registration,
+            bg="#f1e4d7",
+            fg="#243b37",
+            activebackground="#ead7c7",
+            activeforeground="#243b37",
+            relief=tk.GROOVE,
+            borderwidth=1,
+            padx=14,
+            pady=8,
+            cursor="hand2",
+        ).pack(side=tk.LEFT)
+        tk.Button(
+            actions,
+            text="Annuler",
+            command=self.close_registration_window,
+            bg="#fffdfa",
+            fg="#7d776d",
+            activebackground="#f7eee8",
+            activeforeground="#7d776d",
+            relief=tk.FLAT,
+            padx=10,
+            pady=8,
+            cursor="hand2",
+        ).pack(side=tk.RIGHT)
+
+        tk.Label(
+            card,
+            textvariable=self.register_status_var,
+            bg="#fffdfa",
+            fg="#7d776d",
+            justify=tk.CENTER,
+            wraplength=320,
+        ).pack(anchor=tk.CENTER, pady=(2, 0))
+        password_entry.focus_force()
+
+    def close_registration_window(self) -> None:
+        if self.register_window is not None and self.register_window.winfo_exists():
+            self.register_window.destroy()
+        self.register_window = None
+
+    def submit_account_registration(self) -> None:
+        portal = self.portal_var.get().strip()
+        email = " ".join(self.register_email_var.get().split()).strip().lower()
+        password = self.register_password_var.get()
+        confirm_password = self.register_confirm_password_var.get()
+        if not portal or not email or not password or not confirm_password:
+            self.register_status_var.set("Complète tous les champs.")
+            return
+
+        self.register_status_var.set("Création du compte en cours…")
+
+        def do_register() -> None:
+            response = client_support.http_json(
+                url=f"{client_support.normalize_portal_base(portal)}/mobile-api/v1/session/register",
+                method="POST",
+                payload={
+                    "email": email,
+                    "password": password,
+                    "confirm_password": confirm_password,
+                    "device_name": "Nabaztag macOS",
+                },
+            )
+            if not response.get("ok"):
+                raise RuntimeError(response.get("message") or "Création du compte impossible.")
+            config = client_support.load_config()
+            config["portal"] = client_support.normalize_portal_base(portal)
+            config["companion"] = {"api_token": response["api_token"], "email": email}
+            client_support.save_config(config)
+            rabbits = response.get("rabbits") if isinstance(response.get("rabbits"), list) else []
+            rabbit_count = len(rabbits)
+            self.log_queue.put("Compte créé depuis l'application macOS.")
+
+            def update_ui() -> None:
+                self.account_email_var.set(email)
+                self.account_password_var.set("")
+                self.status_var.set(
+                    f"Compte créé. {rabbit_count} lapin(s) disponible(s)." if rabbit_count else "Compte créé. Connectez votre lapin."
+                )
+                self.close_registration_window()
+                self._update_violet_platform()
+                self._show_app_view()
+                self._set_app_mode(has_rabbits=rabbit_count > 0)
+                self.refresh_rabbits()
+
+            self.root.after(0, update_ui)
+
+        def on_error(message: str) -> None:
+            self.register_status_var.set(message)
+
+        def target() -> None:
+            self.root.after(0, lambda: self.root.configure(cursor="watch"))
+            try:
+                do_register()
+            except Exception as exc:
+                self.log_queue.put(f"Erreur: {exc}")
+                self.root.after(0, lambda: on_error(str(exc)))
+            finally:
+                self.root.after(0, lambda: self.root.configure(cursor=""))
+
+        threading.Thread(target=target, daemon=True).start()
 
     def _companion_token(self) -> tuple[str, str]:
         config = client_support.load_config()
