@@ -475,7 +475,7 @@ class NabaztagMacApp:
 
     def open_account_registration(self) -> None:
         portal = client_support.normalize_portal_base(self.portal_var.get())
-        provisioning_support.open_external_url(f"{portal}/register")
+        provisioning_support.open_external_url(f"{portal}/auth/register")
 
     def _companion_token(self) -> tuple[str, str]:
         config = client_support.load_config()
