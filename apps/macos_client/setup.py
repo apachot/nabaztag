@@ -5,7 +5,7 @@ APP = ["app.py"]
 DATA_FILES = []
 OPTIONS = {
     "argv_emulation": False,
-    "includes": ["client_support"],
+    "includes": ["client_support", "provisioning_support"],
     "plist": {
         "CFBundleName": "Nabaztag",
         "CFBundleDisplayName": "Nabaztag",

@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
 
 import client_support
+import provisioning_support
 
 
 RADIO_PRESETS = {
@@ -20,7 +21,7 @@ class NabaztagMacApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title("Nabaztag")
-        self.root.geometry("760x620")
+        self.root.geometry("860x760")
 
         self.portal_var = tk.StringVar(value="https://nabaztag.org")
         self.account_email_var = tk.StringVar()
@@ -29,6 +30,16 @@ class NabaztagMacApp:
         self.selected_rabbit_status_var = tk.StringVar(value="Aucun lapin sélectionné.")
         self.selected_rabbit_id: int | None = None
         self.rabbits_by_label: dict[str, dict] = {}
+        self.bootstrap_host_var = tk.StringVar(value="192.168.0.1")
+        self.bootstrap_setup_ssid_var = tk.StringVar(value="NabaztagXX")
+        self.bootstrap_home_ssid_var = tk.StringVar()
+        self.bootstrap_home_password_var = tk.StringVar()
+        self.bootstrap_wifi_status_var = tk.StringVar(value="Wi-Fi du Mac non détecté.")
+        self.bootstrap_status_var = tk.StringVar(value="Prêt pour la mise en service locale du lapin.")
+        self.bootstrap_violet_platform_var = tk.StringVar(
+            value=provisioning_support.build_violet_platform_value(self.portal_var.get())
+        )
+        self.portal_var.trace_add("write", lambda *_args: self._update_violet_platform())
 
         self.rabbit_app_pairing_code_var = tk.StringVar()
         self.rabbit_app_pairing_status_var = tk.StringVar(value="Aucun code d'appairage lapin chargé.")
@@ -98,6 +109,43 @@ class NabaztagMacApp:
         account_status = ttk.LabelFrame(self.app_container, text="Compte")
         account_status.pack(fill=tk.X, pady=(0, 12))
         ttk.Label(account_status, textvariable=self.status_var, wraplength=680).pack(anchor=tk.W, padx=12, pady=12)
+
+        provisioning_frame = ttk.LabelFrame(self.app_container, text="Mettre en service un lapin")
+        provisioning_frame.pack(fill=tk.X, pady=(0, 12))
+
+        ttk.Label(
+            provisioning_frame,
+            text=(
+                "Détecte le Wi-Fi du Mac, vérifie le configurateur local sur 192.168.0.1 "
+                "et prépare la configuration du lapin avec nabaztag.org/vl."
+            ),
+            wraplength=700,
+        ).pack(anchor=tk.W, padx=12, pady=(12, 8))
+
+        provisioning_form = ttk.Frame(provisioning_frame)
+        provisioning_form.pack(fill=tk.X, padx=12, pady=(0, 8))
+        provisioning_form.columnconfigure(1, weight=1)
+
+        ttk.Label(provisioning_form, text="Hôte du lapin").grid(row=0, column=0, sticky="w", padx=(0, 10), pady=4)
+        ttk.Entry(provisioning_form, textvariable=self.bootstrap_host_var).grid(row=0, column=1, sticky="ew", pady=4)
+        ttk.Label(provisioning_form, text="SSID setup").grid(row=1, column=0, sticky="w", padx=(0, 10), pady=4)
+        ttk.Entry(provisioning_form, textvariable=self.bootstrap_setup_ssid_var).grid(row=1, column=1, sticky="ew", pady=4)
+        ttk.Label(provisioning_form, text="Wi-Fi maison").grid(row=2, column=0, sticky="w", padx=(0, 10), pady=4)
+        ttk.Entry(provisioning_form, textvariable=self.bootstrap_home_ssid_var).grid(row=2, column=1, sticky="ew", pady=4)
+        ttk.Label(provisioning_form, text="Mot de passe Wi-Fi").grid(row=3, column=0, sticky="w", padx=(0, 10), pady=4)
+        ttk.Entry(provisioning_form, textvariable=self.bootstrap_home_password_var, show="*").grid(row=3, column=1, sticky="ew", pady=4)
+        ttk.Label(provisioning_form, text="Violet Platform").grid(row=4, column=0, sticky="w", padx=(0, 10), pady=4)
+        ttk.Entry(provisioning_form, textvariable=self.bootstrap_violet_platform_var, state="readonly").grid(row=4, column=1, sticky="ew", pady=4)
+
+        provisioning_actions = ttk.Frame(provisioning_frame)
+        provisioning_actions.pack(fill=tk.X, padx=12, pady=(0, 8))
+        ttk.Button(provisioning_actions, text="Détecter le Wi-Fi du Mac", command=self.detect_mac_wifi).pack(side=tk.LEFT)
+        ttk.Button(provisioning_actions, text="Tester 192.168.0.1", command=self.probe_local_bootstrap).pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Button(provisioning_actions, text="Ouvrir le configurateur", command=self.open_local_bootstrap).pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Button(provisioning_actions, text="Configurer le lapin", command=self.configure_local_bootstrap).pack(side=tk.RIGHT)
+
+        ttk.Label(provisioning_frame, textvariable=self.bootstrap_wifi_status_var, wraplength=700).pack(anchor=tk.W, padx=12)
+        ttk.Label(provisioning_frame, textvariable=self.bootstrap_status_var, wraplength=700).pack(anchor=tk.W, padx=12, pady=(4, 12))
 
         rabbit_selection = ttk.Frame(self.app_container)
         rabbit_selection.pack(fill=tk.X, pady=(0, 12))
@@ -242,6 +290,7 @@ class NabaztagMacApp:
         if email:
             self.account_email_var.set(email)
         self.status_var.set("Connecte-toi pour accéder à tes lapins.")
+        self._update_violet_platform()
         self._show_auth_view()
 
     def _run_in_thread(self, fn, *, on_error: str) -> None:
@@ -256,6 +305,11 @@ class NabaztagMacApp:
                 self.root.after(0, lambda: self.root.configure(cursor=""))
 
         threading.Thread(target=target, daemon=True).start()
+
+    def _update_violet_platform(self) -> None:
+        self.bootstrap_violet_platform_var.set(
+            provisioning_support.build_violet_platform_value(self.portal_var.get())
+        )
 
     def _companion_token(self) -> tuple[str, str]:
         config = client_support.load_config()
@@ -289,6 +343,7 @@ class NabaztagMacApp:
             rabbit_count = len(response.get("rabbits") or []) if isinstance(response.get("rabbits"), list) else 0
             self.log_queue.put("Application macOS connectée au compte.")
             self.root.after(0, lambda: self.account_password_var.set(""))
+            self.root.after(0, self._update_violet_platform)
             self.root.after(0, self._show_app_view)
             self.root.after(0, lambda: self.status_var.set(f"Connecté au compte. {rabbit_count} lapin(s) disponible(s)."))
             self.root.after(0, self.refresh_rabbits)
@@ -306,8 +361,95 @@ class NabaztagMacApp:
         if self.rabbit_listbox is not None:
             self.rabbit_listbox.delete(0, tk.END)
         self.status_var.set("Déconnecté. Connecte-toi pour accéder à tes lapins.")
+        self._update_violet_platform()
         self._show_auth_view()
         self.log_queue.put("Application macOS déconnectée du compte.")
+
+    def detect_mac_wifi(self) -> None:
+        self.bootstrap_wifi_status_var.set("Détection du Wi-Fi du Mac…")
+
+        def do_detect() -> None:
+            interface, ssid = provisioning_support.current_wifi_ssid()
+            if not interface:
+                raise RuntimeError("Impossible d'identifier l'interface Wi-Fi du Mac.")
+            password = provisioning_support.read_wifi_password(ssid or "") if ssid else None
+
+            def update_ui() -> None:
+                if ssid:
+                    self.bootstrap_home_ssid_var.set(ssid)
+                if password and not self.bootstrap_home_password_var.get().strip():
+                    self.bootstrap_home_password_var.set(password)
+                if ssid and password:
+                    self.bootstrap_wifi_status_var.set(
+                        f"Wi-Fi détecté sur {interface} : {ssid}. Mot de passe récupéré depuis le trousseau."
+                    )
+                elif ssid:
+                    self.bootstrap_wifi_status_var.set(
+                        f"Wi-Fi détecté sur {interface} : {ssid}. Saisis le mot de passe pour le lapin."
+                    )
+                else:
+                    self.bootstrap_wifi_status_var.set(
+                        f"Interface Wi-Fi détectée : {interface}, mais aucun SSID actif n'a été trouvé."
+                    )
+
+            self.root.after(0, update_ui)
+            self.log_queue.put("Détection Wi-Fi du Mac terminée.")
+
+        self._run_in_thread(do_detect, on_error="Impossible de détecter le Wi-Fi du Mac.")
+
+    def probe_local_bootstrap(self) -> None:
+        host = " ".join(self.bootstrap_host_var.get().split()).strip() or "192.168.0.1"
+        self.bootstrap_status_var.set(f"Test du configurateur local sur {host}…")
+
+        def do_probe() -> None:
+            result = provisioning_support.probe_bootstrap_host(host)
+
+            def update_ui() -> None:
+                message = f"Lapin joignable sur {result.get('url') or f'http://{host}/'}."
+                if result.get("has_start_link"):
+                    message += " Lien de démarrage détecté."
+                if result.get("advanced_url"):
+                    message += " Vue Advanced configuration détectée."
+                self.bootstrap_status_var.set(message)
+
+            self.root.after(0, update_ui)
+            self.log_queue.put(f"Configurateur local détecté sur {host}.")
+
+        self._run_in_thread(do_probe, on_error="Impossible de joindre le configurateur local du lapin.")
+
+    def open_local_bootstrap(self) -> None:
+        host = " ".join(self.bootstrap_host_var.get().split()).strip() or "192.168.0.1"
+        if provisioning_support.open_bootstrap_page(host):
+            self.bootstrap_status_var.set(f"Configurateur local ouvert sur http://{host}/")
+        else:
+            self.bootstrap_status_var.set(f"Impossible d'ouvrir automatiquement http://{host}/")
+
+    def configure_local_bootstrap(self) -> None:
+        host = " ".join(self.bootstrap_host_var.get().split()).strip() or "192.168.0.1"
+        home_wifi_ssid = " ".join(self.bootstrap_home_ssid_var.get().split()).strip()
+        home_wifi_password = self.bootstrap_home_password_var.get()
+        if not home_wifi_ssid or not home_wifi_password:
+            messagebox.showerror("Nabaztag", "Saisis le Wi-Fi maison et son mot de passe.")
+            return
+
+        self.bootstrap_status_var.set("Envoi de la configuration au lapin…")
+
+        def do_configure() -> None:
+            result = provisioning_support.configure_bootstrap_host(
+                host=host,
+                home_wifi_ssid=home_wifi_ssid,
+                home_wifi_password=home_wifi_password,
+                portal_base=self.portal_var.get(),
+            )
+
+            def update_ui() -> None:
+                self.bootstrap_violet_platform_var.set(str(result.get("violet_platform") or ""))
+                self.bootstrap_status_var.set(str(result.get("message") or "Configuration envoyée au lapin."))
+
+            self.root.after(0, update_ui)
+            self.log_queue.put(f"Configuration locale envoyée au lapin via {host}.")
+
+        self._run_in_thread(do_configure, on_error="Impossible de configurer automatiquement le lapin.")
 
     def refresh_rabbits(self) -> None:
         portal, token = self._companion_token()

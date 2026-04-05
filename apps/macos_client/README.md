@@ -4,9 +4,9 @@ Client macOS minimal pour :
 
 - se connecter à son compte `nabaztag.org`
 - afficher directement la liste des lapins du compte
+- aider à mettre en service un lapin localement sur `192.168.0.1`
 - parler à un lapin depuis le bureau
 - piloter un lapin directement depuis le bureau
-- rattacher un Nabaztag à un lapin via un code temporaire généré sur le site
 
 ## Lancer en mode développement
 
@@ -65,10 +65,13 @@ Le script :
 
 - connexion de l'application au compte via email et mot de passe
 - affichage des lapins du compte
+- détection du Wi-Fi du Mac pour préparer la mise en service d'un lapin
+- test du configurateur local du lapin sur `192.168.0.1`
+- tentative de configuration locale du Wi-Fi + `Violet Platform`
 - envoi d'un message texte à un lapin
 - pilotage direct des oreilles, LEDs, radio et sommeil/réveil
-- appairage d'un lapin via un code temporaire saisi dans l'app
 
 ## Limites
 
 - packaging macOS prévu pour une construction sur macOS
+- la configuration automatique du lapin repose sur une détection best effort des formulaires locaux
