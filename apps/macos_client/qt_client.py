@@ -208,6 +208,7 @@ class RabbitPanel(QWidget):
     send_requested = Signal(str)
     refresh_requested = Signal()
     add_rabbit_requested = Signal()
+    logout_requested = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -222,10 +223,13 @@ class RabbitPanel(QWidget):
         toolbar = QHBoxLayout()
         title = QLabel("Mes lapins")
         title.setObjectName("panelTitle")
+        logout_button = QPushButton("Se déconnecter")
+        logout_button.clicked.connect(self.logout_requested.emit)
         refresh_button = QPushButton("Rafraîchir")
         refresh_button.clicked.connect(self.refresh_requested.emit)
         toolbar.addWidget(title)
         toolbar.addStretch(1)
+        toolbar.addWidget(logout_button)
         add_button = QPushButton("Ajouter un lapin")
         add_button.clicked.connect(self.add_rabbit_requested.emit)
         toolbar.addWidget(add_button)
@@ -388,6 +392,7 @@ class MainWindow(QMainWindow):
         self.rabbit_panel.refresh_requested.connect(self.refresh_rabbits)
         self.rabbit_panel.send_requested.connect(self.send_message)
         self.rabbit_panel.add_rabbit_requested.connect(self.show_provisioning_view)
+        self.rabbit_panel.logout_requested.connect(self.logout)
         self.rabbit_panel.rabbits_list.currentItemChanged.connect(self._on_rabbit_selected)
         self.provisioning_view.detect_wifi_requested.connect(self.detect_mac_wifi)
         self.provisioning_view.probe_requested.connect(self.probe_local_bootstrap)
@@ -491,6 +496,22 @@ class MainWindow(QMainWindow):
 
     def _on_refresh_failed(self, message: str) -> None:
         self.login_view.set_status(message)
+        self.stack.setCurrentWidget(self.login_view)
+
+    def logout(self) -> None:
+        config = client_support.load_config()
+        companion = config.get("companion") if isinstance(config.get("companion"), dict) else {}
+        config["companion"] = {
+            "email": str(companion.get("email") or self.login_view.email_input.text() or "").strip().lower()
+        }
+        client_support.save_config(config)
+        self.api_token = ""
+        self.rabbits = []
+        self.selected_rabbit_id = None
+        self.rabbit_panel.rabbits_list.clear()
+        self.rabbit_panel.status_label.setText("Aucun lapin sélectionné.")
+        self.login_view.password_input.clear()
+        self.login_view.set_status("Déconnecté. Connecte-toi pour accéder à tes lapins.")
         self.stack.setCurrentWidget(self.login_view)
 
     def show_provisioning_view(self) -> None:
