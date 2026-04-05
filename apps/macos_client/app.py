@@ -349,6 +349,7 @@ class NabaztagMacApp:
             self.app_canvas.yview_moveto(0)
         self.root.geometry("860x760")
         self.root.deiconify()
+        self.root.after_idle(self._sync_app_layout)
         self.root.after_idle(self._focus_app_view)
 
     def _focus_app_view(self) -> None:
@@ -357,6 +358,18 @@ class NabaztagMacApp:
                 self.rabbit_listbox.focus_set()
             except tk.TclError:
                 return
+
+    def _sync_app_layout(self) -> None:
+        if self.app_shell is None or self.app_canvas is None or self.app_container is None:
+            return
+        try:
+            self.app_shell.update_idletasks()
+            self.app_container.update_idletasks()
+            canvas_width = max(self.app_canvas.winfo_width(), 1)
+            self.app_canvas.itemconfigure(self.app_canvas_window, width=canvas_width)
+            self.app_canvas.configure(scrollregion=self.app_canvas.bbox("all"))
+        except tk.TclError:
+            return
 
     def _set_app_mode(self, *, has_rabbits: bool) -> None:
         if self.provisioning_frame is not None:
@@ -384,8 +397,7 @@ class NabaztagMacApp:
                 self.log_frame.pack(fill=tk.BOTH, expand=True, pady=(12, 0))
             else:
                 self.log_frame.pack_forget()
-        if self.app_canvas is not None:
-            self.root.after(0, lambda: self.app_canvas.configure(scrollregion=self.app_canvas.bbox("all")))
+        self.root.after_idle(self._sync_app_layout)
 
     def show_add_rabbit_flow(self) -> None:
         self._set_app_mode(has_rabbits=False)
@@ -811,6 +823,7 @@ class NabaztagMacApp:
                         else "Aucun lapin rattaché pour l'instant. Connectez votre lapin."
                     )
                 self._show_app_view()
+                self._sync_app_layout()
 
             self.root.after(0, update_ui)
             self.log_queue.put("Liste des lapins rafraîchie.")
