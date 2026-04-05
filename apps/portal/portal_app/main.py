@@ -116,6 +116,17 @@ def _friend_ids_for_rabbit(rabbit_id: int) -> list[int]:
     return sorted(friend_ids)
 
 
+def _delete_rabbit_related_rows(rabbit: Rabbit) -> None:
+    RabbitFriendship.query.filter(
+        (RabbitFriendship.rabbit_low_id == rabbit.id) | (RabbitFriendship.rabbit_high_id == rabbit.id)
+    ).delete(synchronize_session=False)
+    RabbitDeviceCommand.query.filter_by(rabbit_id=rabbit.id).delete(synchronize_session=False)
+    RabbitRecording.query.filter_by(rabbit_id=rabbit.id).delete(synchronize_session=False)
+    RabbitConversationTurn.query.filter_by(rabbit_id=rabbit.id).delete(synchronize_session=False)
+    RabbitPrecomputedPerformance.query.filter_by(rabbit_id=rabbit.id).delete(synchronize_session=False)
+    Ztamp.query.filter_by(rabbit_id=rabbit.id).delete(synchronize_session=False)
+
+
 def _friends_for_rabbit(rabbit: Rabbit) -> list[Rabbit]:
     friend_ids = _friend_ids_for_rabbit(rabbit.id)
     if not friend_ids:
@@ -3554,9 +3565,7 @@ def mobile_api_delete_rabbit(rabbit_id: int):
         return jsonify({"ok": False, "message": "Lapin introuvable."}), 404
 
     rabbit_name = rabbit.name
-    RabbitFriendship.query.filter(
-        (RabbitFriendship.rabbit_low_id == rabbit.id) | (RabbitFriendship.rabbit_high_id == rabbit.id)
-    ).delete(synchronize_session=False)
+    _delete_rabbit_related_rows(rabbit)
 
     if rabbit.photo_filename:
         photo_path = _rabbit_photo_storage_path(rabbit.photo_filename)
