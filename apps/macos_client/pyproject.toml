@@ -7,7 +7,7 @@ name = "nabaztag-macos-client"
 version = "0.1.0"
 description = "Minimal macOS client for Nabaztag local bridge"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = ["PySide6>=6.8"]
 
 [tool.setuptools]
-py-modules = ["app"]
+py-modules = ["app", "qt_client", "client_support", "provisioning_support"]

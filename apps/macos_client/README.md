@@ -10,8 +10,17 @@ Client macOS minimal pour :
 
 ## Lancer en mode développement
 
+Version Tkinter historique :
+
 ```bash
 python3 apps/macos_client/app.py
+```
+
+Nouveau scaffold Qt :
+
+```bash
+python3 -m pip install PySide6
+python3 apps/macos_client/qt_client.py
 ```
 
 ## Construire une app macOS / DMG
@@ -75,3 +84,14 @@ Le script :
 
 - packaging macOS prévu pour une construction sur macOS
 - la configuration automatique du lapin repose sur une détection best effort des formulaires locaux
+
+## Prototype Qt
+
+Un nouveau client `PySide6` est disponible dans `qt_client.py` pour préparer la migration hors de Tkinter.
+Il couvre déjà :
+
+- connexion au compte
+- reconnexion automatique via le token stocké
+- liste des lapins
+- sélection d'un lapin
+- envoi d'un message texte
