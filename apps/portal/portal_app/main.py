@@ -158,8 +158,11 @@ def _effective_rabbit_connection_status(
         linked_device = _latest_device_observation_for_rabbit(rabbit)
     if linked_device is None or linked_device.last_seen_at is None:
         return "offline"
-    freshness_deadline = utc_now() - timedelta(seconds=RABBIT_ONLINE_FRESHNESS_SECONDS)
-    return "online" if linked_device.last_seen_at >= freshness_deadline else "offline"
+    freshness_deadline = _utc_comparable(utc_now() - timedelta(seconds=RABBIT_ONLINE_FRESHNESS_SECONDS))
+    last_seen_at = _utc_comparable(linked_device.last_seen_at)
+    if freshness_deadline is None or last_seen_at is None:
+        return "offline"
+    return "online" if last_seen_at >= freshness_deadline else "offline"
 
 
 def _serialize_device_observation(device: DeviceObservation | None) -> dict | None:
