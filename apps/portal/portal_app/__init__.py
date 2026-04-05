@@ -146,6 +146,31 @@ def _ensure_portal_schema() -> None:
         )
         db.session.commit()
 
+    if "rabbit_app_pairing_session" not in existing_tables:
+        db.session.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS rabbit_app_pairing_session (
+                    id INTEGER PRIMARY KEY,
+                    rabbit_id INTEGER NOT NULL,
+                    token VARCHAR(64) NOT NULL UNIQUE,
+                    status VARCHAR(32) NOT NULL DEFAULT 'pending',
+                    expires_at DATETIME NOT NULL,
+                    consumed_at DATETIME,
+                    created_at DATETIME NOT NULL,
+                    FOREIGN KEY(rabbit_id) REFERENCES rabbit(id)
+                )
+                """
+            )
+        )
+        db.session.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_rabbit_app_pairing_session_rabbit_id ON rabbit_app_pairing_session(rabbit_id)")
+        )
+        db.session.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_rabbit_app_pairing_session_token ON rabbit_app_pairing_session(token)")
+        )
+        db.session.commit()
+
     if "mobile_api_token" not in existing_tables:
         db.session.execute(
             text(

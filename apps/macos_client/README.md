@@ -9,6 +9,7 @@ Client macOS minimal pour:
 - récupérer la liste des lapins
 - parler à un lapin depuis le bureau
 - piloter un lapin directement depuis le bureau
+- rattacher un Nabaztag à un lapin via un code temporaire généré sur le site
 
 Le client est volontairement léger et réutilise le protocole du bridge local déjà présent dans le portail.
 
@@ -40,6 +41,7 @@ L'app générée se trouve ensuite dans `dist/`.
 - affichage des lapins du compte
 - envoi d'un message texte à un lapin
 - pilotage direct des oreilles, LEDs, radio et sommeil/réveil
+- appairage d'un lapin via un code temporaire saisi dans l'app
 
 ## Limites
 

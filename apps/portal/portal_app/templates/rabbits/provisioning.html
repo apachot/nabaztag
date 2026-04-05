@@ -377,6 +377,24 @@
         <div>
           <h2>Identifier automatiquement le bon Nabaztag</h2>
           <p>Une fois revenu sur ton Wi‑Fi, appuie sur le bouton du lapin. Cela permettra de l’identifier automatiquement parmi les Nabaztag qui se sont connectés au serveur et ne sont pas encore rattachés à un compte.</p>
+          <div class="rabbit-card" id="app-pairing" style="margin-top: 16px;">
+            <strong>Appairage depuis l'application</strong>
+            <div class="meta">Tu peux aussi générer ici un code temporaire à saisir dans l'application macOS pour rattacher ce lapin sans rester sur cette page.</div>
+            <form method="post" action="{{ url_for('main.rabbit_app_pairing_code', rabbit_id=rabbit.id) }}" style="margin-top: 12px;">
+              <button class="pill" type="submit">Générer un code temporaire</button>
+            </form>
+            {% if app_pairing %}
+              <div class="stack" style="margin-top: 12px;">
+                <div class="meta">Code actif jusqu’au {{ app_pairing.expires_at.strftime("%d/%m/%Y %H:%M") if app_pairing.expires_at else "n/a" }}.</div>
+                <div class="field">
+                  <label>Code à saisir dans l'application</label>
+                  <input value="{{ app_pairing.token }}" readonly onclick="this.select()">
+                </div>
+              </div>
+            {% else %}
+              <div class="meta" style="margin-top: 12px;">Aucun code temporaire actif pour ce lapin.</div>
+            {% endif %}
+          </div>
           <div class="diagnostic-list">
             <div class="diagnostic-item">
               <strong>Si aucun lapin n’est détecté</strong>

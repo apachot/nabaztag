@@ -65,6 +65,7 @@ from .models import (
     LocalBridgePairingSession,
     ProvisioningSession,
     Rabbit,
+    RabbitAppPairingSession,
     RabbitFriendship,
     RabbitConversationTurn,
     RabbitDeviceCommand,
@@ -136,6 +137,26 @@ def _recent_provisioning_candidates(*, limit: int = 8) -> tuple[DeviceObservatio
         if (device.last_path or "") == "xmpp:rabbit.button"
     ]
     return (button_candidates[0] if button_candidates else None, devices)
+
+
+def _serialize_device_observation(device: DeviceObservation | None) -> dict | None:
+    if device is None:
+        return None
+    return {
+        "id": device.id,
+        "serial": device.serial,
+        "last_seen_at": device.last_seen_at.isoformat() if device.last_seen_at else None,
+        "last_path": device.last_path,
+    }
+
+
+def _human_pairing_code(length: int = 10) -> str:
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def _normalize_pairing_code(value: str) -> str:
+    return re.sub(r"[^A-Z0-9]", "", (value or "").upper())
 
 
 LED_COLOR_PRESETS = {
@@ -392,6 +413,30 @@ def _create_mobile_pairing_session(user) -> MobileAppPairingSession:
     return session
 
 
+def _active_rabbit_app_pairing_for_rabbit(rabbit: Rabbit) -> RabbitAppPairingSession | None:
+    return (
+        RabbitAppPairingSession.query.filter_by(rabbit_id=rabbit.id, status="pending")
+        .filter(RabbitAppPairingSession.consumed_at.is_(None))
+        .order_by(RabbitAppPairingSession.created_at.desc())
+        .first()
+    )
+
+
+def _create_rabbit_app_pairing_session(rabbit: Rabbit) -> RabbitAppPairingSession:
+    RabbitAppPairingSession.query.filter_by(rabbit_id=rabbit.id, status="pending").update(
+        {"status": "superseded", "consumed_at": utc_now()}
+    )
+    session = RabbitAppPairingSession(
+        rabbit_id=rabbit.id,
+        token=_human_pairing_code(),
+        status="pending",
+        expires_at=utc_now() + timedelta(minutes=10),
+    )
+    db.session.add(session)
+    db.session.commit()
+    return session
+
+
 def _active_local_bridge_pairing_for_user(user) -> LocalBridgePairingSession | None:
     return (
         LocalBridgePairingSession.query.filter_by(user_id=user.id, status="pending")
@@ -513,6 +558,43 @@ def _mobile_pairing_url(session: MobileAppPairingSession) -> str:
 
 def _mobile_api_unauthorized(message: str = "Authentification mobile invalide."):
     return jsonify({"ok": False, "message": message}), 401
+
+
+def _rabbit_pairing_candidates_payload(rabbit: Rabbit) -> dict:
+    linked_device = (
+        DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(DeviceObservation.last_seen_at.desc())
+        .first()
+    )
+    button_candidate, recent_unclaimed_devices = _recent_provisioning_candidates()
+    return {
+        "rabbit": _serialize_mobile_rabbit(rabbit),
+        "linked_device": _serialize_device_observation(linked_device),
+        "button_candidate": _serialize_device_observation(button_candidate),
+        "recent_unclaimed_devices": [
+            _serialize_device_observation(device) for device in recent_unclaimed_devices
+        ],
+    }
+
+
+def _claim_device_for_rabbit(rabbit: Rabbit, observation: DeviceObservation) -> None:
+    observation.rabbit_id = rabbit.id
+    rabbit.connection_status = "online"
+    db.session.add(
+        RabbitEventLog(
+            rabbit_id=rabbit.id,
+            source="portal",
+            event_type="rabbit.device.claimed",
+            payload=json.dumps({"serial": observation.serial}),
+        )
+    )
+
+    warning_message = None
+    try:
+        _sync_remote_rabbit(rabbit, linked_serial=observation.serial)
+    except NabaztagApiError as exc:
+        warning_message = f"Lapin physique lié localement, mais non synchronisé à l'API: {exc}"
+    return warning_message
 
 
 def _mobile_bearer_token() -> str:
@@ -3200,6 +3282,65 @@ def mobile_api_pairing_claim():
     )
 
 
+@main_bp.post("/mobile-api/v1/rabbit-pairing/claim")
+def mobile_api_rabbit_pairing_claim():
+    payload = request.get_json(silent=True) or {}
+    pairing_token = _normalize_pairing_code(str(payload.get("pairing_token") or ""))
+    if not pairing_token:
+        return jsonify({"ok": False, "message": "pairing_token obligatoire."}), 400
+
+    session = RabbitAppPairingSession.query.filter_by(token=pairing_token).first()
+    if session is None or session.rabbit is None:
+        return jsonify({"ok": False, "message": "Code d'appairage invalide."}), 404
+    if session.consumed_at is not None or session.status != "pending":
+        return jsonify({"ok": False, "message": "Code d'appairage déjà utilisé."}), 409
+    expires_at = _utc_comparable(session.expires_at)
+    if expires_at is not None and expires_at < _utc_comparable(utc_now()):
+        session.status = "expired"
+        db.session.commit()
+        return jsonify({"ok": False, "message": "Code d'appairage expiré."}), 410
+
+    return jsonify({"ok": True, "pairing": _rabbit_pairing_candidates_payload(session.rabbit)})
+
+
+@main_bp.post("/mobile-api/v1/rabbit-pairing/attach")
+def mobile_api_rabbit_pairing_attach():
+    payload = request.get_json(silent=True) or {}
+    pairing_token = _normalize_pairing_code(str(payload.get("pairing_token") or ""))
+    observation_id = payload.get("observation_id")
+    if not pairing_token:
+        return jsonify({"ok": False, "message": "pairing_token obligatoire."}), 400
+    if not isinstance(observation_id, int):
+        return jsonify({"ok": False, "message": "observation_id obligatoire."}), 400
+
+    session = RabbitAppPairingSession.query.filter_by(token=pairing_token).first()
+    if session is None or session.rabbit is None:
+        return jsonify({"ok": False, "message": "Code d'appairage invalide."}), 404
+    if session.consumed_at is not None or session.status != "pending":
+        return jsonify({"ok": False, "message": "Code d'appairage déjà utilisé."}), 409
+    expires_at = _utc_comparable(session.expires_at)
+    if expires_at is not None and expires_at < _utc_comparable(utc_now()):
+        session.status = "expired"
+        db.session.commit()
+        return jsonify({"ok": False, "message": "Code d'appairage expiré."}), 410
+
+    observation = DeviceObservation.query.get(observation_id)
+    if observation is None:
+        return jsonify({"ok": False, "message": "Périphérique introuvable."}), 404
+    if observation.rabbit_id not in {None, session.rabbit_id}:
+        return jsonify({"ok": False, "message": "Ce Nabaztag est déjà rattaché à un autre lapin."}), 409
+
+    warning_message = _claim_device_for_rabbit(session.rabbit, observation)
+    session.status = "used"
+    session.consumed_at = utc_now()
+    db.session.commit()
+
+    message = f"Lapin physique {observation.serial} rattaché."
+    if warning_message:
+        message = f"{message} {warning_message}"
+    return jsonify({"ok": True, "message": message, "pairing": _rabbit_pairing_candidates_payload(session.rabbit)})
+
+
 @main_bp.post("/bridge-api/v1/pairing/claim")
 def local_bridge_pairing_claim():
     payload = request.get_json(silent=True) or {}
@@ -4231,11 +4372,13 @@ def rabbit_provisioning(rabbit_id: int):
         .order_by(ProvisioningSession.created_at.desc())
         .first()
     )
+    app_pairing = _active_rabbit_app_pairing_for_rabbit(rabbit)
     button_candidate, recent_unclaimed_devices = _recent_provisioning_candidates()
     return render_template(
         "rabbits/provisioning.html",
         rabbit=rabbit,
         latest_session=latest_session,
+        app_pairing=app_pairing,
         linked_device=linked_device,
         button_candidate=button_candidate,
         recent_unclaimed_devices=recent_unclaimed_devices,
@@ -4244,35 +4387,22 @@ def rabbit_provisioning(rabbit_id: int):
     )
 
 
+@main_bp.post("/rabbits/<int:rabbit_id>/app-pairing-code")
+@login_required
+def rabbit_app_pairing_code(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    _create_rabbit_app_pairing_session(rabbit)
+    flash("Code temporaire d'appairage application généré.", "success")
+    return redirect(f"{url_for('main.rabbit_provisioning', rabbit_id=rabbit.id)}#app-pairing")
+
+
 @main_bp.get("/rabbits/<int:rabbit_id>/provisioning/live")
 @login_required
 def rabbit_provisioning_live(rabbit_id: int):
     rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
-    linked_device = (
-        DeviceObservation.query.filter_by(rabbit_id=rabbit.id)
-        .order_by(DeviceObservation.last_seen_at.desc())
-        .first()
-    )
-    button_candidate, recent_unclaimed_devices = _recent_provisioning_candidates()
-
-    def _serialize_device(device: DeviceObservation | None) -> dict | None:
-        if device is None:
-            return None
-        return {
-            "id": device.id,
-            "serial": device.serial,
-            "last_seen_at": device.last_seen_at.isoformat() if device.last_seen_at else None,
-            "last_path": device.last_path,
-        }
-
-    return jsonify(
-        {
-            "linked_device": _serialize_device(linked_device),
-            "button_candidate": _serialize_device(button_candidate),
-            "recent_unclaimed_devices": [_serialize_device(device) for device in recent_unclaimed_devices],
-            "claim_url": url_for("main.claim_device", rabbit_id=rabbit.id),
-        }
-    )
+    payload = _rabbit_pairing_candidates_payload(rabbit)
+    payload["claim_url"] = url_for("main.claim_device", rabbit_id=rabbit.id)
+    return jsonify(payload)
 
 
 @main_bp.route("/rabbits/new", methods=["GET", "POST"])
@@ -5202,24 +5332,12 @@ def claim_device(rabbit_id: int):
         flash("Périphérique introuvable.", "error")
         return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
-    observation.rabbit_id = rabbit.id
-    rabbit.connection_status = "online"
-    db.session.add(
-        RabbitEventLog(
-            rabbit_id=rabbit.id,
-            source="portal",
-            event_type="rabbit.device.claimed",
-            payload=json.dumps({"serial": observation.serial}),
-        )
-    )
-
-    try:
-        _sync_remote_rabbit(rabbit, linked_serial=observation.serial)
-    except NabaztagApiError as exc:
-        flash(f"Lapin physique lié localement, mais non synchronisé à l'API: {exc}", "error")
+    warning_message = _claim_device_for_rabbit(rabbit, observation)
 
     db.session.commit()
     flash(f"Lapin physique {observation.serial} rattaché.", "success")
+    if warning_message:
+        flash(warning_message, "error")
     next_page = request.form.get("next", "").strip().lower()
     if next_page == "provisioning":
         return redirect(url_for("main.rabbit_provisioning", rabbit_id=rabbit.id))

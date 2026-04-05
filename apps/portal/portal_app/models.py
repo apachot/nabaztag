@@ -96,6 +96,11 @@ class Rabbit(db.Model):
         back_populates="rabbit",
         cascade="all, delete-orphan",
     )
+    app_pairing_sessions = db.relationship(
+        "RabbitAppPairingSession",
+        back_populates="rabbit",
+        cascade="all, delete-orphan",
+    )
     device_observations = db.relationship(
         "DeviceObservation",
         back_populates="rabbit",
@@ -163,6 +168,18 @@ class ProvisioningSession(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
 
     rabbit = db.relationship("Rabbit", back_populates="provisioning_sessions")
+
+
+class RabbitAppPairingSession(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    rabbit_id = db.Column(db.Integer, db.ForeignKey("rabbit.id"), nullable=False, index=True)
+    token = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    status = db.Column(db.String(32), default="pending", nullable=False)
+    expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
+    consumed_at = db.Column(db.DateTime(timezone=True))
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+
+    rabbit = db.relationship("Rabbit", back_populates="app_pairing_sessions")
 
 
 class MobileAppPairingSession(db.Model):

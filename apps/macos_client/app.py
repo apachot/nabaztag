@@ -31,6 +31,10 @@ class BridgeApp:
         self.rabbit_status_var = tk.StringVar(value="Compagnon non appairé.")
         self.selected_rabbit_id: int | None = None
         self.rabbits_by_name: dict[str, dict] = {}
+        self.rabbit_app_pairing_code_var = tk.StringVar()
+        self.rabbit_app_pairing_status_var = tk.StringVar(value="Aucun code d'appairage lapin chargé.")
+        self.rabbit_pairing_device_var = tk.StringVar()
+        self.rabbit_pairing_devices_by_label: dict[str, dict] = {}
         self.ear_left_var = tk.IntVar(value=4)
         self.ear_right_var = tk.IntVar(value=12)
         self.led_target_var = tk.StringVar(value="nose")
@@ -101,6 +105,21 @@ class BridgeApp:
         rabbit_status_frame = ttk.LabelFrame(companion_tab, text="État du compagnon")
         rabbit_status_frame.pack(fill=tk.X, pady=(0, 12))
         ttk.Label(rabbit_status_frame, textvariable=self.rabbit_status_var, wraplength=680).pack(anchor=tk.W, padx=12, pady=12)
+
+        rabbit_pairing_frame = ttk.LabelFrame(companion_tab, text="Appairer un lapin avec un code")
+        rabbit_pairing_frame.pack(fill=tk.X, pady=(0, 12))
+        rabbit_pairing_form = ttk.Frame(rabbit_pairing_frame)
+        rabbit_pairing_form.pack(fill=tk.X, padx=8, pady=(8, 6))
+        rabbit_pairing_form.columnconfigure(1, weight=1)
+        ttk.Label(rabbit_pairing_form, text="Code temporaire").grid(row=0, column=0, sticky="w", padx=(0, 12))
+        ttk.Entry(rabbit_pairing_form, textvariable=self.rabbit_app_pairing_code_var).grid(row=0, column=1, sticky="ew")
+        ttk.Button(rabbit_pairing_form, text="Charger le code", command=self.load_rabbit_pairing_code).grid(row=0, column=2, padx=(8, 0))
+        ttk.Label(rabbit_pairing_frame, textvariable=self.rabbit_app_pairing_status_var, wraplength=680).pack(anchor=tk.W, padx=8, pady=(0, 8))
+        rabbit_pairing_actions = ttk.Frame(rabbit_pairing_frame)
+        rabbit_pairing_actions.pack(fill=tk.X, padx=8, pady=(0, 8))
+        self.rabbit_pairing_combo = ttk.Combobox(rabbit_pairing_actions, state="readonly", textvariable=self.rabbit_pairing_device_var)
+        self.rabbit_pairing_combo.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        ttk.Button(rabbit_pairing_actions, text="Rattacher ce Nabaztag", command=self.attach_rabbit_from_code).pack(side=tk.LEFT, padx=(8, 0))
 
         rabbit_selection = ttk.Frame(companion_tab)
         rabbit_selection.pack(fill=tk.X, pady=(0, 12))
@@ -313,7 +332,11 @@ class BridgeApp:
             def update_ui() -> None:
                 self.rabbit_combo["values"] = labels
                 if labels:
-                    self.rabbit_combo.current(0)
+                    current = self.rabbit_combo.get().strip()
+                    if current in labels:
+                        self.rabbit_combo.set(current)
+                    else:
+                        self.rabbit_combo.current(0)
                     self.on_rabbit_selected()
                     self.rabbit_status_var.set(f"{len(labels)} lapin(s) disponible(s).")
                 else:
@@ -330,6 +353,122 @@ class BridgeApp:
         rabbit = self.rabbits_by_name.get(label) or {}
         rabbit_id = rabbit.get("id")
         self.selected_rabbit_id = int(rabbit_id) if isinstance(rabbit_id, int) else None
+
+    def _select_rabbit_by_id(self, rabbit_id: int) -> None:
+        for label, rabbit in self.rabbits_by_name.items():
+            if rabbit.get("id") == rabbit_id:
+                self.rabbit_combo.set(label)
+                self.on_rabbit_selected()
+                return
+
+    def load_rabbit_pairing_code(self) -> None:
+        portal = bridge_agent.normalize_portal_base(self.portal_var.get().strip())
+        pairing_token = "".join(self.rabbit_app_pairing_code_var.get().upper().split())
+        if not portal or not pairing_token:
+            messagebox.showerror("Nabaztag Bridge", "Saisis le portail et le code temporaire.")
+            return
+
+        def do_load() -> None:
+            response = bridge_agent.http_json(
+                url=f"{portal}/mobile-api/v1/rabbit-pairing/claim",
+                method="POST",
+                payload={"pairing_token": pairing_token},
+            )
+            if not response.get("ok"):
+                raise RuntimeError(response.get("message") or "Chargement du code impossible.")
+            pairing = response.get("pairing") if isinstance(response.get("pairing"), dict) else {}
+            rabbit = pairing.get("rabbit") if isinstance(pairing.get("rabbit"), dict) else {}
+            linked_device = pairing.get("linked_device") if isinstance(pairing.get("linked_device"), dict) else None
+            button_candidate = pairing.get("button_candidate") if isinstance(pairing.get("button_candidate"), dict) else None
+            recent_devices = pairing.get("recent_unclaimed_devices") if isinstance(pairing.get("recent_unclaimed_devices"), list) else []
+            device_map: dict[str, dict] = {}
+            ordered_devices: list[dict] = []
+            if button_candidate:
+                ordered_devices.append(button_candidate)
+            for device in recent_devices:
+                if not isinstance(device, dict):
+                    continue
+                if button_candidate and device.get("id") == button_candidate.get("id"):
+                    continue
+                ordered_devices.append(device)
+            labels: list[str] = []
+            for device in ordered_devices:
+                label = f"{device.get('serial', 'n/a')} · {device.get('last_path') or 'n/a'}"
+                device_map[label] = device
+                labels.append(label)
+
+            rabbit_id = rabbit.get("id")
+            rabbit_name = " ".join(str(rabbit.get("name") or "").split()).strip() or "Lapin"
+
+            def update_ui() -> None:
+                self.rabbit_pairing_devices_by_label = device_map
+                self.rabbit_pairing_combo["values"] = labels
+                if labels:
+                    self.rabbit_pairing_combo.set(labels[0])
+                else:
+                    self.rabbit_pairing_combo.set("")
+                if isinstance(rabbit_id, int):
+                    self.refresh_rabbits()
+                    self.root.after(500, lambda: self._select_rabbit_by_id(rabbit_id))
+                if linked_device:
+                    self.rabbit_app_pairing_status_var.set(
+                        f"{rabbit_name} est déjà rattaché au Nabaztag {linked_device.get('serial', 'n/a')}."
+                    )
+                elif labels:
+                    self.rabbit_app_pairing_status_var.set(
+                        f"{rabbit_name} prêt à être rattaché. Choisis le Nabaztag détecté puis valide."
+                    )
+                else:
+                    self.rabbit_app_pairing_status_var.set(
+                        f"{rabbit_name} chargé, mais aucun Nabaztag non rattaché n'a encore été détecté."
+                    )
+
+            self.root.after(0, update_ui)
+            self.log_queue.put(f"Code d'appairage chargé pour {rabbit_name}.")
+
+        self._run_in_thread(do_load, on_error="Impossible de charger le code d'appairage lapin.")
+
+    def attach_rabbit_from_code(self) -> None:
+        portal = bridge_agent.normalize_portal_base(self.portal_var.get().strip())
+        pairing_token = "".join(self.rabbit_app_pairing_code_var.get().upper().split())
+        label = self.rabbit_pairing_combo.get().strip()
+        device = self.rabbit_pairing_devices_by_label.get(label) or {}
+        observation_id = device.get("id")
+        if not portal or not pairing_token:
+            messagebox.showerror("Nabaztag Bridge", "Charge d'abord un code d'appairage.")
+            return
+        if not isinstance(observation_id, int):
+            messagebox.showerror("Nabaztag Bridge", "Choisis un Nabaztag à rattacher.")
+            return
+
+        def do_attach() -> None:
+            response = bridge_agent.http_json(
+                url=f"{portal}/mobile-api/v1/rabbit-pairing/attach",
+                method="POST",
+                payload={"pairing_token": pairing_token, "observation_id": observation_id},
+            )
+            if not response.get("ok"):
+                raise RuntimeError(response.get("message") or "Appairage du lapin impossible.")
+            pairing = response.get("pairing") if isinstance(response.get("pairing"), dict) else {}
+            rabbit = pairing.get("rabbit") if isinstance(pairing.get("rabbit"), dict) else {}
+            rabbit_id = rabbit.get("id")
+            rabbit_name = " ".join(str(rabbit.get("name") or "").split()).strip() or "Lapin"
+            message = " ".join(str(response.get("message") or "").split()).strip()
+
+            def update_ui() -> None:
+                self.rabbit_pairing_combo["values"] = ()
+                self.rabbit_pairing_combo.set("")
+                self.rabbit_pairing_devices_by_label = {}
+                self.rabbit_app_pairing_status_var.set(message or f"{rabbit_name} rattaché.")
+                self.rabbit_app_pairing_code_var.set("")
+                self.refresh_rabbits()
+                if isinstance(rabbit_id, int):
+                    self.root.after(500, lambda: self._select_rabbit_by_id(rabbit_id))
+
+            self.root.after(0, update_ui)
+            self.log_queue.put(message or f"{rabbit_name} rattaché.")
+
+        self._run_in_thread(do_attach, on_error="Impossible de rattacher le Nabaztag.")
 
     def send_message_to_rabbit(self) -> None:
         portal, token = self._require_companion_context()
