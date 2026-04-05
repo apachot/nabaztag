@@ -1,17 +1,12 @@
 # Nabaztag macOS Client
 
-Client macOS minimal pour:
+Client macOS minimal pour :
 
-- appairer un `bridge local`
-- lancer ou arrêter la boucle du bridge
-- visualiser l'état du bridge
-- connecter l'application macOS au compte
-- récupérer la liste des lapins
+- se connecter à son compte `nabaztag.org`
+- afficher directement la liste des lapins du compte
 - parler à un lapin depuis le bureau
 - piloter un lapin directement depuis le bureau
 - rattacher un Nabaztag à un lapin via un code temporaire généré sur le site
-
-Le client est volontairement léger et réutilise le protocole du bridge local déjà présent dans le portail.
 
 ## Lancer en mode développement
 
@@ -31,12 +26,8 @@ python3 setup.py py2app
 
 L'app générée se trouve ensuite dans `dist/`.
 
-## Ce que fait cette première version
+## Ce que fait cette version
 
-- appairage avec `https://nabaztag.org`
-- stockage local de la config bridge
-- démarrage local de la boucle `run`
-- affichage de l'état du bridge
 - connexion de l'application au compte via email et mot de passe
 - affichage des lapins du compte
 - envoi d'un message texte à un lapin
