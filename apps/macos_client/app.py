@@ -115,21 +115,6 @@ class NabaztagMacApp:
         self.message_text.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
         ttk.Button(talk_frame, text="Envoyer au lapin", command=self.send_message_to_rabbit).pack(anchor=tk.E, padx=8, pady=(0, 8))
 
-        pairing_frame = ttk.LabelFrame(self.app_container, text="Rattacher un Nabaztag à un lapin")
-        pairing_frame.pack(fill=tk.X, pady=(12, 0))
-        pairing_form = ttk.Frame(pairing_frame)
-        pairing_form.pack(fill=tk.X, padx=8, pady=(8, 6))
-        pairing_form.columnconfigure(1, weight=1)
-        ttk.Label(pairing_form, text="Code temporaire").grid(row=0, column=0, sticky="w", padx=(0, 12))
-        ttk.Entry(pairing_form, textvariable=self.rabbit_app_pairing_code_var).grid(row=0, column=1, sticky="ew")
-        ttk.Button(pairing_form, text="Charger le code", command=self.load_rabbit_pairing_code).grid(row=0, column=2, padx=(8, 0))
-        ttk.Label(pairing_frame, textvariable=self.rabbit_app_pairing_status_var, wraplength=680).pack(anchor=tk.W, padx=8, pady=(0, 8))
-        pairing_actions = ttk.Frame(pairing_frame)
-        pairing_actions.pack(fill=tk.X, padx=8, pady=(0, 8))
-        self.rabbit_pairing_combo = ttk.Combobox(pairing_actions, state="readonly", textvariable=self.rabbit_pairing_device_var)
-        self.rabbit_pairing_combo.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        ttk.Button(pairing_actions, text="Rattacher ce Nabaztag", command=self.attach_rabbit_from_code).pack(side=tk.LEFT, padx=(8, 0))
-
         control_frame = ttk.LabelFrame(self.app_container, text="Pilotage direct")
         control_frame.pack(fill=tk.X, pady=(12, 0))
 
