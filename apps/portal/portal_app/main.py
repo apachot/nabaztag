@@ -3556,7 +3556,7 @@ def mobile_api_rabbit_detail(rabbit_id: int):
 
 @main_bp.delete("/mobile-api/v1/rabbits/<int:rabbit_id>")
 def mobile_api_delete_rabbit(rabbit_id: int):
-    user = _authenticate_mobile_api_request()
+    user, _token_record = _current_mobile_user()
     if user is None:
         return jsonify({"ok": False, "message": "Authentification requise."}), 401
 
