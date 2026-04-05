@@ -33,6 +33,7 @@ class NabaztagMacApp:
         self.account_email_var = tk.StringVar()
         self.account_password_var = tk.StringVar()
         self.status_var = tk.StringVar(value="Connecte-toi pour accéder à tes lapins.")
+        self.selected_rabbit_status_var = tk.StringVar(value="Aucun lapin sélectionné.")
         self.selected_rabbit_id: int | None = None
         self.rabbits_by_name: dict[str, dict] = {}
 
@@ -108,6 +109,7 @@ class NabaztagMacApp:
         self.rabbit_combo = ttk.Combobox(rabbit_selection, state="readonly")
         self.rabbit_combo.pack(fill=tk.X, pady=(6, 0))
         self.rabbit_combo.bind("<<ComboboxSelected>>", self.on_rabbit_selected)
+        ttk.Label(rabbit_selection, textvariable=self.selected_rabbit_status_var).pack(anchor=tk.W, pady=(6, 0))
 
         talk_frame = ttk.LabelFrame(self.app_container, text="Lui parler")
         talk_frame.pack(fill=tk.BOTH, expand=True)
@@ -286,6 +288,7 @@ class NabaztagMacApp:
         bridge_agent.save_config(config)
         self.rabbits_by_name = {}
         self.selected_rabbit_id = None
+        self.selected_rabbit_status_var.set("Aucun lapin sélectionné.")
         if self.rabbit_combo is not None:
             self.rabbit_combo["values"] = ()
             self.rabbit_combo.set("")
@@ -327,14 +330,15 @@ class NabaztagMacApp:
                         current = self.rabbit_combo.get().strip()
                         if current in labels:
                             self.rabbit_combo.set(current)
-                        else:
-                            self.rabbit_combo.current(0)
-                        self.on_rabbit_selected()
-                        self.status_var.set(f"Connecté au compte. {len(labels)} lapin(s) disponible(s).")
                     else:
-                        self.rabbit_combo.set("")
-                        self.selected_rabbit_id = None
-                        self.status_var.set("Connecté au compte, mais aucun lapin n'est disponible.")
+                        self.rabbit_combo.current(0)
+                    self.on_rabbit_selected()
+                    self.status_var.set(f"Connecté au compte. {len(labels)} lapin(s) disponible(s).")
+                else:
+                    self.rabbit_combo.set("")
+                    self.selected_rabbit_id = None
+                    self.selected_rabbit_status_var.set("Aucun lapin sélectionné.")
+                    self.status_var.set("Connecté au compte, mais aucun lapin n'est disponible.")
                 self._show_app_view()
 
             self.root.after(0, update_ui)
@@ -349,6 +353,13 @@ class NabaztagMacApp:
         rabbit = self.rabbits_by_name.get(label) or {}
         rabbit_id = rabbit.get("id")
         self.selected_rabbit_id = int(rabbit_id) if isinstance(rabbit_id, int) else None
+        status = " ".join(str(rabbit.get("status") or "").split()).strip().lower()
+        if status == "online":
+            self.selected_rabbit_status_var.set("Statut du lapin : connecté")
+        elif status:
+            self.selected_rabbit_status_var.set("Statut du lapin : non connecté")
+        else:
+            self.selected_rabbit_status_var.set("Statut du lapin : inconnu")
 
     def _select_rabbit_by_id(self, rabbit_id: int) -> None:
         if self.rabbit_combo is None:

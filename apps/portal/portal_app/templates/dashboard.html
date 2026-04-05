@@ -4,11 +4,37 @@
 
 {% block content %}
   <section class="stack">
+    <style>
+      .rabbit-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 0.95rem;
+        font-weight: 600;
+      }
+      .rabbit-status-badge::before {
+        content: "";
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: currentColor;
+      }
+      .rabbit-status-badge.online {
+        color: #1f7a52;
+        background: rgba(31, 122, 82, 0.12);
+      }
+      .rabbit-status-badge.offline {
+        color: #8a3f21;
+        background: rgba(138, 63, 33, 0.12);
+      }
+    </style>
     <section class="hero">
       <div class="hero-split">
         <div>
           <p class="section-kicker">Portail Nabaztag</p>
-          <h1 class="hero-title">Mes lapins connectés.</h1>
+          <h1 class="hero-title">Mes lapins.</h1>
           <p class="hero-text">
             Le tableau de bord centralise les lapins rattachés à ton compte, leur cible réseau,
             leur état local et l’accès à leurs fiches de contrôle.
@@ -47,7 +73,9 @@
               <p class="section-kicker">Lapin</p>
               <h3 style="margin: 0;">{{ rabbit.name }}</h3>
             </div>
-            <div class="meta">{{ rabbit.connection_status }}</div>
+            <div class="rabbit-status-badge {{ 'online' if rabbit.connection_status == 'online' else 'offline' }}">
+              {{ "Connecté" if rabbit.connection_status == "online" else "Non connecté" }}
+            </div>
           </div>
           {% if rabbit.notes %}
             <p style="margin-top: 16px;">{{ rabbit.notes }}</p>
