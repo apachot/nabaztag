@@ -136,6 +136,47 @@
     </article>
 
     <article class="panel stack">
+      <div id="rabbit-app-pairing">
+        <h2 style="margin-bottom: 8px;">Appairer un lapin dans l'application</h2>
+        <div class="meta">
+          Génère ici un code temporaire à saisir dans l'application macOS pour rattacher un Nabaztag physique à l'un de tes lapins.
+        </div>
+      </div>
+
+      {% if rabbits %}
+        <div class="stack">
+          {% for rabbit in rabbits %}
+            {% set pairing = rabbit_app_pairings.get(rabbit.id) %}
+            <form method="post" class="stack" style="padding: 14px; border: 1px solid rgba(24, 23, 21, 0.08); border-radius: 18px;">
+              <input type="hidden" name="form" value="rabbit_app_pairing">
+              <input type="hidden" name="rabbit_id" value="{{ rabbit.id }}">
+              <div>
+                <strong>{{ rabbit.name }}</strong>
+                <div class="meta">Génère un code à saisir dans l'application pour rattacher un Nabaztag à ce lapin.</div>
+              </div>
+              <div class="actions">
+                <button class="button primary" type="submit" name="action" value="create">Générer un code temporaire</button>
+              </div>
+              {% if pairing %}
+                <div class="meta">
+                  Code actif jusqu’au {{ pairing.expires_at.strftime("%d/%m/%Y %H:%M") if pairing.expires_at else "n/a" }}.
+                </div>
+                <div class="field">
+                  <label>Code pour l'application</label>
+                  <input value="{{ pairing.token }}" readonly onclick="this.select()">
+                </div>
+              {% else %}
+                <div class="meta">Aucun code temporaire actif pour ce lapin.</div>
+              {% endif %}
+            </form>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="meta">Ajoute d'abord un lapin pour générer un code d'appairage application.</div>
+      {% endif %}
+    </article>
+
+    <article class="panel stack">
       <div>
         <h2 style="margin-bottom: 8px;">Application mobile</h2>
         <div class="meta">

@@ -3137,6 +3137,22 @@ def account():
             flash("Action bridge local invalide.", "error")
             return redirect(f"{url_for('main.account')}#local-bridge")
 
+        if form_name == "rabbit_app_pairing":
+            rabbit_id_raw = request.form.get("rabbit_id", "").strip()
+            if not rabbit_id_raw.isdigit():
+                flash("Lapin invalide.", "error")
+                return redirect(f"{url_for('main.account')}#rabbit-app-pairing")
+            rabbit = Rabbit.query.filter_by(id=int(rabbit_id_raw), owner_id=current_user.id).first()
+            if rabbit is None:
+                flash("Lapin introuvable.", "error")
+                return redirect(f"{url_for('main.account')}#rabbit-app-pairing")
+            if action == "create":
+                _create_rabbit_app_pairing_session(rabbit)
+                flash(f"Code temporaire généré pour {rabbit.name}.", "success")
+                return redirect(f"{url_for('main.account')}#rabbit-app-pairing")
+            flash("Action d'appairage lapin invalide.", "error")
+            return redirect(f"{url_for('main.account')}#rabbit-app-pairing")
+
         if form_name == "connector":
             connector_key = request.form.get("connector", "").strip().lower()
             definition = connector_definition(connector_key)
@@ -3202,6 +3218,8 @@ def account():
         .filter(MobileApiToken.revoked_at.is_(None))
         .count()
     )
+    rabbits = Rabbit.query.filter_by(owner_id=current_user.id).order_by(Rabbit.created_at.desc()).all()
+    rabbit_app_pairings = {rabbit.id: _active_rabbit_app_pairing_for_rabbit(rabbit) for rabbit in rabbits}
     return render_template(
         "account.html",
         mobile_pairing=mobile_pairing,
@@ -3210,6 +3228,8 @@ def account():
         local_bridge_pairing_command=local_bridge_pairing_command,
         local_bridges=local_bridges,
         mobile_tokens_count=mobile_tokens_count,
+        rabbits=rabbits,
+        rabbit_app_pairings=rabbit_app_pairings,
         connector_definitions=account_connector_definitions,
         connector_configs={definition.key: get_user_connector_config(current_user, definition.key) for definition in account_connector_definitions},
         connector_status={definition.key: is_connector_configured(current_user, definition.key) for definition in account_connector_definitions},
