@@ -338,7 +338,6 @@ class NabaztagMacApp:
             self.auth_container.pack(fill=tk.BOTH, expand=True)
         self.root.geometry("540x720")
         self.root.deiconify()
-        self.root.lift()
         self.root.after_idle(self._focus_auth_form)
 
     def _show_app_view(self) -> None:
@@ -350,7 +349,6 @@ class NabaztagMacApp:
             self.app_canvas.yview_moveto(0)
         self.root.geometry("860x760")
         self.root.deiconify()
-        self.root.lift()
         self.root.after_idle(self._focus_app_view)
 
     def _focus_app_view(self) -> None:
