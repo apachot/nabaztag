@@ -3543,6 +3543,33 @@ def mobile_api_rabbit_detail(rabbit_id: int):
     )
 
 
+@main_bp.delete("/mobile-api/v1/rabbits/<int:rabbit_id>")
+def mobile_api_delete_rabbit(rabbit_id: int):
+    user = _authenticate_mobile_api_request()
+    if user is None:
+        return jsonify({"ok": False, "message": "Authentification requise."}), 401
+
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=user.id).first()
+    if rabbit is None:
+        return jsonify({"ok": False, "message": "Lapin introuvable."}), 404
+
+    rabbit_name = rabbit.name
+    RabbitFriendship.query.filter(
+        (RabbitFriendship.rabbit_low_id == rabbit.id) | (RabbitFriendship.rabbit_high_id == rabbit.id)
+    ).delete(synchronize_session=False)
+
+    if rabbit.photo_filename:
+        photo_path = _rabbit_photo_storage_path(rabbit.photo_filename)
+        try:
+            photo_path.unlink(missing_ok=True)
+        except OSError as exc:
+            current_app.logger.warning("unable to delete rabbit photo %s: %s", photo_path, exc)
+
+    db.session.delete(rabbit)
+    db.session.commit()
+    return jsonify({"ok": True, "message": f"Lapin `{rabbit_name}` supprimé."})
+
+
 @main_bp.post("/mobile-api/v1/rabbits/<int:rabbit_id>/conversation")
 def mobile_api_rabbit_conversation(rabbit_id: int):
     user, _token_record = _current_mobile_user()

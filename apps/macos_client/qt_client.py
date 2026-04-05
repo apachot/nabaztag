@@ -98,6 +98,30 @@ class ConversationWorker(QThread):
             self.failed.emit(str(exc))
 
 
+class DeleteRabbitWorker(QThread):
+    finished_ok = Signal(dict)
+    failed = Signal(str)
+
+    def __init__(self, *, portal: str, token: str, rabbit_id: int) -> None:
+        super().__init__()
+        self.portal = portal
+        self.token = token
+        self.rabbit_id = rabbit_id
+
+    def run(self) -> None:
+        try:
+            response = client_support.http_json(
+                url=f"{self.portal}/mobile-api/v1/rabbits/{self.rabbit_id}",
+                method="DELETE",
+                token=self.token,
+            )
+            if not response.get("ok"):
+                raise RuntimeError(response.get("message") or "Suppression impossible.")
+            self.finished_ok.emit(response)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
 class ProvisioningWorker(QThread):
     finished_ok = Signal(dict)
     failed = Signal(str)
@@ -209,6 +233,7 @@ class RabbitPanel(QWidget):
     refresh_requested = Signal()
     add_rabbit_requested = Signal()
     logout_requested = Signal()
+    delete_requested = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -233,6 +258,9 @@ class RabbitPanel(QWidget):
         add_button = QPushButton("Ajouter un lapin")
         add_button.clicked.connect(self.add_rabbit_requested.emit)
         toolbar.addWidget(add_button)
+        delete_button = QPushButton("Supprimer ce lapin")
+        delete_button.clicked.connect(self.delete_requested.emit)
+        toolbar.addWidget(delete_button)
         toolbar.addWidget(refresh_button)
         root.addLayout(toolbar)
 
@@ -378,6 +406,7 @@ class MainWindow(QMainWindow):
         self.refresh_worker: RefreshWorker | None = None
         self.conversation_worker: ConversationWorker | None = None
         self.provisioning_worker: ProvisioningWorker | None = None
+        self.delete_rabbit_worker: DeleteRabbitWorker | None = None
 
         self.stack = QStackedWidget()
         self.login_view = LoginView()
@@ -393,6 +422,7 @@ class MainWindow(QMainWindow):
         self.rabbit_panel.send_requested.connect(self.send_message)
         self.rabbit_panel.add_rabbit_requested.connect(self.show_provisioning_view)
         self.rabbit_panel.logout_requested.connect(self.logout)
+        self.rabbit_panel.delete_requested.connect(self.delete_selected_rabbit)
         self.rabbit_panel.rabbits_list.currentItemChanged.connect(self._on_rabbit_selected)
         self.provisioning_view.detect_wifi_requested.connect(self.detect_mac_wifi)
         self.provisioning_view.probe_requested.connect(self.probe_local_bootstrap)
@@ -630,6 +660,38 @@ class MainWindow(QMainWindow):
             self.rabbit_panel.append_log(f"Réponse du lapin : {reply}")
 
     def _on_send_failed(self, message: str) -> None:
+        self.rabbit_panel.append_log(f"Erreur : {message}")
+
+    def delete_selected_rabbit(self) -> None:
+        if self.selected_rabbit_id is None:
+            QMessageBox.warning(self, "Nabaztag", "Choisis un lapin.")
+            return
+        current_item = self.rabbit_panel.rabbits_list.currentItem()
+        rabbit_label = current_item.text() if current_item is not None else "ce lapin"
+        confirmation = QMessageBox.question(
+            self,
+            "Supprimer le lapin",
+            f"Supprimer définitivement {rabbit_label} ?",
+        )
+        if confirmation != QMessageBox.Yes:
+            return
+
+        self.delete_rabbit_worker = DeleteRabbitWorker(
+            portal=self.portal,
+            token=self.api_token,
+            rabbit_id=self.selected_rabbit_id,
+        )
+        self.delete_rabbit_worker.finished_ok.connect(self._on_delete_rabbit_success)
+        self.delete_rabbit_worker.failed.connect(self._on_delete_rabbit_failed)
+        self.delete_rabbit_worker.start()
+        self.rabbit_panel.append_log("Suppression du lapin en cours…")
+
+    def _on_delete_rabbit_success(self, response: dict) -> None:
+        message = " ".join(str(response.get("message") or "").split()).strip() or "Lapin supprimé."
+        self.rabbit_panel.append_log(message)
+        self.refresh_rabbits()
+
+    def _on_delete_rabbit_failed(self, message: str) -> None:
         self.rabbit_panel.append_log(f"Erreur : {message}")
 
 
