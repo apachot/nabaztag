@@ -350,6 +350,7 @@ class NabaztagMacApp:
         self.root.geometry("860x760")
         self.root.deiconify()
         self.root.after_idle(self._sync_app_layout)
+        self.root.after_idle(self._nudge_window_layout)
         self.root.after_idle(self._focus_app_view)
 
     def _focus_app_view(self) -> None:
@@ -368,6 +369,19 @@ class NabaztagMacApp:
             canvas_width = max(self.app_canvas.winfo_width(), 1)
             self.app_canvas.itemconfigure(self.app_canvas_window, width=canvas_width)
             self.app_canvas.configure(scrollregion=self.app_canvas.bbox("all"))
+        except tk.TclError:
+            return
+
+    def _nudge_window_layout(self) -> None:
+        try:
+            width = max(self.root.winfo_width(), 1)
+            height = max(self.root.winfo_height(), 1)
+            x = self.root.winfo_x()
+            y = self.root.winfo_y()
+            self.root.geometry(f"{width + 1}x{height}+{x}+{y}")
+            self.root.update_idletasks()
+            self.root.geometry(f"{width}x{height}+{x}+{y}")
+            self.root.update_idletasks()
         except tk.TclError:
             return
 
