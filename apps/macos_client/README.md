@@ -29,6 +29,38 @@ L'app générée se trouve dans `dist/` et le `.dmg` final dans :
 apps/portal/portal_app/static/downloads/nabaztag-macos-client.dmg
 ```
 
+### Signature et notarization Apple
+
+Par défaut, `build_dmg.sh` produit un `.dmg` non signé. macOS affichera alors l’avertissement Gatekeeper habituel.
+
+Pour produire un `.dmg` proprement distribuable :
+
+```bash
+export APPLE_DEVELOPER_IDENTITY="Developer ID Application: ..."
+export APPLE_NOTARY_PROFILE="notarytool-profile"
+cd apps/macos_client
+./build_dmg.sh
+```
+
+Alternative sans profil `notarytool` préenregistré :
+
+```bash
+export APPLE_DEVELOPER_IDENTITY="Developer ID Application: ..."
+export APPLE_ID="..."
+export APPLE_TEAM_ID="..."
+export APPLE_APP_PASSWORD="...."
+cd apps/macos_client
+./build_dmg.sh
+```
+
+Le script :
+
+- signe l’application `.app`
+- construit le `.dmg`
+- signe le `.dmg`
+- soumet le `.dmg` à Apple via `notarytool`
+- applique le `staple` si la notarization réussit
+
 ## Ce que fait cette version
 
 - connexion de l'application au compte via email et mot de passe
