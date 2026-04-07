@@ -449,6 +449,11 @@ class MainWindow(QMainWindow):
         self.pending_setup_ssid: str | None = None
         self.pending_home_wifi: dict[str, str] | None = None
 
+        self.central_container = QWidget()
+        container_layout = QVBoxLayout(self.central_container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(0)
+
         self.stack = QStackedWidget()
         self.login_view = LoginView()
         self.rabbit_panel = RabbitPanel()
@@ -456,9 +461,10 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.login_view)
         self.stack.addWidget(self.provisioning_view)
         self.stack.addWidget(self.rabbit_panel)
-        self.setCentralWidget(self.stack)
-        self.blocking_overlay = BlockingOverlay(self.stack)
-        self.blocking_overlay.setGeometry(self.stack.rect())
+        container_layout.addWidget(self.stack)
+        self.setCentralWidget(self.central_container)
+        self.blocking_overlay = BlockingOverlay(self.central_container)
+        self.blocking_overlay.setGeometry(self.central_container.rect())
 
         self.login_view.login_requested.connect(self.login)
         self.rabbit_panel.refresh_requested.connect(self.refresh_rabbits)
@@ -546,18 +552,21 @@ class MainWindow(QMainWindow):
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
-        self.blocking_overlay.setGeometry(self.stack.rect())
+        self.blocking_overlay.setGeometry(self.central_container.rect())
 
     def _show_wait_overlay(self, message: str, title: str = "Connexion au lapin") -> None:
-        self.blocking_overlay.setGeometry(self.stack.rect())
+        self.blocking_overlay.setGeometry(self.central_container.rect())
         self.blocking_overlay.update_message(title, message)
-        self.stack.setGraphicsEffect(self.wait_blur_effect)
+        background_widget = self.stack.currentWidget()
+        if background_widget is not None:
+            background_widget.setGraphicsEffect(self.wait_blur_effect)
         self.blocking_overlay.raise_()
         self.blocking_overlay.show()
 
     def _hide_wait_overlay(self) -> None:
         self.blocking_overlay.hide()
-        self.stack.setGraphicsEffect(None)
+        for widget in (self.login_view, self.provisioning_view, self.rabbit_panel):
+            widget.setGraphicsEffect(None)
 
     def login(self, portal: str, email: str, password: str) -> None:
         if not portal or not email or not password:
@@ -756,9 +765,6 @@ class MainWindow(QMainWindow):
         self.provisioning_view.status_label.setText(
             "Preparation du Wi-Fi maison…"
         )
-        self._show_wait_overlay(
-            "Preparation du Wi-Fi maison avant la connexion au lapin. Merci de patienter."
-        )
         self._start_provisioning_worker(
             ProvisioningWorker(action="detect_wifi"),
             self._on_detect_home_wifi_success,
@@ -769,7 +775,6 @@ class MainWindow(QMainWindow):
         interface = str(result.get("interface") or "").strip()
         ssid = str(result.get("ssid") or "").strip()
         security = str(result.get("security") or "").strip()
-        self._hide_wait_overlay()
         if not ssid:
             self._on_detect_home_wifi_failed("Impossible de determiner le Wi-Fi maison actuel du Mac.")
             return
@@ -802,9 +807,6 @@ class MainWindow(QMainWindow):
         }
         setup_ssid = self.pending_setup_ssid or ""
         self.provisioning_view.status_label.setText(f"Connexion au reseau {setup_ssid}…")
-        self._show_wait_overlay(
-            f"Connexion en cours au reseau {setup_ssid}. Laisse le Mac basculer automatiquement sur le Wi-Fi du lapin."
-        )
         self._start_provisioning_worker(
             ProvisioningWorker(
                 action="connect_setup_network",

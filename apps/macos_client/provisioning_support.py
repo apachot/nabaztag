@@ -144,25 +144,93 @@ def current_wifi_configuration() -> dict[str, str]:
     }
 
 
+def _corewlan_interface(preferred_name: str | None = None):
+    if CoreWLAN is None:
+        return None, preferred_name
+
+    client = CoreWLAN.CWWiFiClient.sharedWiFiClient()
+    interfaces = list(client.interfaces() or [])
+    if not interfaces:
+        return None, preferred_name
+
+    selected_interface = None
+    if preferred_name:
+        for candidate in interfaces:
+            candidate_name = str(candidate.interfaceName() or "").strip()
+            if candidate_name == preferred_name:
+                selected_interface = candidate
+                break
+    if selected_interface is None:
+        selected_interface = interfaces[0]
+    interface_name = str(selected_interface.interfaceName() or "").strip() or preferred_name
+    return selected_interface, interface_name
+
+
+def _corewlan_network_for_ssid(interface, ssid: str):
+    try:
+        scan_result, scan_error = interface.scanForNetworksWithName_error_(ssid, None)
+    except Exception:
+        scan_result, scan_error = None, None
+    if scan_error is None:
+        for network in scan_result or []:
+            candidate_ssid = " ".join(str(network.ssid() or "").split()).strip()
+            if candidate_ssid == ssid:
+                return network
+
+    try:
+        scan_result, scan_error = interface.scanForNetworksWithName_error_(None, None)
+    except Exception as exc:
+        raise RuntimeError(f"Echec du scan Wi-Fi CoreWLAN avant connexion: {exc}") from exc
+    if scan_error is not None:
+        raise RuntimeError(f"Echec du scan Wi-Fi CoreWLAN avant connexion: {scan_error}")
+    for network in scan_result or []:
+        candidate_ssid = " ".join(str(network.ssid() or "").split()).strip()
+        if candidate_ssid == ssid:
+            return network
+    return None
+
+
 def connect_wifi_network(ssid: str, password: str | None = None) -> tuple[str, str]:
     interface = detect_wifi_interface()
     if not interface:
         raise RuntimeError("Impossible d'identifier l'interface Wi-Fi du Mac.")
 
-    command = ["networksetup", "-setairportnetwork", interface, ssid]
-    if password:
-        command.append(password)
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    output = " ".join((result.stdout or result.stderr or "").split()).strip()
-    if result.returncode != 0:
-        raise RuntimeError(output or f"Connexion au reseau {ssid} impossible.")
+    corewlan_error = None
+    selected_interface, interface = _corewlan_interface(interface)
+    if selected_interface is not None:
+        try:
+            network = _corewlan_network_for_ssid(selected_interface, ssid)
+            if network is None:
+                raise RuntimeError(f"Le reseau {ssid} n'a pas ete retrouve par CoreWLAN.")
+            assoc_result = selected_interface.associateToNetwork_password_error_(
+                network,
+                password or None,
+                None,
+            )
+            if isinstance(assoc_result, tuple):
+                success = bool(assoc_result[0]) if assoc_result else True
+                assoc_error = assoc_result[1] if len(assoc_result) > 1 else None
+                if not success or assoc_error is not None:
+                    raise RuntimeError(str(assoc_error or f"Connexion au reseau {ssid} impossible."))
+        except Exception as exc:
+            corewlan_error = str(exc)
 
-    for _attempt in range(20):
+    if corewlan_error is not None:
+        command = ["networksetup", "-setairportnetwork", interface, ssid]
+        if password:
+            command.append(password)
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        output = " ".join((result.stdout or result.stderr or "").split()).strip()
+        if result.returncode != 0:
+            detail = output or corewlan_error or f"Connexion au reseau {ssid} impossible."
+            raise RuntimeError(detail)
+
+    for _attempt in range(30):
         current_interface, current_ssid = current_wifi_ssid()
         if (current_interface or interface) == interface and (current_ssid or "").strip() == ssid:
             return interface, ssid
