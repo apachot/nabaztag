@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import ssl
 from pathlib import Path
 from urllib import parse as urllib_parse
 from urllib import request as urllib_request
+
+import certifi
 
 
 CONFIG_PATH = Path.home() / ".config" / "nabaztag-macos-client" / "config.json"
@@ -49,6 +52,7 @@ def http_json(
         body = json.dumps(payload).encode("utf-8")
         headers["Content-Type"] = "application/json"
     request_object = urllib_request.Request(url, data=body, headers=headers, method=method.upper())
-    with urllib_request.urlopen(request_object, timeout=timeout) as response:
+    ssl_context = ssl.create_default_context(cafile=certifi.where())
+    with urllib_request.urlopen(request_object, timeout=timeout, context=ssl_context) as response:
         raw = response.read().decode("utf-8")
     return json.loads(raw) if raw else {}

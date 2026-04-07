@@ -18,6 +18,17 @@ except Exception:  # pragma: no cover - optional on some environments
     CoreLocation = None
 
 _location_manager = None
+_location_delegate = None
+
+
+if CoreLocation is not None:
+    class _LocationAuthorizationDelegate(CoreLocation.NSObject):  # type: ignore[misc,name-defined]
+        def locationManagerDidChangeAuthorization_(self, _manager) -> None:
+            # The callback only keeps the delegate alive long enough for macOS
+            # to present and persist the authorization state for the app.
+            return
+else:
+    _LocationAuthorizationDelegate = None
 
 
 def normalize_portal_base(portal: str) -> str:
@@ -107,11 +118,16 @@ def location_authorization_status() -> str:
 def request_location_authorization() -> str:
     if CoreLocation is None:
         return "unavailable"
+    global _location_delegate
     global _location_manager
     try:
         if _location_manager is None:
             _location_manager = CoreLocation.CLLocationManager.alloc().init()
+        if _location_delegate is None and _LocationAuthorizationDelegate is not None:
+            _location_delegate = _LocationAuthorizationDelegate.alloc().init()
+            _location_manager.setDelegate_(_location_delegate)
         _location_manager.requestWhenInUseAuthorization()
+        _location_manager.startUpdatingLocation()
     except Exception:
         return "unavailable"
     return location_authorization_status()

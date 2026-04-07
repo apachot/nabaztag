@@ -34,6 +34,24 @@ sign_path() {
   fi
 }
 
+sign_app_bundle() {
+  if [[ "$SIGNING_IDENTITY" == "-" ]]; then
+    codesign \
+      --force \
+      --deep \
+      --sign - \
+      "$APP_PATH"
+  else
+    codesign \
+      --force \
+      --deep \
+      --timestamp \
+      --options runtime \
+      --sign "$SIGNING_IDENTITY" \
+      "$APP_PATH"
+  fi
+}
+
 prune_qt_bundle() {
   local pyside_dir="$APP_PATH/Contents/Resources/lib/python3.10/PySide6"
   local qt_dir="$pyside_dir/Qt"
@@ -76,6 +94,7 @@ prune_qt_bundle() {
   if [[ -d "$lib_dir" ]]; then
     find "$lib_dir" -mindepth 1 -maxdepth 1 \
       ! -name 'QtCore.framework' \
+      ! -name 'QtDBus.framework' \
       ! -name 'QtGui.framework' \
       ! -name 'QtWidgets.framework' \
       -exec rm -rf {} +
@@ -113,7 +132,7 @@ rm -rf build dist
 python3 -m venv "$BUILD_VENV"
 source "$BUILD_VENV/bin/activate"
 python3 -m pip install --upgrade pip setuptools wheel py2app
-python3 -m pip install PySide6 pyobjc-framework-CoreLocation
+python3 -m pip install PySide6 certifi pyobjc-framework-CoreLocation
 if [[ -f "$PYPROJECT_PATH" ]]; then
   mv "$PYPROJECT_PATH" "$PYPROJECT_BACKUP"
 fi
@@ -127,7 +146,7 @@ else
   echo "Aucune identité Developer ID fournie. Signature ad hoc de l'application."
 fi
 sign_embedded_code
-sign_path "$APP_PATH"
+sign_app_bundle
 
 mkdir -p "$DOWNLOADS_DIR"
 rm -f "$DMG_PATH"
