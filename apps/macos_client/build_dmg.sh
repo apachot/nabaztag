@@ -15,15 +15,23 @@ APPLE_NOTARY_PROFILE="${APPLE_NOTARY_PROFILE:-}"
 APPLE_ID="${APPLE_ID:-}"
 APPLE_TEAM_ID="${APPLE_TEAM_ID:-}"
 APPLE_APP_PASSWORD="${APPLE_APP_PASSWORD:-}"
+SIGNING_IDENTITY="${APPLE_DEVELOPER_IDENTITY:--}"
 
 sign_path() {
   local target="$1"
-  codesign \
-    --force \
-    --timestamp \
-    --options runtime \
-    --sign "$APPLE_DEVELOPER_IDENTITY" \
-    "$target"
+  if [[ "$SIGNING_IDENTITY" == "-" ]]; then
+    codesign \
+      --force \
+      --sign - \
+      "$target"
+  else
+    codesign \
+      --force \
+      --timestamp \
+      --options runtime \
+      --sign "$SIGNING_IDENTITY" \
+      "$target"
+  fi
 }
 
 prune_qt_bundle() {
@@ -115,11 +123,11 @@ prune_qt_bundle
 
 if [[ -n "$APPLE_DEVELOPER_IDENTITY" ]]; then
   echo "Signature de l'application avec Developer ID…"
-  sign_embedded_code
-  sign_path "$APP_PATH"
 else
-  echo "Aucune identité Developer ID fournie. DMG non signé."
+  echo "Aucune identité Developer ID fournie. Signature ad hoc de l'application."
 fi
+sign_embedded_code
+sign_path "$APP_PATH"
 
 mkdir -p "$DOWNLOADS_DIR"
 rm -f "$DMG_PATH"
