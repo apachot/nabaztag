@@ -10,6 +10,7 @@ OPTIONS = {
         "provisioning_support",
         "qt_client",
         "CoreLocation",
+        "CoreWLAN",
         "PySide6.QtCore",
         "PySide6.QtGui",
         "PySide6.QtWidgets",
@@ -21,8 +22,11 @@ OPTIONS = {
         "CFBundleIdentifier": "org.nabaztag.macos",
         "CFBundleShortVersionString": "0.2.0",
         "CFBundleVersion": "0.2.0",
+        "NSLocationUsageDescription": (
+            "Nabaztag a besoin de la localisation pour detecter les reseaux Wi-Fi Nabaztag a proximite."
+        ),
         "NSLocationWhenInUseUsageDescription": (
-            "Nabaztag a besoin de la localisation pour détecter les réseaux Wi-Fi Nabaztag à proximité."
+            "Nabaztag a besoin de la localisation pour detecter les reseaux Wi-Fi Nabaztag a proximite."
         ),
     },
     "packages": [],

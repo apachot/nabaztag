@@ -4,6 +4,7 @@ import html
 import re
 import subprocess
 import sys
+import time
 import webbrowser
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
@@ -16,6 +17,11 @@ try:
     import CoreLocation  # type: ignore
 except Exception:  # pragma: no cover - optional on some environments
     CoreLocation = None
+
+try:
+    import CoreWLAN  # type: ignore
+except Exception:  # pragma: no cover - optional on some environments
+    CoreWLAN = None
 
 _location_manager = None
 _location_delegate = None
@@ -77,9 +83,22 @@ def current_wifi_ssid() -> tuple[str | None, str | None]:
     )
     output = (result.stdout or result.stderr or "").strip()
     match = re.search(r"Current (?:Wi-Fi|AirPort) Network: (.+)$", output)
-    if not match:
-        return interface, None
-    return interface, match.group(1).strip()
+    if match:
+        return interface, match.group(1).strip()
+
+    if CoreWLAN is not None:
+        try:
+            client = CoreWLAN.CWWiFiClient.sharedWiFiClient()
+            for candidate in list(client.interfaces() or []):
+                candidate_name = str(candidate.interfaceName() or "").strip()
+                if candidate_name != interface:
+                    continue
+                ssid = " ".join(str(candidate.ssid() or "").split()).strip()
+                return interface, ssid or None
+        except Exception:
+            pass
+
+    return interface, None
 
 
 def read_wifi_password(ssid: str) -> str | None:
@@ -96,6 +115,74 @@ def read_wifi_password(ssid: str) -> str | None:
         return None
     password = (result.stdout or "").strip()
     return password or None
+
+
+def current_wifi_security() -> str | None:
+    result = subprocess.run(
+        ["system_profiler", "SPAirPortDataType"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    output = result.stdout or ""
+    match = re.search(r"Current Network Information:\s+.*?\n\s+Security:\s+([^\n]+)", output, re.S)
+    if match:
+        return " ".join(match.group(1).split()).strip()
+    return None
+
+
+def current_wifi_configuration() -> dict[str, str]:
+    interface, ssid = current_wifi_ssid()
+    if not interface or not ssid:
+        raise RuntimeError("Impossible de determiner le Wi-Fi maison actuel du Mac.")
+    security = current_wifi_security() or ""
+    return {
+        "interface": interface,
+        "ssid": ssid,
+        "password": "",
+        "security": security,
+    }
+
+
+def connect_wifi_network(ssid: str, password: str | None = None) -> tuple[str, str]:
+    interface = detect_wifi_interface()
+    if not interface:
+        raise RuntimeError("Impossible d'identifier l'interface Wi-Fi du Mac.")
+
+    command = ["networksetup", "-setairportnetwork", interface, ssid]
+    if password:
+        command.append(password)
+    result = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    output = " ".join((result.stdout or result.stderr or "").split()).strip()
+    if result.returncode != 0:
+        raise RuntimeError(output or f"Connexion au reseau {ssid} impossible.")
+
+    for _attempt in range(20):
+        current_interface, current_ssid = current_wifi_ssid()
+        if (current_interface or interface) == interface and (current_ssid or "").strip() == ssid:
+            return interface, ssid
+        time.sleep(1.0)
+
+    current_interface, current_ssid = current_wifi_ssid()
+    if (current_interface or interface) == interface and (current_ssid or "").strip() == ssid:
+        return interface, ssid
+    raise RuntimeError(f"Le Mac ne semble pas connecte au reseau {ssid} apres la tentative de bascule.")
+
+
+def _security_mode_value(security: str) -> str:
+    lowered = security.lower()
+    if "wpa2" in lowered or "wpa3" in lowered:
+        return "64"
+    if "wpa" in lowered:
+        return "32"
+    if "wep" in lowered:
+        return "16"
+    return "0"
 
 
 def location_authorization_status() -> str:
@@ -147,39 +234,78 @@ def open_location_settings() -> bool:
 
 
 def scan_nearby_setup_networks() -> tuple[str | None, list[str], str | None]:
-    airport_path = Path(
-        "/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport"
-    )
-    if not airport_path.exists():
-        return None, [], "Outil de scan Wi-Fi indisponible sur ce Mac."
-    result = subprocess.run(
-        [str(airport_path), "-s"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    output = f"{result.stdout or ''}\n{result.stderr or ''}".strip()
-    if result.returncode != 0 and not output:
-        return None, [], "Le scan Wi-Fi macOS n'a renvoyé aucun résultat."
+    interface, current_ssid = current_wifi_ssid()
+
+    if CoreWLAN is None:
+        return interface, [], "Le framework Wi-Fi macOS CoreWLAN est indisponible sur ce Mac."
+
+    client = CoreWLAN.CWWiFiClient.sharedWiFiClient()
+    interfaces = list(client.interfaces() or [])
+    if not interfaces:
+        return interface, [], "Aucune interface Wi-Fi CoreWLAN n'a ete detectee sur ce Mac."
 
     networks: list[str] = []
-    for line in (result.stdout or "").splitlines():
-        stripped = line.strip()
-        lowered = stripped.lower()
-        if (
-            not stripped
-            or stripped.startswith("SSID ")
-            or lowered.startswith("warning:")
-            or "wireless diagnostics" in lowered
-        ):
-            continue
-        match = re.match(r"^(Nabaztag[^\s]*)\s{2,}", stripped, re.IGNORECASE)
-        if match:
-            ssid = " ".join(match.group(1).split()).strip()
-            if ssid and ssid not in networks:
-                networks.append(ssid)
+    selected_interface = None
+    if interface:
+        for candidate in interfaces:
+            if str(candidate.interfaceName() or "").strip() == interface:
+                selected_interface = candidate
+                break
+    if selected_interface is None:
+        selected_interface = interfaces[0]
+        interface = str(selected_interface.interfaceName() or "").strip() or interface
 
-    interface, current_ssid = current_wifi_ssid()
+    scan_result = None
+    scan_error = None
+    last_exception: Exception | None = None
+    collected_networks: list[str] = []
+    for scan_index in range(4):
+        try:
+            scan_result, scan_error = selected_interface.scanForNetworksWithName_error_(None, None)
+            if scan_error is None:
+                for network in scan_result or []:
+                    ssid = " ".join(str(network.ssid() or "").split()).strip()
+                    if not ssid:
+                        continue
+                    if not ssid.lower().startswith("nabaztag"):
+                        continue
+                    if ssid not in collected_networks:
+                        collected_networks.append(ssid)
+                if collected_networks:
+                    break
+                if scan_index < 3:
+                    time.sleep(1.0)
+                continue
+            error_domain = str(getattr(scan_error, "domain", lambda: "")() or "")
+            error_code = int(getattr(scan_error, "code", lambda: 0)() or 0)
+            if error_domain == "NSPOSIXErrorDomain" and error_code == 16:
+                time.sleep(1.0)
+                continue
+            return interface, [], f"Echec du scan Wi-Fi CoreWLAN: {scan_error}"
+        except Exception as exc:
+            last_exception = exc
+            if "Code=16" in str(exc):
+                time.sleep(1.0)
+                continue
+            return interface, [], f"Echec du scan Wi-Fi CoreWLAN: {exc}"
+
+    if scan_error is not None:
+        return (
+            interface,
+            [],
+            "Le scan Wi-Fi macOS est temporairement occupe. "
+            "Attends quelques secondes, puis relance la recherche.",
+        )
+    if last_exception is not None and scan_result is None:
+            return (
+                interface,
+                [],
+                "Le scan Wi-Fi macOS est temporairement occupe. "
+                "Attends quelques secondes, puis relance la recherche.",
+            )
+
+    networks.extend(collected_networks)
+
     if current_ssid and current_ssid.lower().startswith("nabaztag") and current_ssid not in networks:
         networks.insert(0, current_ssid)
 
@@ -192,7 +318,7 @@ def scan_nearby_setup_networks() -> tuple[str | None, list[str], str | None]:
             interface,
             [],
             "Le scan Wi-Fi macOS semble bloqué par l'autorisation de localisation. "
-            "Autorise Terminal/Python dans Réglages Système > Confidentialité et sécurité > Service de localisation.",
+            "Autorise Nabaztag dans Reglages Systeme > Confidentialite et securite > Service de localisation.",
         )
     if not interface:
         return None, [], "Aucune interface Wi-Fi active n'a été détectée sur ce Mac."
@@ -319,8 +445,13 @@ def _fetch(
     body = None
     headers = {"User-Agent": "Nabaztag macOS Client/0.3"}
     if payload is not None:
-        body = urllib_parse.urlencode(payload).encode("utf-8")
-        headers["Content-Type"] = "application/x-www-form-urlencoded"
+        encoded_payload = urllib_parse.urlencode(payload)
+        if method.upper() == "GET":
+            separator = "&" if urllib_parse.urlparse(url).query else "?"
+            url = f"{url}{separator}{encoded_payload}"
+        else:
+            body = encoded_payload.encode("utf-8")
+            headers["Content-Type"] = "application/x-www-form-urlencoded"
     request_object = urllib_request.Request(url, data=body, headers=headers, method=method.upper())
     with opener.open(request_object, timeout=timeout) as response:
         final_url = response.geturl()
@@ -341,7 +472,16 @@ def _parse(url: str, content: str) -> tuple[list[HtmlForm], list[HtmlLink]]:
 def probe_bootstrap_host(host: str = "192.168.0.1") -> dict[str, str | bool]:
     opener = urllib_request.build_opener(urllib_request.HTTPCookieProcessor(CookieJar()))
     root_url = f"http://{host.strip().rstrip('/')}/"
-    final_url, content = _fetch(opener, url=root_url)
+    last_error: Exception | None = None
+    for _attempt in range(10):
+        try:
+            final_url, content = _fetch(opener, url=root_url)
+            break
+        except Exception as exc:
+            last_error = exc
+            time.sleep(1.0)
+    else:
+        raise RuntimeError(str(last_error or f"Le configurateur local sur {root_url} ne repond pas."))
     forms, links = _parse(final_url, content)
     start_url = ""
     advanced_url = ""
@@ -450,6 +590,7 @@ def configure_bootstrap_host(
     home_wifi_ssid: str,
     home_wifi_password: str,
     portal_base: str,
+    home_wifi_security: str = "",
 ) -> dict[str, str | bool]:
     opener = urllib_request.build_opener(urllib_request.HTTPCookieProcessor(CookieJar()))
     root_url = f"http://{host.strip().rstrip('/')}/"
@@ -472,6 +613,53 @@ def configure_bootstrap_host(
         raise RuntimeError("Le configurateur local du lapin n'expose aucun formulaire exploitable.")
 
     violet_platform = build_violet_platform_value(portal_base)
+    legacy_form = next(
+        (
+            form
+            for form in forms
+            if any(field.name in {"w", "k", "m", "n", "l", "f", "g", "h", "i", "j", "c", "d", "e", "z2"} for field in form.fields)
+        ),
+        None,
+    )
+    if legacy_form is not None:
+        legacy_payload = {
+            "w": "-",
+            "k": home_wifi_ssid,
+            "m": _security_mode_value(home_wifi_security),
+            "n": home_wifi_password,
+            "l": "0",
+            "f": "1",
+            "g": "0.0.0.0",
+            "h": "255.255.255.0",
+            "i": "0.0.0.0",
+            "j": "0.0.0.0",
+            "c": "0",
+            "d": "0.0.0.0",
+            "e": "0",
+            "z2": "Update and Start",
+            "a": violet_platform,
+        }
+        submit_url = urllib_parse.urljoin(current_url, legacy_form.action or current_url)
+        final_url, response_content = _fetch(
+            opener,
+            url=submit_url,
+            method=legacy_form.method or "GET",
+            payload=legacy_payload,
+        )
+        lower_content = response_content.lower()
+        success = any(token in lower_content for token in ("update", "start", "restart", "reboot", "saved", "applied"))
+        return {
+            "submitted": True,
+            "success_hint": success,
+            "violet_platform": violet_platform,
+            "url": final_url,
+            "message": (
+                "Configuration envoyee au lapin. Il doit maintenant redemarrer."
+                if success
+                else "Configuration envoyee au lapin. Verifie son redemarrage puis reconnecte le Mac a son Wi-Fi habituel."
+            ),
+        }
+
     best_form: HtmlForm | None = None
     best_payload: dict[str, str] = {}
     best_score = -1

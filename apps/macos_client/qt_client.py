@@ -1,18 +1,21 @@
 from __future__ import annotations
 
 import sys
-from PySide6.QtCore import QThread, Qt, Signal
+from PySide6.QtCore import QThread, QTimer, Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
+    QGraphicsBlurEffect,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
     QMessageBox,
+    QProgressBar,
     QPushButton,
     QSplitter,
     QStackedWidget,
@@ -133,15 +136,19 @@ class ProvisioningWorker(QThread):
     def run(self) -> None:
         try:
             if self.action == "detect_wifi":
-                interface, ssid = provisioning_support.current_wifi_ssid()
-                if not interface:
-                    raise RuntimeError("Impossible d'identifier l'interface Wi-Fi du Mac.")
-                password = provisioning_support.read_wifi_password(ssid or "") if ssid else None
-                self.finished_ok.emit({"interface": interface, "ssid": ssid or "", "password": password or ""})
+                details = provisioning_support.current_wifi_configuration()
+                self.finished_ok.emit(details)
                 return
             if self.action == "scan_setup_networks":
                 interface, networks, message = provisioning_support.scan_nearby_setup_networks()
                 self.finished_ok.emit({"interface": interface or "", "networks": networks, "message": message or ""})
+                return
+            if self.action == "connect_setup_network":
+                interface, ssid = provisioning_support.connect_wifi_network(
+                    str(self.payload.get("ssid") or ""),
+                    str(self.payload.get("password") or "") or None,
+                )
+                self.finished_ok.emit({"interface": interface, "ssid": ssid})
                 return
             if self.action == "probe":
                 result = provisioning_support.probe_bootstrap_host(str(self.payload.get("host") or "192.168.0.1"))
@@ -153,6 +160,7 @@ class ProvisioningWorker(QThread):
                     home_wifi_ssid=str(self.payload.get("home_wifi_ssid") or ""),
                     home_wifi_password=str(self.payload.get("home_wifi_password") or ""),
                     portal_base=str(self.payload.get("portal_base") or ""),
+                    home_wifi_security=str(self.payload.get("home_wifi_security") or ""),
                 )
                 self.finished_ok.emit(result)
                 return
@@ -306,8 +314,6 @@ class RabbitPanel(QWidget):
 class ProvisioningView(QWidget):
     scan_setup_networks_requested = Signal()
     attach_requested = Signal(str)
-    request_location_requested = Signal()
-    open_location_settings_requested = Signal()
     back_requested = Signal()
 
     def __init__(self) -> None:
@@ -348,12 +354,12 @@ class ProvisioningView(QWidget):
         explainer.setWordWrap(True)
         card_layout.addWidget(explainer)
 
-        nearby_label = QLabel("Lapins détectés à proximité")
+        nearby_label = QLabel("Lapins detectes a proximite")
         card_layout.addWidget(nearby_label)
         card_layout.addWidget(self.detected_setup_list)
 
         buttons = QHBoxLayout()
-        scan_button = QPushButton("Rechercher les Nabaztag à proximité")
+        scan_button = QPushButton("Rechercher les Nabaztag a proximite")
         scan_button.clicked.connect(self.scan_setup_networks_requested.emit)
         attach_button = QPushButton("Rattacher ce lapin")
         attach_button.clicked.connect(self._emit_attach)
@@ -362,15 +368,6 @@ class ProvisioningView(QWidget):
         buttons.addWidget(attach_button)
         card_layout.addLayout(buttons)
 
-        location_buttons = QHBoxLayout()
-        request_location_button = QPushButton("Autoriser la localisation")
-        request_location_button.clicked.connect(self.request_location_requested.emit)
-        open_settings_button = QPushButton("Ouvrir Réglages Système")
-        open_settings_button.clicked.connect(self.open_location_settings_requested.emit)
-        location_buttons.addWidget(request_location_button)
-        location_buttons.addWidget(open_settings_button)
-        location_buttons.addStretch(1)
-        card_layout.addLayout(location_buttons)
         card_layout.addWidget(self.status_label)
 
         root.addWidget(card)
@@ -387,6 +384,44 @@ class ProvisioningView(QWidget):
             self.attach_requested.emit(item.text().strip())
 
 
+class BlockingOverlay(QWidget):
+    def __init__(self, parent: QWidget) -> None:
+        super().__init__(parent)
+        self.setObjectName("blockingOverlay")
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.hide()
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 24, 24, 24)
+        root.setAlignment(Qt.AlignCenter)
+
+        card = QFrame()
+        card.setObjectName("blockingOverlayCard")
+        card.setMinimumWidth(420)
+        card.setMaximumWidth(520)
+        card_layout = QVBoxLayout(card)
+        card_layout.setSpacing(14)
+
+        self.title_label = QLabel("Connexion au lapin")
+        self.title_label.setObjectName("blockingOverlayTitle")
+        self.message_label = QLabel("")
+        self.message_label.setWordWrap(True)
+        self.message_label.setObjectName("blockingOverlayMessage")
+
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 0)
+        self.progress.setTextVisible(False)
+
+        card_layout.addWidget(self.title_label)
+        card_layout.addWidget(self.message_label)
+        card_layout.addWidget(self.progress)
+        root.addWidget(card)
+
+    def update_message(self, title: str, message: str) -> None:
+        self.title_label.setText(title)
+        self.message_label.setText(message)
+
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -401,7 +436,18 @@ class MainWindow(QMainWindow):
         self.refresh_worker: RefreshWorker | None = None
         self.conversation_worker: ConversationWorker | None = None
         self.provisioning_worker: ProvisioningWorker | None = None
+        self.active_provisioning_workers: list[ProvisioningWorker] = []
         self.delete_rabbit_worker: DeleteRabbitWorker | None = None
+        self.wait_blur_effect = QGraphicsBlurEffect(self)
+        self.wait_blur_effect.setBlurRadius(10)
+        self.location_poll_timer = QTimer(self)
+        self.location_poll_timer.setInterval(1000)
+        self.location_poll_timer.timeout.connect(self._poll_location_authorization)
+        self.location_request_pending = False
+        self.auto_scan_after_location = False
+        self.last_prompted_setup_ssid: str | None = None
+        self.pending_setup_ssid: str | None = None
+        self.pending_home_wifi: dict[str, str] | None = None
 
         self.stack = QStackedWidget()
         self.login_view = LoginView()
@@ -411,6 +457,8 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(self.provisioning_view)
         self.stack.addWidget(self.rabbit_panel)
         self.setCentralWidget(self.stack)
+        self.blocking_overlay = BlockingOverlay(self.stack)
+        self.blocking_overlay.setGeometry(self.stack.rect())
 
         self.login_view.login_requested.connect(self.login)
         self.rabbit_panel.refresh_requested.connect(self.refresh_rabbits)
@@ -421,8 +469,6 @@ class MainWindow(QMainWindow):
         self.rabbit_panel.rabbits_list.currentItemChanged.connect(self._on_rabbit_selected)
         self.provisioning_view.scan_setup_networks_requested.connect(self.scan_setup_networks)
         self.provisioning_view.attach_requested.connect(self.attach_detected_rabbit)
-        self.provisioning_view.request_location_requested.connect(self.request_location_authorization)
-        self.provisioning_view.open_location_settings_requested.connect(self.open_location_settings)
         self.provisioning_view.back_requested.connect(self.show_rabbit_or_login_view)
 
         self._apply_styles()
@@ -451,6 +497,34 @@ class MainWindow(QMainWindow):
                 padding: 8px 14px;
             }
             QPushButton:hover { background: #ead7c7; }
+            QWidget#blockingOverlay {
+                background: rgba(28, 24, 20, 140);
+            }
+            QFrame#blockingOverlayCard {
+                background: rgba(255, 253, 250, 238);
+                border: 1px solid #d8d1c4;
+                border-radius: 18px;
+                padding: 18px;
+            }
+            QLabel#blockingOverlayTitle {
+                font-size: 22px;
+                font-weight: 700;
+                color: #243b37;
+            }
+            QLabel#blockingOverlayMessage {
+                font-size: 15px;
+                color: #433b34;
+            }
+            QProgressBar {
+                border: 1px solid #d8d1c4;
+                border-radius: 8px;
+                background: #efe6dc;
+                min-height: 14px;
+            }
+            QProgressBar::chunk {
+                background: #c66f3d;
+                border-radius: 8px;
+            }
             """
         )
 
@@ -469,6 +543,21 @@ class MainWindow(QMainWindow):
             self.api_token = token
             self.login_view.set_status("Reconnexion automatique au compte…")
             self.refresh_rabbits()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self.blocking_overlay.setGeometry(self.stack.rect())
+
+    def _show_wait_overlay(self, message: str, title: str = "Connexion au lapin") -> None:
+        self.blocking_overlay.setGeometry(self.stack.rect())
+        self.blocking_overlay.update_message(title, message)
+        self.stack.setGraphicsEffect(self.wait_blur_effect)
+        self.blocking_overlay.raise_()
+        self.blocking_overlay.show()
+
+    def _hide_wait_overlay(self) -> None:
+        self.blocking_overlay.hide()
+        self.stack.setGraphicsEffect(None)
 
     def login(self, portal: str, email: str, password: str) -> None:
         if not portal or not email or not password:
@@ -542,11 +631,54 @@ class MainWindow(QMainWindow):
 
     def show_provisioning_view(self) -> None:
         self.provisioning_view.set_detected_setup_networks([])
+        self.last_prompted_setup_ssid = None
         self.provisioning_view.status_label.setText(
             "Mets ton lapin en mode configuration, puis attends qu'il soit détecté à proximité."
         )
         self.stack.setCurrentWidget(self.provisioning_view)
-        self.scan_setup_networks()
+        if self._ensure_location_authorization():
+            self.scan_setup_networks()
+
+    def _ensure_location_authorization(self) -> bool:
+        status = provisioning_support.location_authorization_status()
+        if status in {"authorized_when_in_use", "authorized_always"}:
+            self.location_request_pending = False
+            self.auto_scan_after_location = False
+            self.location_poll_timer.stop()
+            return True
+        if status == "not_determined":
+            self.auto_scan_after_location = True
+            self.request_location_authorization()
+            return False
+        elif status in {"restricted", "denied"}:
+            self.provisioning_view.status_label.setText(
+                "La localisation est requise pour detecter les reseaux Wi-Fi Nabaztag. "
+                "Autorise Nabaztag dans Reglages Systeme > Confidentialite et securite > Service de localisation."
+            )
+            self.auto_scan_after_location = True
+            return False
+        return False
+
+    def _poll_location_authorization(self) -> None:
+        if self.stack.currentWidget() is not self.provisioning_view:
+            self.location_poll_timer.stop()
+            self.location_request_pending = False
+            return
+        status = provisioning_support.location_authorization_status()
+        if status in {"authorized_when_in_use", "authorized_always"}:
+            self.location_poll_timer.stop()
+            self.location_request_pending = False
+            self.provisioning_view.status_label.setText("La localisation est autorisee. Recherche des reseaux Wi-Fi…")
+            if self.auto_scan_after_location:
+                self.auto_scan_after_location = False
+                self.scan_setup_networks()
+        elif status in {"restricted", "denied"}:
+            self.location_poll_timer.stop()
+            self.location_request_pending = False
+            self.provisioning_view.status_label.setText(
+                "macOS refuse actuellement l'acces a la localisation. "
+                "Autorise Nabaztag dans Reglages Systeme > Confidentialite et securite > Service de localisation."
+            )
 
     def show_rabbit_or_login_view(self) -> None:
         if self.rabbits:
@@ -557,11 +689,32 @@ class MainWindow(QMainWindow):
             self.stack.setCurrentWidget(self.login_view)
 
     def scan_setup_networks(self) -> None:
-        self.provisioning_view.status_label.setText("Recherche des réseaux Nabaztag à proximité…")
-        self.provisioning_worker = ProvisioningWorker(action="scan_setup_networks")
-        self.provisioning_worker.finished_ok.connect(self._on_scan_setup_networks_success)
-        self.provisioning_worker.failed.connect(self._on_provisioning_failed)
-        self.provisioning_worker.start()
+        self.provisioning_view.status_label.setText("Recherche des reseaux Nabaztag a proximite…")
+        self._start_provisioning_worker(
+            ProvisioningWorker(action="scan_setup_networks"),
+            self._on_scan_setup_networks_success,
+            self._on_provisioning_failed,
+        )
+
+    def _start_provisioning_worker(
+        self,
+        worker: ProvisioningWorker,
+        success_handler,
+        failure_handler,
+    ) -> None:
+        self.provisioning_worker = worker
+        self.active_provisioning_workers.append(worker)
+        worker.finished_ok.connect(success_handler)
+        worker.failed.connect(failure_handler)
+        worker.finished.connect(lambda worker=worker: self._on_provisioning_worker_finished(worker))
+        worker.start()
+
+    def _on_provisioning_worker_finished(self, worker: ProvisioningWorker) -> None:
+        if self.provisioning_worker is worker:
+            self.provisioning_worker = None
+        if worker in self.active_provisioning_workers:
+            self.active_provisioning_workers.remove(worker)
+        worker.deleteLater()
 
     def _on_scan_setup_networks_success(self, result: dict) -> None:
         interface = str(result.get("interface") or "").strip()
@@ -572,29 +725,300 @@ class MainWindow(QMainWindow):
             self.provisioning_view.detected_setup_list.setCurrentRow(0)
             prefix = f"sur {interface} " if interface else ""
             self.provisioning_view.status_label.setText(
-                f"{len(networks)} réseau(x) Nabaztag détecté(s) {prefix}à proximité."
+                f"{len(networks)} reseau(x) Nabaztag detecte(s) {prefix}a proximite."
             )
+            first_network = networks[0]
+            if self.last_prompted_setup_ssid != first_network:
+                self.last_prompted_setup_ssid = first_network
+                confirmation = QMessageBox.question(
+                    self,
+                    "Nabaztag detecte",
+                    f"Le lapin {first_network} a ete detecte.\n\nVeux-tu le rattacher maintenant ?",
+                )
+                if confirmation == QMessageBox.Yes:
+                    self.attach_detected_rabbit(first_network)
         else:
+            self.last_prompted_setup_ssid = None
             self.provisioning_view.status_label.setText(
                 diagnostic
-                or "Aucun réseau Nabaztag détecté à proximité. Mets le lapin en mode configuration puis relance la recherche."
+                or "Aucun reseau Nabaztag detecte a proximite. Relance la recherche."
             )
 
     def _on_provisioning_failed(self, message: str) -> None:
+        self._hide_wait_overlay()
         self.provisioning_view.status_label.setText(message)
 
     def attach_detected_rabbit(self, setup_ssid: str) -> None:
         if not setup_ssid:
             QMessageBox.warning(self, "Nabaztag", "Choisis d'abord un lapin détecté à proximité.")
             return
+        self.pending_setup_ssid = setup_ssid
         self.provisioning_view.status_label.setText(
-            f"Lapin détecté : {setup_ssid}. Le rattachement complet sera branché dans l'étape suivante."
+            "Preparation du Wi-Fi maison…"
+        )
+        self._show_wait_overlay(
+            "Preparation du Wi-Fi maison avant la connexion au lapin. Merci de patienter."
+        )
+        self._start_provisioning_worker(
+            ProvisioningWorker(action="detect_wifi"),
+            self._on_detect_home_wifi_success,
+            self._on_detect_home_wifi_failed,
+        )
+
+    def _on_detect_home_wifi_success(self, result: dict) -> None:
+        interface = str(result.get("interface") or "").strip()
+        ssid = str(result.get("ssid") or "").strip()
+        security = str(result.get("security") or "").strip()
+        self._hide_wait_overlay()
+        if not ssid:
+            self._on_detect_home_wifi_failed("Impossible de determiner le Wi-Fi maison actuel du Mac.")
+            return
+
+        label = "Mot de passe du Wi-Fi maison"
+        if security:
+            label += f" ({ssid}, {security})"
+        else:
+            label += f" ({ssid})"
+        password, accepted = QInputDialog.getText(
+            self,
+            "Wi-Fi maison",
+            label,
+            QLineEdit.Password,
+        )
+        if not accepted:
+            self.pending_home_wifi = None
+            self.pending_setup_ssid = None
+            self.provisioning_view.status_label.setText("Rattachement du lapin annule.")
+            return
+        if not password:
+            self._on_detect_home_wifi_failed("Le mot de passe du Wi-Fi maison est requis.")
+            return
+
+        self.pending_home_wifi = {
+            "interface": interface,
+            "ssid": ssid,
+            "password": password,
+            "security": security,
+        }
+        setup_ssid = self.pending_setup_ssid or ""
+        self.provisioning_view.status_label.setText(f"Connexion au reseau {setup_ssid}…")
+        self._show_wait_overlay(
+            f"Connexion en cours au reseau {setup_ssid}. Laisse le Mac basculer automatiquement sur le Wi-Fi du lapin."
+        )
+        self._start_provisioning_worker(
+            ProvisioningWorker(
+                action="connect_setup_network",
+                payload={"ssid": setup_ssid},
+            ),
+            self._on_connect_setup_network_success,
+            self._on_connect_setup_network_failed,
+        )
+
+    def _on_detect_home_wifi_failed(self, message: str) -> None:
+        self._hide_wait_overlay()
+        self.pending_home_wifi = None
+        self.pending_setup_ssid = None
+        self.provisioning_view.status_label.setText(message)
+        QMessageBox.warning(
+            self,
+            "Nabaztag",
+            (
+                "Impossible de recuperer automatiquement le Wi-Fi maison "
+                "(nom, mot de passe ou type de securite).\n\n"
+                f"{message}"
+            ),
+        )
+
+    def _on_connect_setup_network_success(self, result: dict) -> None:
+        setup_ssid = str(result.get("ssid") or self.pending_setup_ssid or "").strip()
+        interface = str(result.get("interface") or "").strip()
+        self.provisioning_view.status_label.setText(
+            f"Connecte au reseau {setup_ssid} {f'sur {interface} ' if interface else ''}. Verification du configurateur local…"
+        )
+        self._show_wait_overlay(
+            f"Connexion au reseau {setup_ssid} reussie. Verification du configurateur local du lapin…"
+        )
+        self._start_provisioning_worker(
+            ProvisioningWorker(
+                action="probe",
+                payload={"host": "192.168.0.1"},
+            ),
+            self._on_probe_setup_network_success,
+            self._on_probe_setup_network_failed,
+        )
+
+    def _on_connect_setup_network_failed(self, message: str) -> None:
+        self._hide_wait_overlay()
+        self.pending_home_wifi = None
+        self.pending_setup_ssid = None
+        self.provisioning_view.status_label.setText(message)
+        QMessageBox.warning(
+            self,
+            "Nabaztag",
+            f"Impossible de se connecter automatiquement au reseau du lapin.\n\n{message}",
+        )
+
+    def _on_probe_setup_network_success(self, result: dict) -> None:
+        setup_ssid = self.pending_setup_ssid or "Nabaztag"
+        home_wifi = self.pending_home_wifi or {}
+        home_ssid = str(home_wifi.get("ssid") or "").strip()
+        home_password = str(home_wifi.get("password") or "")
+        home_security = str(home_wifi.get("security") or "").strip()
+        if not home_ssid or not home_password:
+            self._on_probe_setup_network_failed(
+                "Le Wi-Fi maison n'a pas pu etre prepare automatiquement."
+            )
+            return
+        self.provisioning_view.status_label.setText(
+            f"Connecte au reseau {setup_ssid}. Envoi de la configuration Wi-Fi au lapin…"
+        )
+        self._show_wait_overlay(
+            "Le lapin est joignable. Envoi de la configuration Wi-Fi maison et redemarrage en cours…"
+        )
+        self._start_provisioning_worker(
+            ProvisioningWorker(
+                action="configure",
+                payload={
+                    "host": "192.168.0.1",
+                    "home_wifi_ssid": home_ssid,
+                    "home_wifi_password": home_password,
+                    "home_wifi_security": home_security,
+                    "portal_base": self.portal,
+                },
+            ),
+            self._on_configure_setup_network_success,
+            self._on_configure_setup_network_failed,
+        )
+
+    def _on_probe_setup_network_failed(self, message: str) -> None:
+        self._hide_wait_overlay()
+        setup_ssid = self.pending_setup_ssid or "Nabaztag"
+        self.provisioning_view.status_label.setText(
+            f"Connecte au reseau {setup_ssid}, mais le configurateur local ne repond pas encore."
+        )
+        QMessageBox.warning(
+            self,
+            "Nabaztag",
+            (
+                f"Le Mac a bien bascule sur le reseau {setup_ssid}, "
+                f"mais http://192.168.0.1/ ne repond pas encore.\n\n{message}"
+            ),
+        )
+        self.pending_home_wifi = None
+        self.pending_setup_ssid = None
+
+    def _on_configure_setup_network_success(self, result: dict) -> None:
+        setup_ssid = self.pending_setup_ssid or "Nabaztag"
+        message = " ".join(str(result.get("message") or "").split()).strip() or "Configuration envoyee au lapin."
+        home_wifi = self.pending_home_wifi or {}
+        home_ssid = str(home_wifi.get("ssid") or "").strip()
+        home_password = str(home_wifi.get("password") or "")
+        if not home_ssid:
+            self._hide_wait_overlay()
+            self.provisioning_view.status_label.setText(message)
+            QMessageBox.information(
+                self,
+                "Nabaztag",
+                (
+                    f"Le lapin {setup_ssid} a recu les parametres du Wi-Fi maison.\n\n"
+                    f"{message}"
+                ),
+            )
+            self.pending_home_wifi = None
+            self.pending_setup_ssid = None
+            return
+
+        self.provisioning_view.status_label.setText(
+            f"{message} Reconnexion automatique au Wi-Fi maison {home_ssid}…"
+        )
+        self._show_wait_overlay(
+            f"Le lapin a recu la configuration. Reconnexion automatique du Mac au reseau {home_ssid}…"
+        )
+        self._start_provisioning_worker(
+            ProvisioningWorker(
+                action="connect_setup_network",
+                payload={"ssid": home_ssid, "password": home_password},
+            ),
+            lambda reconnect_result, bootstrap_message=message, bootstrap_ssid=setup_ssid: self._on_reconnect_home_wifi_success(
+                reconnect_result,
+                bootstrap_message,
+                bootstrap_ssid,
+            ),
+            lambda reconnect_error, bootstrap_message=message, bootstrap_ssid=setup_ssid, home_network=home_ssid: self._on_reconnect_home_wifi_failed(
+                reconnect_error,
+                bootstrap_message,
+                bootstrap_ssid,
+                home_network,
+            ),
+        )
+
+    def _on_configure_setup_network_failed(self, message: str) -> None:
+        self._hide_wait_overlay()
+        setup_ssid = self.pending_setup_ssid or "Nabaztag"
+        self.provisioning_view.status_label.setText(
+            f"Connecte au reseau {setup_ssid}, mais l'envoi de la configuration a echoue."
+        )
+        QMessageBox.warning(
+            self,
+            "Nabaztag",
+            (
+                f"Le Mac est bien connecte au reseau {setup_ssid}, "
+                f"mais l'envoi a http://192.168.0.1/b.htm a echoue.\n\n{message}"
+            ),
+        )
+        self.pending_home_wifi = None
+        self.pending_setup_ssid = None
+
+    def _on_reconnect_home_wifi_success(
+        self,
+        result: dict,
+        bootstrap_message: str,
+        bootstrap_ssid: str,
+    ) -> None:
+        self._hide_wait_overlay()
+        home_ssid = str(result.get("ssid") or "").strip() or str(
+            (self.pending_home_wifi or {}).get("ssid") or "Wi-Fi maison"
+        ).strip()
+        interface = str(result.get("interface") or "").strip()
+        self.provisioning_view.status_label.setText(
+            f"Reconnecte au Wi-Fi maison {home_ssid}."
         )
         QMessageBox.information(
             self,
             "Nabaztag",
-            f"Lapin détecté : {setup_ssid}\n\nLe rattachement complet sera branché dans l'étape suivante.",
+            (
+                f"Le lapin {bootstrap_ssid} a recu les parametres du Wi-Fi maison.\n\n"
+                f"{bootstrap_message}\n\n"
+                f"Le Mac a ete reconnecte automatiquement au reseau {home_ssid}"
+                f"{f' sur {interface}' if interface else ''}."
+            ),
         )
+        self.pending_home_wifi = None
+        self.pending_setup_ssid = None
+
+    def _on_reconnect_home_wifi_failed(
+        self,
+        message: str,
+        bootstrap_message: str,
+        bootstrap_ssid: str,
+        home_ssid: str,
+    ) -> None:
+        self._hide_wait_overlay()
+        self.provisioning_view.status_label.setText(
+            f"Le lapin est configure, mais la reconnexion au Wi-Fi maison {home_ssid} a echoue."
+        )
+        QMessageBox.warning(
+            self,
+            "Nabaztag",
+            (
+                f"Le lapin {bootstrap_ssid} a recu les parametres du Wi-Fi maison.\n\n"
+                f"{bootstrap_message}\n\n"
+                f"Le Mac n'a pas pu se reconnecter automatiquement au reseau {home_ssid}.\n\n"
+                f"{message}"
+            ),
+        )
+        self.pending_home_wifi = None
+        self.pending_setup_ssid = None
 
     def request_location_authorization(self) -> None:
         status = provisioning_support.request_location_authorization()
@@ -603,8 +1027,26 @@ class MainWindow(QMainWindow):
                 "Impossible de demander automatiquement l'autorisation de localisation sur ce Mac."
             )
             return
+        if status in {"authorized_when_in_use", "authorized_always"}:
+            self.provisioning_view.status_label.setText(
+                "La localisation est autorisee. Recherche des reseaux Wi-Fi…"
+            )
+            self.location_request_pending = False
+            self.location_poll_timer.stop()
+            if self.auto_scan_after_location:
+                self.auto_scan_after_location = False
+            self.scan_setup_networks()
+            return
+        if status in {"restricted", "denied"}:
+            self.provisioning_view.status_label.setText(
+                "macOS refuse actuellement l'acces a la localisation. "
+                "Autorise Nabaztag dans Reglages Systeme > Confidentialite et securite > Service de localisation."
+            )
+            return
+        self.location_request_pending = True
+        self.location_poll_timer.start()
         self.provisioning_view.status_label.setText(
-            "Demande d'autorisation envoyée à macOS. Si aucune popup n'apparaît, ouvre les Réglages Système."
+            "Demande d'autorisation envoyee a macOS. La recherche Wi-Fi se lancera automatiquement des que la localisation sera autorisee."
         )
 
     def open_location_settings(self) -> None:

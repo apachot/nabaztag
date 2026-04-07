@@ -132,7 +132,7 @@ rm -rf build dist
 python3 -m venv "$BUILD_VENV"
 source "$BUILD_VENV/bin/activate"
 python3 -m pip install --upgrade pip setuptools wheel py2app
-python3 -m pip install PySide6 certifi pyobjc-framework-CoreLocation
+python3 -m pip install PySide6 certifi pyobjc-framework-CoreLocation pyobjc-framework-CoreWLAN
 if [[ -f "$PYPROJECT_PATH" ]]; then
   mv "$PYPROJECT_PATH" "$PYPROJECT_BACKUP"
 fi
