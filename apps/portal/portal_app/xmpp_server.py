@@ -260,6 +260,11 @@ class XmppSession:
             self.resource = resource
             if self.username:
                 ACTIVE_SESSIONS[self.username.lower()] = self
+                _record_device_event(
+                    self.username,
+                    "rabbit.xmpp.bound",
+                    {"peer": self.peer, "resource": resource},
+                )
             jid = f"{self.username or 'anonymous'}@{self.domain}/{resource}"
             await self.write(_reply_iq(chunk, "result", f"<bind xmlns='{BIND_NS}'><jid>{jid}</jid></bind>"))
             return
@@ -269,6 +274,12 @@ class XmppSession:
                 self.username = _extract_jid_node(chunk, "from") or self.username
                 if self.username and self.resource:
                     ACTIVE_SESSIONS[self.username.lower()] = self
+            if self.username:
+                _record_device_event(
+                    self.username,
+                    "rabbit.xmpp.session",
+                    {"peer": self.peer, "resource": self.resource},
+                )
             await self.write(_reply_iq(chunk, "result", f"<session xmlns='{SESSION_NS}'/>"))
             return
 
@@ -293,6 +304,12 @@ class XmppSession:
         if self.auth_step >= 10 and chunk.startswith("<presence"):
             from_attr = _extract_attr(chunk, "from") or ""
             stanza_id = _extract_attr(chunk, "id") or "presence-1"
+            if self.username:
+                _record_device_event(
+                    self.username,
+                    "rabbit.xmpp.presence",
+                    {"peer": self.peer, "resource": self.resource},
+                )
             await self.write(f"<presence from='{from_attr}' to='{from_attr}' id='{stanza_id}'/>")
             return
 

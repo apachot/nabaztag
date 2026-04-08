@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import sys
+import time
+from datetime import datetime
 from PySide6.QtCore import QThread, QTimer, Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
@@ -119,6 +121,134 @@ class DeleteRabbitWorker(QThread):
             )
             if not response.get("ok"):
                 raise RuntimeError(response.get("message") or "Suppression impossible.")
+            self.finished_ok.emit(response)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
+class RenameRabbitWorker(QThread):
+    finished_ok = Signal(dict)
+    failed = Signal(str)
+
+    def __init__(self, *, portal: str, token: str, rabbit_id: int, name: str) -> None:
+        super().__init__()
+        self.portal = portal
+        self.token = token
+        self.rabbit_id = rabbit_id
+        self.name = name
+
+    def run(self) -> None:
+        try:
+            response = client_support.http_json(
+                url=f"{self.portal}/mobile-api/v1/rabbits/{self.rabbit_id}/rename",
+                method="POST",
+                token=self.token,
+                payload={"name": self.name},
+            )
+            if not response.get("ok"):
+                raise RuntimeError(response.get("message") or "Renommage impossible.")
+            self.finished_ok.emit(response)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
+class CreateRabbitWorker(QThread):
+    finished_ok = Signal(dict)
+    failed = Signal(str)
+
+    def __init__(self, *, portal: str, token: str, name: str = "", auto_claim_recent_device: bool = True) -> None:
+        super().__init__()
+        self.portal = portal
+        self.token = token
+        self.name = name
+        self.auto_claim_recent_device = auto_claim_recent_device
+
+    def run(self) -> None:
+        try:
+            response = client_support.http_json(
+                url=f"{self.portal}/mobile-api/v1/rabbits",
+                method="POST",
+                token=self.token,
+                payload={
+                    "name": self.name,
+                    "auto_claim_recent_device": self.auto_claim_recent_device,
+                },
+            )
+            if not response.get("ok"):
+                raise RuntimeError(response.get("message") or "Creation du lapin impossible.")
+            self.finished_ok.emit(response)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
+class RabbitPairingClaimWorker(QThread):
+    finished_ok = Signal(dict)
+    failed = Signal(str)
+
+    def __init__(self, *, portal: str, pairing_token: str) -> None:
+        super().__init__()
+        self.portal = portal
+        self.pairing_token = pairing_token
+
+    def run(self) -> None:
+        try:
+            response = client_support.http_json(
+                url=f"{self.portal}/mobile-api/v1/rabbit-pairing/claim",
+                method="POST",
+                payload={"pairing_token": self.pairing_token},
+            )
+            if not response.get("ok"):
+                raise RuntimeError(response.get("message") or "Chargement du code d'appairage impossible.")
+            self.finished_ok.emit(response)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
+class RabbitPairingAttachWorker(QThread):
+    finished_ok = Signal(dict)
+    failed = Signal(str)
+
+    def __init__(self, *, portal: str, pairing_token: str, observation_id: int) -> None:
+        super().__init__()
+        self.portal = portal
+        self.pairing_token = pairing_token
+        self.observation_id = observation_id
+
+    def run(self) -> None:
+        try:
+            response = client_support.http_json(
+                url=f"{self.portal}/mobile-api/v1/rabbit-pairing/attach",
+                method="POST",
+                payload={"pairing_token": self.pairing_token, "observation_id": self.observation_id},
+            )
+            if not response.get("ok"):
+                raise RuntimeError(response.get("message") or "Rattachement automatique impossible.")
+            self.finished_ok.emit(response)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
+class ClaimRabbitSerialWorker(QThread):
+    finished_ok = Signal(dict)
+    failed = Signal(str)
+
+    def __init__(self, *, portal: str, token: str, rabbit_id: int, serial: str) -> None:
+        super().__init__()
+        self.portal = portal
+        self.token = token
+        self.rabbit_id = rabbit_id
+        self.serial = serial
+
+    def run(self) -> None:
+        try:
+            response = client_support.http_json(
+                url=f"{self.portal}/mobile-api/v1/rabbits/{self.rabbit_id}/claim-serial",
+                method="POST",
+                token=self.token,
+                payload={"serial": self.serial},
+            )
+            if not response.get("ok"):
+                raise RuntimeError(response.get("message") or "Rattachement par serial impossible.")
             self.finished_ok.emit(response)
         except Exception as exc:
             self.failed.emit(str(exc))
@@ -245,6 +375,7 @@ class RabbitPanel(QWidget):
     add_rabbit_requested = Signal()
     logout_requested = Signal()
     delete_requested = Signal()
+    rename_requested = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -269,6 +400,9 @@ class RabbitPanel(QWidget):
         add_button = QPushButton("Ajouter un lapin")
         add_button.clicked.connect(self.add_rabbit_requested.emit)
         toolbar.addWidget(add_button)
+        rename_button = QPushButton("Renommer ce lapin")
+        rename_button.clicked.connect(self.rename_requested.emit)
+        toolbar.addWidget(rename_button)
         delete_button = QPushButton("Supprimer ce lapin")
         delete_button.clicked.connect(self.delete_requested.emit)
         toolbar.addWidget(delete_button)
@@ -438,6 +572,11 @@ class MainWindow(QMainWindow):
         self.provisioning_worker: ProvisioningWorker | None = None
         self.active_provisioning_workers: list[ProvisioningWorker] = []
         self.delete_rabbit_worker: DeleteRabbitWorker | None = None
+        self.rename_rabbit_worker: RenameRabbitWorker | None = None
+        self.create_rabbit_worker: CreateRabbitWorker | None = None
+        self.rabbit_pairing_claim_worker: RabbitPairingClaimWorker | None = None
+        self.rabbit_pairing_attach_worker: RabbitPairingAttachWorker | None = None
+        self.claim_rabbit_serial_worker: ClaimRabbitSerialWorker | None = None
         self.wait_blur_effect = QGraphicsBlurEffect(self)
         self.wait_blur_effect.setBlurRadius(10)
         self.location_poll_timer = QTimer(self)
@@ -448,6 +587,26 @@ class MainWindow(QMainWindow):
         self.last_prompted_setup_ssid: str | None = None
         self.pending_setup_ssid: str | None = None
         self.pending_home_wifi: dict[str, str] | None = None
+        self.pending_setup_serial = ""
+        self.post_provision_refresh_pending = False
+        self.post_provision_refresh_retries = 0
+        self.suppress_auto_provisioning_until = 0.0
+        self.provisional_rabbit: dict[str, object] | None = None
+        self.provisioning_start_rabbit_count = 0
+        self.pending_rabbit_pairing_token = ""
+        self.pending_rabbit_pairing_retries = 0
+        self.pending_rabbit_pairing_claim_inflight = False
+        self.pending_rabbit_pairing_attach_inflight = False
+        self.pending_rabbit_pairing_started_at = 0.0
+        self.pending_claim_rabbit_id: int | None = None
+        self.pending_claim_serial = ""
+        self.pending_claim_inflight = False
+        self.post_provision_retry_timer = QTimer(self)
+        self.post_provision_retry_timer.setSingleShot(True)
+        self.post_provision_retry_timer.timeout.connect(self._retry_post_provision_refresh)
+        self.rabbit_pairing_retry_timer = QTimer(self)
+        self.rabbit_pairing_retry_timer.setSingleShot(True)
+        self.rabbit_pairing_retry_timer.timeout.connect(self._retry_pending_rabbit_pairing)
 
         self.central_container = QWidget()
         container_layout = QVBoxLayout(self.central_container)
@@ -469,9 +628,10 @@ class MainWindow(QMainWindow):
         self.login_view.login_requested.connect(self.login)
         self.rabbit_panel.refresh_requested.connect(self.refresh_rabbits)
         self.rabbit_panel.send_requested.connect(self.send_message)
-        self.rabbit_panel.add_rabbit_requested.connect(self.show_provisioning_view)
+        self.rabbit_panel.add_rabbit_requested.connect(lambda: self.show_provisioning_view(forced=True))
         self.rabbit_panel.logout_requested.connect(self.logout)
         self.rabbit_panel.delete_requested.connect(self.delete_selected_rabbit)
+        self.rabbit_panel.rename_requested.connect(self.rename_selected_rabbit)
         self.rabbit_panel.rabbits_list.currentItemChanged.connect(self._on_rabbit_selected)
         self.provisioning_view.scan_setup_networks_requested.connect(self.scan_setup_networks)
         self.provisioning_view.attach_requested.connect(self.attach_detected_rabbit)
@@ -600,25 +760,87 @@ class MainWindow(QMainWindow):
         self.refresh_worker.failed.connect(self._on_refresh_failed)
         self.refresh_worker.start()
 
-    def _on_refresh_success(self, response: dict) -> None:
-        self.rabbits = response.get("rabbits") if isinstance(response.get("rabbits"), list) else []
+    def _displayed_rabbits(self) -> list[dict]:
+        displayed = list(self.rabbits)
+        if self.provisional_rabbit is not None:
+            displayed.insert(0, dict(self.provisional_rabbit))
+        return displayed
+
+    def _rebuild_rabbits_list(self) -> None:
+        previous_selected_id = self.selected_rabbit_id
+        previous_provisional = False
+        current_item = self.rabbit_panel.rabbits_list.currentItem()
+        current_data = current_item.data(Qt.UserRole) if current_item is not None else {}
+        if isinstance(current_data, dict):
+            previous_provisional = bool(current_data.get("provisional"))
+
         self.rabbit_panel.rabbits_list.clear()
         self.selected_rabbit_id = None
-        for rabbit in self.rabbits:
+        selected_row = -1
+        for index, rabbit in enumerate(self._displayed_rabbits()):
             name = str(rabbit.get("name") or "").strip() or "Lapin"
             status = str(rabbit.get("status") or "unknown").strip()
             item = QListWidgetItem(f"{name} ({status})")
             item.setData(Qt.UserRole, rabbit)
             self.rabbit_panel.rabbits_list.addItem(item)
-        self.show_rabbit_or_login_view()
-        if self.rabbits:
+            rabbit_id = rabbit.get("id") if isinstance(rabbit, dict) else None
+            if previous_provisional and rabbit.get("provisional"):
+                selected_row = index
+            elif isinstance(previous_selected_id, int) and rabbit_id == previous_selected_id:
+                selected_row = index
+
+        if selected_row >= 0:
+            self.rabbit_panel.rabbits_list.setCurrentRow(selected_row)
+        elif self.rabbit_panel.rabbits_list.count() > 0:
             self.rabbit_panel.rabbits_list.setCurrentRow(0)
+
+    def _on_refresh_success(self, response: dict) -> None:
+        self.rabbits = response.get("rabbits") if isinstance(response.get("rabbits"), list) else []
+        if self.provisional_rabbit is not None and len(self.rabbits) > self.provisioning_start_rabbit_count:
+            self.provisional_rabbit = None
+        waiting_for_provisioned_rabbit = self.provisional_rabbit is not None
+        self._rebuild_rabbits_list()
+        keep_main_view = self.post_provision_refresh_pending or waiting_for_provisioned_rabbit
+        force_main_view = time.monotonic() < self.suppress_auto_provisioning_until
+        self.post_provision_refresh_pending = False
+        if (keep_main_view or force_main_view) and self.api_token:
+            self.stack.setCurrentWidget(self.rabbit_panel)
+        else:
+            self.show_rabbit_or_login_view()
+        if self.rabbits:
             self.rabbit_panel.append_log("Liste des lapins rafraîchie.")
+            if waiting_for_provisioned_rabbit:
+                self.rabbit_panel.status_label.setText(
+                    "Le nouveau lapin termine son démarrage. La liste sera mise à jour automatiquement."
+                )
+                if self.post_provision_refresh_retries > 0:
+                    self.post_provision_refresh_retries -= 1
+                    self.post_provision_retry_timer.start(4000)
+                else:
+                    self.rabbit_panel.append_log(
+                        "Le nouveau lapin n'est pas encore visible côté portail. Rafraîchis dans quelques secondes."
+                    )
+            else:
+                self.post_provision_refresh_retries = 0
+                self.post_provision_retry_timer.stop()
         else:
             self.rabbit_panel.clear_selection_state()
-            self.provisioning_view.status_label.setText("Aucun lapin rattaché pour l'instant. Connectez votre premier lapin.")
+            if keep_main_view:
+                self.rabbit_panel.status_label.setText("Aucun lapin visible pour l'instant. Raffraichis dans quelques secondes.")
+                self.rabbit_panel.append_log("Le rattachement est termine. La liste sera mise a jour des que le portail verra le lapin.")
+                if self.post_provision_refresh_retries > 0:
+                    self.post_provision_refresh_retries -= 1
+                    self.post_provision_retry_timer.start(4000)
+            else:
+                self.provisioning_view.status_label.setText("Aucun lapin rattaché pour l'instant. Connectez votre premier lapin.")
 
     def _on_refresh_failed(self, message: str) -> None:
+        if self.api_token and time.monotonic() < self.suppress_auto_provisioning_until:
+            self.stack.setCurrentWidget(self.rabbit_panel)
+            self.rabbit_panel.clear_selection_state()
+            self.rabbit_panel.status_label.setText("Impossible de rafraichir la liste des lapins pour l'instant.")
+            self.rabbit_panel.append_log(message)
+            return
         self.login_view.set_status(message)
         self.stack.setCurrentWidget(self.login_view)
 
@@ -631,6 +853,16 @@ class MainWindow(QMainWindow):
         client_support.save_config(config)
         self.api_token = ""
         self.rabbits = []
+        self.provisional_rabbit = None
+        self.pending_rabbit_pairing_token = ""
+        self.pending_rabbit_pairing_retries = 0
+        self.pending_rabbit_pairing_claim_inflight = False
+        self.pending_rabbit_pairing_attach_inflight = False
+        self.pending_setup_serial = ""
+        self.pending_claim_rabbit_id = None
+        self.pending_claim_serial = ""
+        self.pending_claim_inflight = False
+        self.rabbit_pairing_retry_timer.stop()
         self.selected_rabbit_id = None
         self.rabbit_panel.rabbits_list.clear()
         self.rabbit_panel.clear_selection_state()
@@ -638,7 +870,10 @@ class MainWindow(QMainWindow):
         self.login_view.set_status("Déconnecté. Connecte-toi pour accéder à tes lapins.")
         self.stack.setCurrentWidget(self.login_view)
 
-    def show_provisioning_view(self) -> None:
+    def show_provisioning_view(self, forced: bool = False) -> None:
+        if not forced and time.monotonic() < self.suppress_auto_provisioning_until:
+            self.stack.setCurrentWidget(self.rabbit_panel)
+            return
         self.provisioning_view.set_detected_setup_networks([])
         self.last_prompted_setup_ssid = None
         self.provisioning_view.status_label.setText(
@@ -690,10 +925,8 @@ class MainWindow(QMainWindow):
             )
 
     def show_rabbit_or_login_view(self) -> None:
-        if self.rabbits:
+        if self.api_token:
             self.stack.setCurrentWidget(self.rabbit_panel)
-        elif self.api_token:
-            self.show_provisioning_view()
         else:
             self.stack.setCurrentWidget(self.login_view)
 
@@ -761,6 +994,7 @@ class MainWindow(QMainWindow):
         if not setup_ssid:
             QMessageBox.warning(self, "Nabaztag", "Choisis d'abord un lapin détecté à proximité.")
             return
+        self.provisioning_start_rabbit_count = len(self.rabbits)
         self.pending_setup_ssid = setup_ssid
         self.provisioning_view.status_label.setText(
             "Preparation du Wi-Fi maison…"
@@ -862,6 +1096,9 @@ class MainWindow(QMainWindow):
 
     def _on_probe_setup_network_success(self, result: dict) -> None:
         setup_ssid = self.pending_setup_ssid or "Nabaztag"
+        setup_serial = " ".join(str(result.get("serial") or "").split()).strip().lower()
+        if setup_serial:
+            self.pending_setup_serial = setup_serial
         home_wifi = self.pending_home_wifi or {}
         home_ssid = str(home_wifi.get("ssid") or "").strip()
         home_password = str(home_wifi.get("password") or "")
@@ -912,6 +1149,9 @@ class MainWindow(QMainWindow):
     def _on_configure_setup_network_success(self, result: dict) -> None:
         setup_ssid = self.pending_setup_ssid or "Nabaztag"
         message = " ".join(str(result.get("message") or "").split()).strip() or "Configuration envoyee au lapin."
+        setup_serial = " ".join(str(result.get("serial") or "").split()).strip().lower()
+        if setup_serial:
+            self.pending_setup_serial = setup_serial
         home_wifi = self.pending_home_wifi or {}
         home_ssid = str(home_wifi.get("ssid") or "").strip()
         home_password = str(home_wifi.get("password") or "")
@@ -926,8 +1166,7 @@ class MainWindow(QMainWindow):
                     f"{message}"
                 ),
             )
-            self.pending_home_wifi = None
-            self.pending_setup_ssid = None
+            self._finish_successful_provisioning()
             return
 
         self.provisioning_view.status_label.setText(
@@ -995,8 +1234,7 @@ class MainWindow(QMainWindow):
                 f"{f' sur {interface}' if interface else ''}."
             ),
         )
-        self.pending_home_wifi = None
-        self.pending_setup_ssid = None
+        self._finish_successful_provisioning()
 
     def _on_reconnect_home_wifi_failed(
         self,
@@ -1019,8 +1257,248 @@ class MainWindow(QMainWindow):
                 f"{message}"
             ),
         )
+        self._finish_successful_provisioning()
+
+    def _finish_successful_provisioning(self) -> None:
+        self.location_poll_timer.stop()
+        self.location_request_pending = False
+        self.auto_scan_after_location = False
+        setup_ssid = self.pending_setup_ssid or "Nabaztag"
         self.pending_home_wifi = None
         self.pending_setup_ssid = None
+        self.last_prompted_setup_ssid = None
+        self.post_provision_refresh_retries = 10
+        self.suppress_auto_provisioning_until = time.monotonic() + 60.0
+        self.pending_rabbit_pairing_started_at = time.time()
+        self.provisional_rabbit = {
+            "id": None,
+            "name": "Nouveau lapin",
+            "status": "deconnecte",
+            "device_serial": None,
+            "provisional": True,
+            "setup_ssid": setup_ssid,
+        }
+        self.provisioning_view.set_detected_setup_networks([])
+        self.stack.setCurrentWidget(self.rabbit_panel)
+        self._rebuild_rabbits_list()
+        self.rabbit_panel.status_label.setText("Configuration terminée. Création du lapin dans le portail…")
+        self.rabbit_panel.append_log("Configuration terminée. Création du lapin dans le portail…")
+        if not self.api_token:
+            self.refresh_rabbits()
+            return
+        self.create_rabbit_worker = CreateRabbitWorker(
+            portal=self.portal,
+            token=self.api_token,
+            auto_claim_recent_device=False,
+        )
+        self.create_rabbit_worker.finished_ok.connect(self._on_create_rabbit_success)
+        self.create_rabbit_worker.failed.connect(self._on_create_rabbit_failed)
+        self.create_rabbit_worker.start()
+
+    def _retry_post_provision_refresh(self) -> None:
+        if not self.api_token or self.provisional_rabbit is None:
+            return
+        self.post_provision_refresh_pending = True
+        self.stack.setCurrentWidget(self.rabbit_panel)
+        self.rabbit_panel.status_label.setText("Verification de la liste des lapins…")
+        self.refresh_rabbits()
+
+    def _on_create_rabbit_success(self, response: dict) -> None:
+        rabbit = response.get("rabbit") if isinstance(response.get("rabbit"), dict) else {}
+        rabbit_id = rabbit.get("id")
+        rabbit_name = str(rabbit.get("name") or "").strip()
+        pairing_token = " ".join(str(response.get("pairing_token") or "").split()).strip().upper()
+        message = " ".join(str(response.get("message") or "").split()).strip()
+        warning = " ".join(str(response.get("warning") or "").split()).strip()
+        if rabbit_name and self.provisional_rabbit is not None:
+            self.provisional_rabbit["name"] = rabbit_name
+        if isinstance(rabbit_id, int):
+            self.selected_rabbit_id = rabbit_id
+            self.pending_claim_rabbit_id = rabbit_id
+        self.pending_rabbit_pairing_token = pairing_token
+        self.pending_rabbit_pairing_retries = 10 if pairing_token else 0
+        self.pending_rabbit_pairing_claim_inflight = False
+        self.pending_rabbit_pairing_attach_inflight = False
+        self.pending_claim_serial = self.pending_setup_serial.strip().lower()
+        self.pending_claim_inflight = False
+        self.post_provision_refresh_pending = True
+        self.rabbit_panel.status_label.setText("Lapin créé. Mise à jour de la liste…")
+        if message:
+            self.rabbit_panel.append_log(message)
+        if warning:
+            self.rabbit_panel.append_log(warning)
+        self.refresh_rabbits()
+        if isinstance(rabbit_id, int) and self.pending_claim_serial:
+            self.rabbit_panel.append_log(f"Attente de la connexion du Nabaztag {self.pending_claim_serial}…")
+            self.rabbit_pairing_retry_timer.start(2500)
+        elif pairing_token:
+            self.rabbit_panel.append_log("Rattachement automatique du Nabaztag en attente…")
+            self.rabbit_pairing_retry_timer.start(2500)
+
+    def _on_create_rabbit_failed(self, message: str) -> None:
+        self.post_provision_refresh_pending = True
+        self.rabbit_panel.status_label.setText(
+            "Le lapin a été configuré, mais sa création automatique dans le portail a échoué."
+        )
+        self.rabbit_panel.append_log(message)
+        self.refresh_rabbits()
+
+    def _retry_pending_rabbit_pairing(self) -> None:
+        if self.pending_rabbit_pairing_retries <= 0:
+            return
+        if self.pending_claim_rabbit_id is not None and self.pending_claim_serial:
+            if self.pending_claim_inflight:
+                return
+            self.pending_rabbit_pairing_retries -= 1
+            self.pending_claim_inflight = True
+            self.claim_rabbit_serial_worker = ClaimRabbitSerialWorker(
+                portal=self.portal,
+                token=self.api_token,
+                rabbit_id=self.pending_claim_rabbit_id,
+                serial=self.pending_claim_serial,
+            )
+            self.claim_rabbit_serial_worker.finished_ok.connect(self._on_claim_rabbit_serial_success)
+            self.claim_rabbit_serial_worker.failed.connect(self._on_claim_rabbit_serial_failed)
+            self.claim_rabbit_serial_worker.start()
+            return
+        if (
+            not self.pending_rabbit_pairing_token
+            or self.pending_rabbit_pairing_claim_inflight
+            or self.pending_rabbit_pairing_attach_inflight
+        ):
+            return
+        self.pending_rabbit_pairing_retries -= 1
+        self.pending_rabbit_pairing_claim_inflight = True
+        self.rabbit_pairing_claim_worker = RabbitPairingClaimWorker(
+            portal=self.portal,
+            pairing_token=self.pending_rabbit_pairing_token,
+        )
+        self.rabbit_pairing_claim_worker.finished_ok.connect(self._on_rabbit_pairing_claim_success)
+        self.rabbit_pairing_claim_worker.failed.connect(self._on_rabbit_pairing_claim_failed)
+        self.rabbit_pairing_claim_worker.start()
+
+    def _on_claim_rabbit_serial_success(self, response: dict) -> None:
+        self.pending_claim_inflight = False
+        status = " ".join(str(response.get("status") or "").split()).strip().lower()
+        message = " ".join(str(response.get("message") or "").split()).strip()
+        warning = " ".join(str(response.get("warning") or "").split()).strip()
+        if status == "claimed":
+            self.pending_claim_rabbit_id = None
+            self.pending_claim_serial = ""
+            self.pending_rabbit_pairing_token = ""
+            self.pending_rabbit_pairing_retries = 0
+            self.pending_setup_serial = ""
+            if message:
+                self.rabbit_panel.append_log(message)
+            if warning:
+                self.rabbit_panel.append_log(warning)
+            self.post_provision_refresh_pending = True
+            self.refresh_rabbits()
+            return
+        if self.pending_rabbit_pairing_retries > 0:
+            self.rabbit_pairing_retry_timer.start(4000)
+            return
+        if message:
+            self.rabbit_panel.append_log(message)
+
+    def _on_claim_rabbit_serial_failed(self, message: str) -> None:
+        self.pending_claim_inflight = False
+        if self.pending_rabbit_pairing_retries > 0:
+            self.rabbit_panel.append_log(message)
+            self.rabbit_pairing_retry_timer.start(4000)
+            return
+        self.rabbit_panel.append_log(message)
+
+    def _on_rabbit_pairing_claim_success(self, response: dict) -> None:
+        self.pending_rabbit_pairing_claim_inflight = False
+        pairing = response.get("pairing") if isinstance(response.get("pairing"), dict) else {}
+        button_candidate = pairing.get("button_candidate") if isinstance(pairing.get("button_candidate"), dict) else None
+        recent_devices = pairing.get("recent_unclaimed_devices") if isinstance(pairing.get("recent_unclaimed_devices"), list) else []
+        candidate = self._best_pairing_candidate(button_candidate, recent_devices)
+        observation_id = candidate.get("id") if isinstance(candidate, dict) else None
+        if isinstance(observation_id, int):
+            self.pending_rabbit_pairing_attach_inflight = True
+            self.rabbit_panel.append_log("Nabaztag détecté. Rattachement automatique en cours…")
+            self.rabbit_pairing_attach_worker = RabbitPairingAttachWorker(
+                portal=self.portal,
+                pairing_token=self.pending_rabbit_pairing_token,
+                observation_id=observation_id,
+            )
+            self.rabbit_pairing_attach_worker.finished_ok.connect(self._on_rabbit_pairing_attach_success)
+            self.rabbit_pairing_attach_worker.failed.connect(self._on_rabbit_pairing_attach_failed)
+            self.rabbit_pairing_attach_worker.start()
+            return
+        if self.pending_rabbit_pairing_retries > 0:
+            self.rabbit_pairing_retry_timer.start(4000)
+            return
+        self.rabbit_panel.append_log("Aucun Nabaztag clair à rattacher automatiquement pour l'instant.")
+
+    def _on_rabbit_pairing_claim_failed(self, message: str) -> None:
+        self.pending_rabbit_pairing_claim_inflight = False
+        if self.pending_rabbit_pairing_retries > 0:
+            self.rabbit_panel.append_log(message)
+            self.rabbit_pairing_retry_timer.start(4000)
+            return
+        self.rabbit_panel.append_log(message)
+
+    def _best_pairing_candidate(self, button_candidate: dict | None, recent_devices: list[dict]) -> dict | None:
+        threshold = self.pending_rabbit_pairing_started_at - 5.0
+        expected_serial = self.pending_setup_serial.strip().lower()
+
+        def candidate_timestamp(device: dict) -> float:
+            raw_value = str(device.get("last_seen_at") or "").strip()
+            if not raw_value:
+                return 0.0
+            try:
+                return datetime.fromisoformat(raw_value.replace("Z", "+00:00")).timestamp()
+            except ValueError:
+                return 0.0
+
+        def candidate_serial(device: dict) -> str:
+            return " ".join(str(device.get("serial") or "").split()).strip().lower()
+
+        if expected_serial:
+            if isinstance(button_candidate, dict) and candidate_serial(button_candidate) == expected_serial:
+                return button_candidate
+            for device in recent_devices:
+                if isinstance(device, dict) and candidate_serial(device) == expected_serial:
+                    return device
+
+        if isinstance(button_candidate, dict):
+            if candidate_timestamp(button_candidate) >= threshold:
+                return button_candidate
+
+        valid_devices = [device for device in recent_devices if isinstance(device, dict)]
+        if not valid_devices:
+            return None
+
+        fresh_devices = [device for device in valid_devices if candidate_timestamp(device) >= threshold]
+        if fresh_devices:
+            fresh_devices.sort(key=candidate_timestamp, reverse=True)
+            return fresh_devices[0]
+
+        if len(valid_devices) == 1:
+            return valid_devices[0]
+        return None
+
+    def _on_rabbit_pairing_attach_success(self, response: dict) -> None:
+        self.pending_rabbit_pairing_attach_inflight = False
+        self.pending_rabbit_pairing_token = ""
+        self.pending_rabbit_pairing_retries = 0
+        self.pending_setup_serial = ""
+        message = " ".join(str(response.get("message") or "").split()).strip()
+        if message:
+            self.rabbit_panel.append_log(message)
+        self.post_provision_refresh_pending = True
+        self.refresh_rabbits()
+
+    def _on_rabbit_pairing_attach_failed(self, message: str) -> None:
+        self.pending_rabbit_pairing_attach_inflight = False
+        if self.pending_rabbit_pairing_retries > 0:
+            self.rabbit_panel.append_log(message)
+            self.rabbit_pairing_retry_timer.start(4000)
+            return
+        self.rabbit_panel.append_log(message)
 
     def request_location_authorization(self) -> None:
         status = provisioning_support.request_location_authorization()
@@ -1074,8 +1552,17 @@ class MainWindow(QMainWindow):
             self.rabbit_panel.status_label.setText("Statut du lapin : inconnu")
 
     def send_message(self, text: str) -> None:
+        current_item = self.rabbit_panel.rabbits_list.currentItem()
+        current_rabbit = current_item.data(Qt.UserRole) if current_item is not None else {}
+        if not isinstance(current_rabbit, dict) or current_rabbit.get("provisional"):
+            QMessageBox.warning(self, "Nabaztag", "Le nouveau lapin termine encore son rattachement.")
+            return
         if self.selected_rabbit_id is None:
             QMessageBox.warning(self, "Nabaztag", "Choisis un lapin.")
+            return
+        status = str(current_rabbit.get("status") or "").strip().lower()
+        if status != "online":
+            QMessageBox.warning(self, "Nabaztag", "Ce lapin n'est pas encore connecté.")
             return
         self.conversation_worker = ConversationWorker(
             portal=self.portal,
@@ -1099,10 +1586,16 @@ class MainWindow(QMainWindow):
         self.rabbit_panel.append_log(f"Erreur : {message}")
 
     def delete_selected_rabbit(self) -> None:
+        current_item = self.rabbit_panel.rabbits_list.currentItem()
+        current_rabbit = current_item.data(Qt.UserRole) if current_item is not None else {}
+        if isinstance(current_rabbit, dict) and current_rabbit.get("provisional"):
+            self.provisional_rabbit = None
+            self.rabbit_panel.append_log("Lapin provisoire retiré de la liste.")
+            self._rebuild_rabbits_list()
+            return
         if self.selected_rabbit_id is None:
             QMessageBox.warning(self, "Nabaztag", "Choisis un lapin.")
             return
-        current_item = self.rabbit_panel.rabbits_list.currentItem()
         rabbit_label = current_item.text() if current_item is not None else "ce lapin"
         confirmation = QMessageBox.question(
             self,
@@ -1130,6 +1623,62 @@ class MainWindow(QMainWindow):
         self.refresh_rabbits()
 
     def _on_delete_rabbit_failed(self, message: str) -> None:
+        self.rabbit_panel.append_log(f"Erreur : {message}")
+
+    def rename_selected_rabbit(self) -> None:
+        current_item = self.rabbit_panel.rabbits_list.currentItem()
+        current_rabbit = current_item.data(Qt.UserRole) if current_item is not None else {}
+        if not isinstance(current_rabbit, dict):
+            QMessageBox.warning(self, "Nabaztag", "Choisis un lapin.")
+            return
+        current_name = str(current_rabbit.get("name") or "").strip() or "Lapin"
+        new_name, accepted = QInputDialog.getText(
+            self,
+            "Renommer le lapin",
+            "Nouveau nom",
+            QLineEdit.Normal,
+            current_name,
+        )
+        new_name = " ".join(new_name.split()).strip()
+        if not accepted:
+            return
+        if not new_name:
+            QMessageBox.warning(self, "Nabaztag", "Le nom du lapin est requis.")
+            return
+        if current_rabbit.get("provisional"):
+            self.provisional_rabbit = dict(current_rabbit)
+            self.provisional_rabbit["name"] = new_name
+            self._rebuild_rabbits_list()
+            self.rabbit_panel.append_log(f"Lapin provisoire renommé en {new_name}.")
+            return
+        if self.selected_rabbit_id is None:
+            QMessageBox.warning(self, "Nabaztag", "Choisis un lapin.")
+            return
+        self.rename_rabbit_worker = RenameRabbitWorker(
+            portal=self.portal,
+            token=self.api_token,
+            rabbit_id=self.selected_rabbit_id,
+            name=new_name,
+        )
+        self.rename_rabbit_worker.finished_ok.connect(self._on_rename_rabbit_success)
+        self.rename_rabbit_worker.failed.connect(self._on_rename_rabbit_failed)
+        self.rename_rabbit_worker.start()
+        self.rabbit_panel.append_log(f"Renommage de {current_name} en cours…")
+
+    def _on_rename_rabbit_success(self, response: dict) -> None:
+        message = " ".join(str(response.get("message") or "").split()).strip() or "Lapin renommé."
+        rabbit = response.get("rabbit") if isinstance(response.get("rabbit"), dict) else {}
+        renamed_id = rabbit.get("id")
+        renamed_name = str(rabbit.get("name") or "").strip()
+        if isinstance(renamed_id, int) and renamed_name:
+            for entry in self.rabbits:
+                if isinstance(entry, dict) and entry.get("id") == renamed_id:
+                    entry["name"] = renamed_name
+                    break
+        self._rebuild_rabbits_list()
+        self.rabbit_panel.append_log(message)
+
+    def _on_rename_rabbit_failed(self, message: str) -> None:
         self.rabbit_panel.append_log(f"Erreur : {message}")
 
 

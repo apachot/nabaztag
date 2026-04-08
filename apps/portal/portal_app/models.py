@@ -66,6 +66,7 @@ class Rabbit(db.Model):
     llm_model = db.Column(db.String(64), default="mistral-small-2603")
     tts_voice = db.Column(db.String(64), default="e0580ce5-e63c-4cbe-88c8-a983b80c5f1f")
     auto_performance_enabled = db.Column(db.Boolean, default=False, nullable=False)
+    birth_audio_played = db.Column(db.Boolean, default=False, nullable=False)
     auto_performance_frequency_minutes = db.Column(db.Integer, default=180, nullable=False)
     auto_performance_window_start = db.Column(db.String(5), default="09:00")
     auto_performance_window_end = db.Column(db.String(5), default="21:00")

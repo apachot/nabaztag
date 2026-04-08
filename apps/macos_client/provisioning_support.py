@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import re
+import socket
 import subprocess
 import sys
 import time
@@ -537,6 +538,19 @@ def _parse(url: str, content: str) -> tuple[list[HtmlForm], list[HtmlLink]]:
     return parser.forms, links
 
 
+def _extract_bootstrap_serial(content: str) -> str:
+    match = re.search(
+        r"Serial\s*number:\s*</td>\s*<td>\s*([^<\s]+)\s*</td>",
+        content,
+        flags=re.I | re.S,
+    )
+    if not match:
+        return ""
+    raw_serial = html.unescape(match.group(1)).strip()
+    normalized = ":".join(part.lower() for part in re.findall(r"[0-9A-Fa-f]{2}", raw_serial))
+    return normalized if len(normalized) == 17 else raw_serial
+
+
 def probe_bootstrap_host(host: str = "192.168.0.1") -> dict[str, str | bool]:
     opener = urllib_request.build_opener(urllib_request.HTTPCookieProcessor(CookieJar()))
     root_url = f"http://{host.strip().rstrip('/')}/"
@@ -563,6 +577,7 @@ def probe_bootstrap_host(host: str = "192.168.0.1") -> dict[str, str | bool]:
         "reachable": True,
         "url": final_url,
         "title_hint": html.unescape(" ".join(re.findall(r"<title[^>]*>(.*?)</title>", content, flags=re.I | re.S))).strip(),
+        "serial": _extract_bootstrap_serial(content),
         "has_form": bool(forms),
         "has_start_link": bool(start_url),
         "start_url": start_url,
@@ -572,6 +587,12 @@ def probe_bootstrap_host(host: str = "192.168.0.1") -> dict[str, str | bool]:
 
 def _field_key(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", name.strip().lower())
+
+
+def _looks_like_timeout(exc: Exception) -> bool:
+    if isinstance(exc, TimeoutError | socket.timeout):
+        return True
+    return "timed out" in str(exc).lower()
 
 
 def _choose_option(field: HtmlField, preferences: list[str]) -> str | None:
@@ -663,6 +684,7 @@ def configure_bootstrap_host(
     opener = urllib_request.build_opener(urllib_request.HTTPCookieProcessor(CookieJar()))
     root_url = f"http://{host.strip().rstrip('/')}/"
     current_url, content = _fetch(opener, url=root_url)
+    bootstrap_serial = _extract_bootstrap_serial(content)
     forms, links = _parse(current_url, content)
 
     start_link = next((link.href for link in links if "start" in link.text.lower()), "")
@@ -708,17 +730,33 @@ def configure_bootstrap_host(
             "a": violet_platform,
         }
         submit_url = urllib_parse.urljoin(current_url, legacy_form.action or current_url)
-        final_url, response_content = _fetch(
-            opener,
-            url=submit_url,
-            method=legacy_form.method or "GET",
-            payload=legacy_payload,
-        )
+        try:
+            final_url, response_content = _fetch(
+                opener,
+                url=submit_url,
+                method=legacy_form.method or "GET",
+                payload=legacy_payload,
+            )
+        except Exception as exc:
+            if not _looks_like_timeout(exc):
+                raise
+            return {
+                "submitted": True,
+                "success_hint": True,
+                "serial": bootstrap_serial,
+                "violet_platform": violet_platform,
+                "url": submit_url,
+                "message": (
+                    "Configuration envoyee au lapin. Il a probablement applique les parametres "
+                    "et coupe son Wi-Fi de configuration avant de repondre completement."
+                ),
+            }
         lower_content = response_content.lower()
         success = any(token in lower_content for token in ("update", "start", "restart", "reboot", "saved", "applied"))
         return {
             "submitted": True,
             "success_hint": success,
+            "serial": bootstrap_serial,
             "violet_platform": violet_platform,
             "url": final_url,
             "message": (
@@ -747,17 +785,33 @@ def configure_bootstrap_host(
         raise RuntimeError("Je n'ai pas reconnu les champs SSID / mot de passe / Violet Platform sur cette page.")
 
     submit_url = urllib_parse.urljoin(current_url, best_form.action or current_url)
-    final_url, response_content = _fetch(
-        opener,
-        url=submit_url,
-        method=best_form.method or "POST",
-        payload=best_payload,
-    )
+    try:
+        final_url, response_content = _fetch(
+            opener,
+            url=submit_url,
+            method=best_form.method or "POST",
+            payload=best_payload,
+        )
+    except Exception as exc:
+        if not _looks_like_timeout(exc):
+            raise
+        return {
+            "submitted": True,
+            "success_hint": True,
+            "serial": bootstrap_serial,
+            "violet_platform": violet_platform,
+            "url": submit_url,
+            "message": (
+                "Configuration envoyee au lapin. Il a probablement applique les parametres "
+                "et coupe son Wi-Fi de configuration avant de repondre completement."
+            ),
+        }
     lower_content = response_content.lower()
     success = any(token in lower_content for token in ("update", "start", "restart", "reboot", "saved", "applied"))
     return {
         "submitted": True,
         "success_hint": success,
+        "serial": bootstrap_serial,
         "violet_platform": violet_platform,
         "url": final_url,
         "message": (

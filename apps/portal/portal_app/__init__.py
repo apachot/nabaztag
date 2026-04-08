@@ -89,6 +89,8 @@ def _ensure_portal_schema() -> None:
         statements.append("ALTER TABLE rabbit ADD COLUMN tts_voice VARCHAR(64)")
     if "auto_performance_enabled" not in rabbit_columns:
         statements.append("ALTER TABLE rabbit ADD COLUMN auto_performance_enabled BOOLEAN DEFAULT 0")
+    if "birth_audio_played" not in rabbit_columns:
+        statements.append("ALTER TABLE rabbit ADD COLUMN birth_audio_played BOOLEAN DEFAULT 0")
     if "auto_performance_frequency_minutes" not in rabbit_columns:
         statements.append("ALTER TABLE rabbit ADD COLUMN auto_performance_frequency_minutes INTEGER DEFAULT 180")
     if "auto_performance_window_start" not in rabbit_columns:

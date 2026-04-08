@@ -2,7 +2,16 @@ from setuptools import setup
 
 
 APP = ["qt_client.py"]
-DATA_FILES = [("assets", ["assets/setup-mode-button-hold.png", "assets/logo-nabaztag-org.png"])]
+DATA_FILES = [
+    (
+        "assets",
+        [
+            "assets/setup-mode-button-hold.png",
+            "assets/logo-nabaztag-org.png",
+            "assets/nabaztag.icns",
+        ],
+    )
+]
 OPTIONS = {
     "argv_emulation": False,
     "includes": [
@@ -16,6 +25,7 @@ OPTIONS = {
         "PySide6.QtWidgets",
         "shiboken6",
     ],
+    "iconfile": "assets/nabaztag.icns",
     "plist": {
         "CFBundleName": "Nabaztag",
         "CFBundleDisplayName": "Nabaztag",

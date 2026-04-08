@@ -96,6 +96,11 @@ def _default_rabbit_name() -> str:
     return f"Lapin {next_index}"
 
 
+def _default_rabbit_name_for_user(user) -> str:
+    next_index = Rabbit.query.filter_by(owner_id=user.id).count() + 1
+    return f"Lapin {next_index}"
+
+
 def _slugify_rabbit_name(name: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", name.strip().lower())
     slug = slug.strip("-")
@@ -610,7 +615,8 @@ def _rabbit_pairing_candidates_payload(rabbit: Rabbit) -> dict:
     }
 
 
-def _claim_device_for_rabbit(rabbit: Rabbit, observation: DeviceObservation) -> None:
+def _claim_device_for_rabbit(rabbit: Rabbit, observation: DeviceObservation) -> str | None:
+    was_unclaimed = observation.rabbit_id is None
     observation.rabbit_id = rabbit.id
     rabbit.connection_status = "online"
     db.session.add(
@@ -627,6 +633,8 @@ def _claim_device_for_rabbit(rabbit: Rabbit, observation: DeviceObservation) -> 
         _sync_remote_rabbit(rabbit, linked_serial=observation.serial)
     except NabaztagApiError as exc:
         warning_message = f"Lapin physique lié localement, mais non synchronisé à l'API: {exc}"
+    if was_unclaimed:
+        _queue_birth_audio_if_needed(rabbit)
     return warning_message
 
 
@@ -936,7 +944,7 @@ def _bundled_auto_performances() -> tuple[dict, ...]:
     if not manifest_path.exists():
         return tuple()
     try:
-        raw_entries = json.loads(manifest_path.read_text())
+        raw_entries = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         current_app.logger.exception("unable to load bundled auto performances manifest")
         return tuple()
@@ -963,6 +971,47 @@ def _bundled_auto_performances() -> tuple[dict, ...]:
             }
         )
     return tuple(entries)
+
+
+def _load_bundled_performance_entries(directory_name: str) -> tuple[dict, ...]:
+    manifest_path = _bundled_audio_assets_dir() / directory_name / "manifest.json"
+    if not manifest_path.exists():
+        return tuple()
+    try:
+        raw_entries = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        current_app.logger.exception("unable to load bundled performances manifest for %s", directory_name)
+        return tuple()
+
+    entries: list[dict] = []
+    for raw_entry in raw_entries:
+        if not isinstance(raw_entry, dict):
+            continue
+        asset_name = " ".join(str(raw_entry.get("asset_name") or "").split()).strip()
+        payload = raw_entry.get("payload")
+        if not asset_name or not isinstance(payload, dict):
+            continue
+        try:
+            normalized_payload = _normalize_generated_performance(payload)
+        except RuntimeError:
+            continue
+        bundled_asset_name = f"{directory_name}/{asset_name}"
+        if not (_bundled_audio_assets_dir() / bundled_asset_name).exists():
+            continue
+        entries.append({"asset_name": bundled_asset_name, "payload": normalized_payload})
+    return tuple(entries)
+
+
+@lru_cache(maxsize=1)
+def _bundled_birth_performances() -> tuple[dict, ...]:
+    return _load_bundled_performance_entries("bundled-birth")
+
+
+def _random_bundled_birth_performance() -> dict | None:
+    entries = _bundled_birth_performances()
+    if not entries:
+        return None
+    return random.choice(entries)
 
 
 def _bundled_auto_performance_count() -> int:
@@ -1171,6 +1220,43 @@ def _queue_performance_asset(
                     rabbit.id,
                     exc,
                 )
+
+
+def _queue_birth_audio_if_needed(rabbit: Rabbit) -> bool:
+    if rabbit.birth_audio_played:
+        return False
+    bundled_entry = _random_bundled_birth_performance()
+    if bundled_entry is None:
+        return False
+
+    performance = bundled_entry["payload"]
+    _queue_performance_asset(
+        rabbit,
+        performance=performance,
+        asset_name=bundled_entry["asset_name"],
+        source="birth",
+        mode="bundled_birth",
+    )
+    _append_conversation_turn(
+        rabbit,
+        role="assistant",
+        text=performance["text"],
+        source="birth",
+        payload=performance,
+    )
+    _append_rabbit_event(
+        rabbit,
+        source="portal",
+        event_type="rabbit.birth.audio.queued",
+        payload={
+            **_performance_event_payload(performance),
+            "delivery": "bundled_birth",
+            "asset_name": bundled_entry["asset_name"],
+        },
+    )
+    rabbit.birth_audio_played = True
+    db.session.commit()
+    return True
 
 
 def _claim_due_auto_performance(rabbit: Rabbit) -> bool:
@@ -3530,6 +3616,84 @@ def mobile_api_rabbits():
     return jsonify({"ok": True, "rabbits": [_serialize_mobile_rabbit(rabbit) for rabbit in rabbits]})
 
 
+@main_bp.post("/mobile-api/v1/rabbits")
+def mobile_api_create_rabbit():
+    user, _token_record = _current_mobile_user()
+    if user is None:
+        return _mobile_api_unauthorized()
+
+    payload = request.get_json(silent=True) or {}
+    requested_name = " ".join(str(payload.get("name") or "").split()).strip()
+    name = requested_name or _default_rabbit_name_for_user(user)
+    slug = _slugify_rabbit_name(name)
+    auto_claim_recent_device = bool(payload.get("auto_claim_recent_device"))
+
+    remote_payload = None
+    warning_parts: list[str] = []
+    try:
+        remote_payload = create_remote_rabbit(name=name, slug=slug)
+    except NabaztagApiError as exc:
+        warning_parts.append(f"Lapin créé localement sans enregistrement API: {exc}")
+
+    rabbit = Rabbit(
+        name=name,
+        slug=slug,
+        owner_id=user.id,
+        target_port=10543,
+        personality_prompt=DEFAULT_RABBIT_PERSONALITY_PROMPT,
+        llm_model=DEFAULT_RABBIT_LLM_MODEL,
+        tts_voice=DEFAULT_RABBIT_TTS_VOICE,
+        provisioning_state="registered",
+        remote_rabbit_id=remote_payload["id"] if remote_payload else None,
+    )
+    db.session.add(rabbit)
+    db.session.flush()
+    db.session.add(
+        RabbitEventLog(
+            rabbit_id=rabbit.id,
+            source="mobile",
+            event_type="rabbit.created",
+            payload=json.dumps({"remote_rabbit_id": rabbit.remote_rabbit_id, "auto_claim_recent_device": auto_claim_recent_device}),
+        )
+    )
+
+    claimed_observation = None
+    if auto_claim_recent_device:
+        button_candidate, recent_unclaimed_devices = _recent_provisioning_candidates()
+        candidate = button_candidate
+        if candidate is None and len(recent_unclaimed_devices) == 1:
+            candidate = recent_unclaimed_devices[0]
+        if candidate is not None:
+            claimed_observation = candidate
+            warning_message = _claim_device_for_rabbit(rabbit, candidate)
+            if warning_message:
+                warning_parts.append(warning_message)
+        elif len(recent_unclaimed_devices) > 1:
+            warning_parts.append(
+                "Plusieurs Nabaztag non rattachés sont visibles actuellement. Rattachement automatique ignoré."
+            )
+        else:
+            warning_parts.append(
+                "Aucun Nabaztag récemment détecté n'a pu être rattaché automatiquement."
+            )
+
+    db.session.commit()
+
+    message = f"Lapin {rabbit.name} ajouté."
+    if claimed_observation is not None:
+        message = f"Lapin {rabbit.name} ajouté et rattaché au Nabaztag {claimed_observation.serial}."
+
+    response = {
+        "ok": True,
+        "message": message,
+        "rabbit": _serialize_mobile_rabbit(rabbit),
+        "pairing_token": _create_rabbit_app_pairing_session(rabbit).token,
+    }
+    if warning_parts:
+        response["warning"] = " ".join(warning_parts)
+    return jsonify(response), 201
+
+
 @main_bp.get("/mobile-api/v1/rabbits/<int:rabbit_id>")
 def mobile_api_rabbit_detail(rabbit_id: int):
     user, _token_record = _current_mobile_user()
@@ -3577,6 +3741,61 @@ def mobile_api_delete_rabbit(rabbit_id: int):
     db.session.delete(rabbit)
     db.session.commit()
     return jsonify({"ok": True, "message": f"Lapin `{rabbit_name}` supprimé."})
+
+
+@main_bp.post("/mobile-api/v1/rabbits/<int:rabbit_id>/rename")
+def mobile_api_rename_rabbit(rabbit_id: int):
+    user, _token_record = _current_mobile_user()
+    if user is None:
+        return _mobile_api_unauthorized()
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=user.id).first()
+    if rabbit is None:
+        return jsonify({"ok": False, "message": "Lapin introuvable."}), 404
+
+    payload = request.get_json(silent=True) or {}
+    name = " ".join(str(payload.get("name") or "").split()).strip()
+    if not name:
+        return jsonify({"ok": False, "message": "Nom obligatoire."}), 400
+
+    rabbit.name = name
+    db.session.commit()
+    return jsonify({"ok": True, "message": f"Lapin renommé en `{rabbit.name}`.", "rabbit": _serialize_mobile_rabbit(rabbit)})
+
+
+@main_bp.post("/mobile-api/v1/rabbits/<int:rabbit_id>/claim-serial")
+def mobile_api_claim_rabbit_serial(rabbit_id: int):
+    user, _token_record = _current_mobile_user()
+    if user is None:
+        return _mobile_api_unauthorized()
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=user.id).first()
+    if rabbit is None:
+        return jsonify({"ok": False, "message": "Lapin introuvable."}), 404
+
+    payload = request.get_json(silent=True) or {}
+    serial = _normalize_serial(str(payload.get("serial") or ""))
+    if not serial:
+        return jsonify({"ok": False, "message": "serial obligatoire."}), 400
+
+    observation = DeviceObservation.query.filter_by(serial=serial).first()
+    if observation is None:
+        return jsonify({"ok": True, "status": "pending", "message": "Le portail n'a pas encore vu ce Nabaztag."})
+    if observation.rabbit_id not in {None, rabbit.id}:
+        return jsonify({"ok": False, "message": "Ce Nabaztag est déjà rattaché à un autre lapin."}), 409
+
+    warning_message = None
+    if observation.rabbit_id != rabbit.id:
+        warning_message = _claim_device_for_rabbit(rabbit, observation)
+        db.session.commit()
+
+    response = {
+        "ok": True,
+        "status": "claimed",
+        "message": f"Lapin physique {serial} rattaché.",
+        "rabbit": _serialize_mobile_rabbit(rabbit),
+    }
+    if warning_message:
+        response["warning"] = warning_message
+    return jsonify(response)
 
 
 @main_bp.post("/mobile-api/v1/rabbits/<int:rabbit_id>/conversation")

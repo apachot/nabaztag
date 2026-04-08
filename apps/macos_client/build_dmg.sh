@@ -3,11 +3,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_NAME="Nabaztag.app"
+VOLUME_NAME="Nabaztag"
 DMG_NAME="nabaztag-macos-client.dmg"
 DOWNLOADS_DIR="$SCRIPT_DIR/../../apps/portal/portal_app/static/downloads"
 BUILD_VENV="$SCRIPT_DIR/.build-venv"
 APP_PATH="$SCRIPT_DIR/dist/$APP_NAME"
 DMG_PATH="$DOWNLOADS_DIR/$DMG_NAME"
+DMG_STAGING_DIR="$SCRIPT_DIR/build/dmg-root"
 PYPROJECT_PATH="$SCRIPT_DIR/pyproject.toml"
 PYPROJECT_BACKUP="$SCRIPT_DIR/pyproject.toml.py2app-backup"
 APPLE_DEVELOPER_IDENTITY="${APPLE_DEVELOPER_IDENTITY:-}"
@@ -126,6 +128,19 @@ sign_embedded_code() {
   done < <(find "$content_root" -type d \( -name '*.framework' -o -name '*.app' \) -print0 | sort -z)
 }
 
+prepare_dmg_staging() {
+  rm -rf "$DMG_STAGING_DIR"
+  mkdir -p "$DMG_STAGING_DIR"
+  cp -R "$APP_PATH" "$DMG_STAGING_DIR/$APP_NAME"
+  ln -s /Applications "$DMG_STAGING_DIR/Applications"
+  cat >"$DMG_STAGING_DIR/Glissez Nabaztag vers Applications.txt" <<'EOF'
+Pour installer Nabaztag :
+
+1. Glissez Nabaztag.app sur le dossier Applications.
+2. Ouvrez ensuite l'application depuis Applications.
+EOF
+}
+
 cd "$SCRIPT_DIR"
 
 rm -rf build dist
@@ -150,9 +165,10 @@ sign_app_bundle
 
 mkdir -p "$DOWNLOADS_DIR"
 rm -f "$DMG_PATH"
+prepare_dmg_staging
 hdiutil create \
-  -volname "Nabaztag" \
-  -srcfolder "$APP_PATH" \
+  -volname "$VOLUME_NAME" \
+  -srcfolder "$DMG_STAGING_DIR" \
   -ov \
   -format UDZO \
   "$DMG_PATH"
