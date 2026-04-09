@@ -99,10 +99,12 @@ def _frame_packet_list(*packets: tuple[int, bytes]) -> bytes:
     return bytes(payload)
 
 
-def build_audio_packet(url: str) -> EncodedPacket:
+def build_audio_packet(url: str, *, with_chime: bool = True) -> EncodedPacket:
     if url.startswith("broadcast/"):
         # Local assets behave better as message resources than as HTTP streams.
-        message = f"MU {url}\nMW\n"
+        message = f"MU {url}\n"
+        if with_chime:
+            message += "MW\n"
         description = f"Play local audio {url}"
     else:
         message = f"ST {url}\nPL 3\nMW\n"

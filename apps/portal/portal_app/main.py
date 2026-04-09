@@ -1318,6 +1318,7 @@ def _enqueue_bundled_choreography_audio(rabbit: Rabbit, choreography: dict) -> N
             "filename": audio_asset,
             "text": None,
             "mode": choreography["id"],
+            "with_chime": False,
         },
     )
 
