@@ -4,7 +4,7 @@
     "title": "Saut d'antenne",
     "duration_seconds": 10,
     "audio_asset": "bundled-choreographies/antenna-hop.mp3",
-    "source_audio": "Kenney Music Jingles - jingles_NES/jingles_NES00.ogg",
+    "source_audio": "drakzlin music loops - action/Action_A.mp3 @ 0.0s",
     "steps": [
       {
         "at": 0.0,
@@ -187,7 +187,7 @@
     "title": "Clin d'oeil serre",
     "duration_seconds": 10,
     "audio_asset": "bundled-choreographies/greenhouse-wink.mp3",
-    "source_audio": "Kenney Music Jingles - jingles_PIZZA/jingles_PIZZA07.ogg",
+    "source_audio": "drakzlin music loops - action/Action_A.mp3 @ 9.5s",
     "steps": [
       {
         "at": 0.0,
@@ -370,7 +370,7 @@
     "title": "Parade de fer-blanc",
     "duration_seconds": 10,
     "audio_asset": "bundled-choreographies/tin-parade.mp3",
-    "source_audio": "Kenney Music Jingles - jingles_STEEL/jingles_STEEL07.ogg",
+    "source_audio": "drakzlin music loops - action/Action_A.mp3 @ 19.0s",
     "steps": [
       {
         "at": 0.0,
@@ -550,10 +550,10 @@
   },
   {
     "id": "sax-sunbeam",
-    "title": "Rayon de sax",
+    "title": "Rayon de cuivre",
     "duration_seconds": 10,
     "audio_asset": "bundled-choreographies/sax-sunbeam.mp3",
-    "source_audio": "Kenney Music Jingles - jingles_SAX/jingles_SAX07.ogg",
+    "source_audio": "drakzlin music loops - action/Action_A.mp3 @ 28.5s",
     "steps": [
       {
         "at": 0.0,
@@ -736,7 +736,7 @@
     "title": "Etincelle bouton",
     "duration_seconds": 10,
     "audio_asset": "bundled-choreographies/button-spark.mp3",
-    "source_audio": "Kenney Music Jingles - jingles_HIT/jingles_HIT15.ogg",
+    "source_audio": "drakzlin music loops - action/Action_B.mp3 @ 0.0s",
     "steps": [
       {
         "at": 0.0,
@@ -916,10 +916,10 @@
   },
   {
     "id": "nes-pirouette",
-    "title": "Pirouette pixel",
+    "title": "Pirouette mecanique",
     "duration_seconds": 10,
     "audio_asset": "bundled-choreographies/nes-pirouette.mp3",
-    "source_audio": "Kenney Music Jingles - jingles_NES/jingles_NES13.ogg",
+    "source_audio": "drakzlin music loops - action/Action_B.mp3 @ 9.5s",
     "steps": [
       {
         "at": 0.0,
@@ -1099,10 +1099,10 @@
   },
   {
     "id": "pizza-moon",
-    "title": "Lune mozzarella",
+    "title": "Lune electrique",
     "duration_seconds": 10,
     "audio_asset": "bundled-choreographies/pizza-moon.mp3",
-    "source_audio": "Kenney Music Jingles - jingles_PIZZA/jingles_PIZZA03.ogg",
+    "source_audio": "drakzlin music loops - action/Action_B.mp3 @ 19.0s",
     "steps": [
       {
         "at": 0.0,
@@ -1285,7 +1285,7 @@
     "title": "Luciole metal",
     "duration_seconds": 10,
     "audio_asset": "bundled-choreographies/steel-firefly.mp3",
-    "source_audio": "Kenney Music Jingles - jingles_STEEL/jingles_STEEL14.ogg",
+    "source_audio": "drakzlin music loops - action/Action_B.mp3 @ 28.5s",
     "steps": [
       {
         "at": 0.0,
@@ -1465,10 +1465,10 @@
   },
   {
     "id": "sax-bloom",
-    "title": "Fleur de cuivre",
+    "title": "Fleur de bataille",
     "duration_seconds": 10,
     "audio_asset": "bundled-choreographies/sax-bloom.mp3",
-    "source_audio": "Kenney Music Jingles - jingles_SAX/jingles_SAX03.ogg",
+    "source_audio": "drakzlin music loops - battle/Battle.mp3 @ 0.0s",
     "steps": [
       {
         "at": 0.0,
@@ -1651,7 +1651,7 @@
     "title": "Mini fanfare",
     "duration_seconds": 10,
     "audio_asset": "bundled-choreographies/tiny-fanfare.mp3",
-    "source_audio": "Kenney Music Jingles - jingles_NES/jingles_NES05.ogg",
+    "source_audio": "drakzlin music loops - battle/Battle.mp3 @ 4.8s",
     "steps": [
       {
         "at": 0.0,

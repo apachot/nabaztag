@@ -7,16 +7,16 @@ from pathlib import Path
 
 
 SCENES = [
-    ("antenna-hop", "jingles_NES/jingles_NES00.ogg", "Saut d'antenne"),
-    ("greenhouse-wink", "jingles_PIZZA/jingles_PIZZA07.ogg", "Clin d'oeil serre"),
-    ("tin-parade", "jingles_STEEL/jingles_STEEL07.ogg", "Parade de fer-blanc"),
-    ("sax-sunbeam", "jingles_SAX/jingles_SAX07.ogg", "Rayon de sax"),
-    ("button-spark", "jingles_HIT/jingles_HIT15.ogg", "Etincelle bouton"),
-    ("nes-pirouette", "jingles_NES/jingles_NES13.ogg", "Pirouette pixel"),
-    ("pizza-moon", "jingles_PIZZA/jingles_PIZZA03.ogg", "Lune mozzarella"),
-    ("steel-firefly", "jingles_STEEL/jingles_STEEL14.ogg", "Luciole metal"),
-    ("sax-bloom", "jingles_SAX/jingles_SAX03.ogg", "Fleur de cuivre"),
-    ("tiny-fanfare", "jingles_NES/jingles_NES05.ogg", "Mini fanfare"),
+    ("antenna-hop", "action/Action_A.mp3", 0.0, "Saut d'antenne"),
+    ("greenhouse-wink", "action/Action_A.mp3", 9.5, "Clin d'oeil serre"),
+    ("tin-parade", "action/Action_A.mp3", 19.0, "Parade de fer-blanc"),
+    ("sax-sunbeam", "action/Action_A.mp3", 28.5, "Rayon de cuivre"),
+    ("button-spark", "action/Action_B.mp3", 0.0, "Etincelle bouton"),
+    ("nes-pirouette", "action/Action_B.mp3", 9.5, "Pirouette mecanique"),
+    ("pizza-moon", "action/Action_B.mp3", 19.0, "Lune electrique"),
+    ("steel-firefly", "action/Action_B.mp3", 28.5, "Luciole metal"),
+    ("sax-bloom", "battle/Battle.mp3", 0.0, "Fleur de bataille"),
+    ("tiny-fanfare", "battle/Battle.mp3", 4.8, "Mini fanfare"),
 ]
 
 
@@ -77,7 +77,7 @@ def choreography_steps(index: int) -> list[dict]:
     return sorted(steps, key=lambda step: (float(step["at"]), step["type"]))
 
 
-def convert_audio(*, ffmpeg: str, source: Path, destination: Path) -> None:
+def convert_audio(*, ffmpeg: str, source: Path, destination: Path, start_seconds: float) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         [
@@ -85,10 +85,14 @@ def convert_audio(*, ffmpeg: str, source: Path, destination: Path) -> None:
             "-y",
             "-v",
             "error",
+            "-ss",
+            f"{start_seconds:.3f}",
             "-i",
             str(source),
+            "-t",
+            "10",
             "-af",
-            "afade=t=in:st=0:d=0.08,apad,atrim=0:10",
+            "afade=t=in:st=0:d=0.08,afade=t=out:st=9.4:d=0.6",
             "-codec:a",
             "libmp3lame",
             "-b:a",
@@ -101,20 +105,21 @@ def convert_audio(*, ffmpeg: str, source: Path, destination: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--kenney-ogg-root", required=True, type=Path)
+    parser.add_argument("--source-audio-root", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--ffmpeg", default="/opt/local/bin/ffmpeg")
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     manifest = []
-    for index, (scene_id, relative_source, title) in enumerate(SCENES):
-        source = args.kenney_ogg_root / relative_source
+    for index, (scene_id, relative_source, start_seconds, title) in enumerate(SCENES):
+        source = args.source_audio_root / relative_source
         audio_name = f"{scene_id}.mp3"
         convert_audio(
             ffmpeg=args.ffmpeg,
             source=source,
             destination=args.output_dir / audio_name,
+            start_seconds=start_seconds,
         )
         manifest.append(
             {
@@ -122,7 +127,7 @@ def main() -> None:
                 "title": title,
                 "duration_seconds": 10,
                 "audio_asset": f"bundled-choreographies/{audio_name}",
-                "source_audio": f"Kenney Music Jingles - {relative_source}",
+                "source_audio": f"drakzlin music loops - {relative_source} @ {start_seconds:.1f}s",
                 "steps": choreography_steps(index),
             }
         )

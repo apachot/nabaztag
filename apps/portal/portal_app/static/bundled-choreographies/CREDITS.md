@@ -1,11 +1,10 @@
 # Bundled choreographies
 
-Music source: Short jingles by Kenney Vleugels / Kenney.
+Music source: music loops by drakzlin.
 
 Original package:
-- Kenney Music Jingles: https://www.kenney.nl/assets/music-jingles
-- OpenGameArt mirror: https://opengameart.org/content/85-short-music-jingles
+- OpenGameArt: https://opengameart.org/content/music-loops-0
 
 License: Creative Commons CC0 / public domain dedication.
 
-The MP3 files in this directory keep the selected OGG jingle once and are padded with silence to 10 seconds so device-side choreography timing stays stable.
+The MP3 files in this directory are 10 second excerpts cut from source loops longer than 10 seconds. They are not looped or padded.
