@@ -243,6 +243,12 @@
               <button class="pill" type="submit" onclick="document.getElementById('say-mode-input').value='generate'">Générer puis lire</button>
             </div>
           </form>
+
+          <form method="post" action="{{ url_for('main.rabbit_random_choreography', rabbit_id=rabbit.id) }}" class="stack" data-live-submit="true">
+            <strong>Chorégraphie musicale</strong>
+            <div class="meta">Lance au hasard une scène embarquée de 10 secondes : jingle, mouvements d’oreilles et animations lumineuses.</div>
+            <button class="button primary" type="submit">Lancer une chorégraphie</button>
+          </form>
         </div>
       </article>
 

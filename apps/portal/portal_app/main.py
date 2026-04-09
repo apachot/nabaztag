@@ -86,6 +86,7 @@ LIVE_EVENT_TYPES = {
     "rabbit.ears.moved",
     "rabbit.conversation.reply.generated",
     "rabbit.auto_performance.generated",
+    "rabbit.choreography.started",
 }
 
 RABBIT_ONLINE_FRESHNESS_SECONDS = 180
@@ -1038,6 +1039,62 @@ def _random_bundled_auto_performance() -> dict | None:
     return random.choice(entries)
 
 
+@lru_cache(maxsize=1)
+def _bundled_choreographies() -> tuple[dict, ...]:
+    directory = _bundled_audio_assets_dir() / "bundled-choreographies"
+    manifest_path = directory / "manifest.json"
+    if not manifest_path.exists():
+        return tuple()
+    try:
+        raw_entries = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        current_app.logger.exception("unable to load bundled choreographies manifest")
+        return tuple()
+
+    entries: list[dict] = []
+    for raw_entry in raw_entries:
+        if not isinstance(raw_entry, dict):
+            continue
+        choreography_id = " ".join(str(raw_entry.get("id") or "").split()).strip()
+        title = " ".join(str(raw_entry.get("title") or "").split()).strip() or choreography_id
+        audio_asset = " ".join(str(raw_entry.get("audio_asset") or "").split()).strip()
+        raw_steps = raw_entry.get("steps")
+        if (
+            not choreography_id
+            or not audio_asset.startswith("bundled-choreographies/")
+            or not (_bundled_audio_assets_dir() / audio_asset).exists()
+            or not isinstance(raw_steps, list)
+        ):
+            continue
+        steps = [step for step in raw_steps if isinstance(step, dict)]
+        if not steps:
+            continue
+        entries.append(
+            {
+                "id": choreography_id,
+                "title": title,
+                "duration_seconds": raw_entry.get("duration_seconds") or 10,
+                "audio_asset": audio_asset,
+                "steps": steps,
+            }
+        )
+    return tuple(entries)
+
+
+def _random_bundled_choreography() -> dict | None:
+    entries = _bundled_choreographies()
+    if not entries:
+        return None
+    return random.choice(entries)
+
+
+def _bundled_choreography_by_id(choreography_id: str) -> dict | None:
+    for choreography in _bundled_choreographies():
+        if choreography["id"] == choreography_id:
+            return choreography
+    return None
+
+
 def _generate_auto_performance_payload(rabbit: Rabbit, owner) -> dict:
     llm_model = _normalize_rabbit_llm_model(rabbit, _build_rabbit_llm_model_options())
     performance = _generate_mistral_rabbit_performance(
@@ -1240,6 +1297,103 @@ def _queue_performance_asset(
                     rabbit.id,
                     exc,
                 )
+
+
+def _clamp_ear_position(value: object, fallback: int = 8) -> int:
+    try:
+        position = int(value)
+    except (TypeError, ValueError):
+        position = fallback
+    return max(0, min(16, position))
+
+
+def _enqueue_bundled_choreography_audio(rabbit: Rabbit, choreography: dict) -> None:
+    audio_asset = choreography["audio_asset"]
+    _enqueue_device_command(
+        rabbit,
+        command_type="audio",
+        payload={
+            "url": f"broadcast/ojn_local/audio/{audio_asset}",
+            "source": "bundled-choreography",
+            "filename": audio_asset,
+            "text": None,
+            "mode": choreography["id"],
+        },
+    )
+
+
+def _enqueue_bundled_choreography_step(rabbit: Rabbit, step: dict) -> None:
+    step_type = " ".join(str(step.get("type") or "").split()).strip().lower()
+    if step_type == "ears":
+        _enqueue_device_command(
+            rabbit,
+            command_type="ears",
+            payload={
+                "left": _clamp_ear_position(step.get("left")),
+                "right": _clamp_ear_position(step.get("right")),
+            },
+        )
+        return
+    if step_type != "led":
+        return
+
+    target = " ".join(str(step.get("target") or "").split()).strip().lower()
+    preset = " ".join(str(step.get("preset") or "").split()).strip().lower()
+    color = LED_COLOR_PRESETS.get(preset)
+    if target not in {"nose", "left", "center", "right", "bottom"} or color is None:
+        return
+    _enqueue_device_command(
+        rabbit,
+        command_type="led",
+        payload={"target": target, "color": color, "preset": preset},
+    )
+
+
+def _run_bundled_choreography_worker(app, rabbit_id: int, choreography_id: str) -> None:
+    start_time = time.monotonic()
+    try:
+        with app.app_context():
+            rabbit = db.session.get(Rabbit, rabbit_id)
+            choreography = _bundled_choreography_by_id(choreography_id)
+            if rabbit is None or choreography is None:
+                return
+            _append_rabbit_event(
+                rabbit,
+                source="portal",
+                event_type="rabbit.choreography.started",
+                payload={
+                    "id": choreography["id"],
+                    "title": choreography["title"],
+                    "audio_asset": choreography["audio_asset"],
+                },
+            )
+            db.session.commit()
+            _enqueue_bundled_choreography_audio(rabbit, choreography)
+            for step in sorted(choreography["steps"], key=lambda item: float(item.get("at") or 0)):
+                offset = max(0.0, min(10.0, float(step.get("at") or 0)))
+                delay = start_time + offset - time.monotonic()
+                if delay > 0:
+                    time.sleep(delay)
+                rabbit = db.session.get(Rabbit, rabbit_id)
+                if rabbit is None:
+                    return
+                _enqueue_bundled_choreography_step(rabbit, step)
+    except Exception:
+        app.logger.exception("bundled choreography failed rabbit_id=%s choreography=%s", rabbit_id, choreography_id)
+
+
+def _schedule_random_bundled_choreography(rabbit: Rabbit) -> dict:
+    choreography = _random_bundled_choreography()
+    if choreography is None:
+        raise RuntimeError("Aucune chorégraphie embarquée n'est disponible.")
+    worker = threading.Thread(
+        target=_run_bundled_choreography_worker,
+        args=(current_app._get_current_object(), rabbit.id, choreography["id"]),
+        name=f"rabbit-choreography-{rabbit.id}-{choreography['id']}",
+        daemon=True,
+    )
+    worker.start()
+    return choreography
 
 
 def _queue_birth_audio_if_needed(rabbit: Rabbit) -> bool:
@@ -3958,6 +4112,32 @@ def mobile_api_rabbit_conversation(rabbit_id: int):
     )
 
 
+@main_bp.post("/mobile-api/v1/rabbits/<int:rabbit_id>/choreography/random")
+def mobile_api_rabbit_random_choreography(rabbit_id: int):
+    user, _token_record = _current_mobile_user()
+    if user is None:
+        return _mobile_api_unauthorized()
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=user.id).first()
+    if rabbit is None:
+        return jsonify({"ok": False, "message": "Lapin introuvable."}), 404
+
+    try:
+        choreography = _schedule_random_bundled_choreography(rabbit)
+    except RuntimeError as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 500
+    return jsonify(
+        {
+            "ok": True,
+            "message": f"Chorégraphie `{choreography['title']}` lancée.",
+            "choreography": {
+                "id": choreography["id"],
+                "title": choreography["title"],
+                "duration_seconds": choreography["duration_seconds"],
+            },
+        }
+    )
+
+
 @main_bp.post("/mobile-api/v1/rabbits/<int:rabbit_id>/auto-performance")
 def mobile_api_update_rabbit_auto_performance(rabbit_id: int):
     user, _token_record = _current_mobile_user()
@@ -5288,6 +5468,26 @@ def rabbit_device_audio(rabbit_id: int):
         payload={"url": url},
     )
     flash("Lecture audio mise en file.", "success")
+    return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+
+@main_bp.post("/rabbits/<int:rabbit_id>/choreography/random")
+@login_required
+def rabbit_random_choreography(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    try:
+        choreography = _schedule_random_bundled_choreography(rabbit)
+    except RuntimeError as exc:
+        message = str(exc)
+        flash(message, "error")
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"ok": False, "message": message}), 500
+        return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
+
+    message = f"Chorégraphie `{choreography['title']}` lancée."
+    flash(message, "success")
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"ok": True, "message": message})
     return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
 

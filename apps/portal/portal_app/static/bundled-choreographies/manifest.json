@@ -1,0 +1,1832 @@
+[
+  {
+    "id": "antenna-hop",
+    "title": "Saut d'antenne",
+    "duration_seconds": 10,
+    "audio_asset": "bundled-choreographies/antenna-hop.mp3",
+    "source_audio": "Kenney Music Jingles - jingles_NES/jingles_NES00.ogg",
+    "steps": [
+      {
+        "at": 0.0,
+        "type": "ears",
+        "left": 4,
+        "right": 12
+      },
+      {
+        "at": 0.0,
+        "type": "led",
+        "target": "nose",
+        "preset": "yellow"
+      },
+      {
+        "at": 0.2,
+        "type": "led",
+        "target": "left",
+        "preset": "cyan"
+      },
+      {
+        "at": 0.4,
+        "type": "led",
+        "target": "center",
+        "preset": "white"
+      },
+      {
+        "at": 0.6,
+        "type": "led",
+        "target": "right",
+        "preset": "blue"
+      },
+      {
+        "at": 1.6,
+        "type": "ears",
+        "left": 13,
+        "right": 3
+      },
+      {
+        "at": 1.8,
+        "type": "led",
+        "target": "bottom",
+        "preset": "red"
+      },
+      {
+        "at": 2.2,
+        "type": "led",
+        "target": "nose",
+        "preset": "yellow"
+      },
+      {
+        "at": 3.2,
+        "type": "ears",
+        "left": 2,
+        "right": 14
+      },
+      {
+        "at": 3.4,
+        "type": "led",
+        "target": "left",
+        "preset": "white"
+      },
+      {
+        "at": 3.6,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 3.8,
+        "type": "led",
+        "target": "right",
+        "preset": "white"
+      },
+      {
+        "at": 4.8,
+        "type": "ears",
+        "left": 8,
+        "right": 8
+      },
+      {
+        "at": 5.2,
+        "type": "led",
+        "target": "nose",
+        "preset": "white"
+      },
+      {
+        "at": 6.4,
+        "type": "ears",
+        "left": 15,
+        "right": 15
+      },
+      {
+        "at": 6.6,
+        "type": "led",
+        "target": "left",
+        "preset": "off"
+      },
+      {
+        "at": 6.8,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 7.0,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 7.4,
+        "type": "led",
+        "target": "bottom",
+        "preset": "blue"
+      },
+      {
+        "at": 8.1,
+        "type": "ears",
+        "left": 5,
+        "right": 11
+      },
+      {
+        "at": 8.6,
+        "type": "led",
+        "target": "left",
+        "preset": "cyan"
+      },
+      {
+        "at": 8.8,
+        "type": "led",
+        "target": "center",
+        "preset": "white"
+      },
+      {
+        "at": 9.0,
+        "type": "led",
+        "target": "right",
+        "preset": "blue"
+      },
+      {
+        "at": 9.6,
+        "type": "ears",
+        "left": 8,
+        "right": 8
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "nose",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "left",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "bottom",
+        "preset": "off"
+      }
+    ]
+  },
+  {
+    "id": "greenhouse-wink",
+    "title": "Clin d'oeil serre",
+    "duration_seconds": 10,
+    "audio_asset": "bundled-choreographies/greenhouse-wink.mp3",
+    "source_audio": "Kenney Music Jingles - jingles_PIZZA/jingles_PIZZA07.ogg",
+    "steps": [
+      {
+        "at": 0.0,
+        "type": "ears",
+        "left": 5,
+        "right": 11
+      },
+      {
+        "at": 0.0,
+        "type": "led",
+        "target": "nose",
+        "preset": "green"
+      },
+      {
+        "at": 0.2,
+        "type": "led",
+        "target": "left",
+        "preset": "yellow"
+      },
+      {
+        "at": 0.4,
+        "type": "led",
+        "target": "center",
+        "preset": "cyan"
+      },
+      {
+        "at": 0.6,
+        "type": "led",
+        "target": "right",
+        "preset": "white"
+      },
+      {
+        "at": 1.6,
+        "type": "ears",
+        "left": 13,
+        "right": 3
+      },
+      {
+        "at": 1.8,
+        "type": "led",
+        "target": "bottom",
+        "preset": "blue"
+      },
+      {
+        "at": 2.2,
+        "type": "led",
+        "target": "nose",
+        "preset": "cyan"
+      },
+      {
+        "at": 3.2,
+        "type": "ears",
+        "left": 2,
+        "right": 14
+      },
+      {
+        "at": 3.4,
+        "type": "led",
+        "target": "left",
+        "preset": "white"
+      },
+      {
+        "at": 3.6,
+        "type": "led",
+        "target": "center",
+        "preset": "violet"
+      },
+      {
+        "at": 3.8,
+        "type": "led",
+        "target": "right",
+        "preset": "white"
+      },
+      {
+        "at": 4.8,
+        "type": "ears",
+        "left": 8,
+        "right": 8
+      },
+      {
+        "at": 5.2,
+        "type": "led",
+        "target": "nose",
+        "preset": "white"
+      },
+      {
+        "at": 6.4,
+        "type": "ears",
+        "left": 15,
+        "right": 15
+      },
+      {
+        "at": 6.6,
+        "type": "led",
+        "target": "left",
+        "preset": "off"
+      },
+      {
+        "at": 6.8,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 7.0,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 7.4,
+        "type": "led",
+        "target": "bottom",
+        "preset": "white"
+      },
+      {
+        "at": 8.1,
+        "type": "ears",
+        "left": 5,
+        "right": 11
+      },
+      {
+        "at": 8.6,
+        "type": "led",
+        "target": "left",
+        "preset": "yellow"
+      },
+      {
+        "at": 8.8,
+        "type": "led",
+        "target": "center",
+        "preset": "cyan"
+      },
+      {
+        "at": 9.0,
+        "type": "led",
+        "target": "right",
+        "preset": "white"
+      },
+      {
+        "at": 9.6,
+        "type": "ears",
+        "left": 8,
+        "right": 8
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "nose",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "left",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "bottom",
+        "preset": "off"
+      }
+    ]
+  },
+  {
+    "id": "tin-parade",
+    "title": "Parade de fer-blanc",
+    "duration_seconds": 10,
+    "audio_asset": "bundled-choreographies/tin-parade.mp3",
+    "source_audio": "Kenney Music Jingles - jingles_STEEL/jingles_STEEL07.ogg",
+    "steps": [
+      {
+        "at": 0.0,
+        "type": "ears",
+        "left": 6,
+        "right": 10
+      },
+      {
+        "at": 0.0,
+        "type": "led",
+        "target": "nose",
+        "preset": "red"
+      },
+      {
+        "at": 0.2,
+        "type": "led",
+        "target": "left",
+        "preset": "yellow"
+      },
+      {
+        "at": 0.4,
+        "type": "led",
+        "target": "center",
+        "preset": "white"
+      },
+      {
+        "at": 0.6,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 1.6,
+        "type": "ears",
+        "left": 13,
+        "right": 3
+      },
+      {
+        "at": 1.8,
+        "type": "led",
+        "target": "bottom",
+        "preset": "white"
+      },
+      {
+        "at": 2.2,
+        "type": "led",
+        "target": "nose",
+        "preset": "red"
+      },
+      {
+        "at": 3.2,
+        "type": "ears",
+        "left": 2,
+        "right": 14
+      },
+      {
+        "at": 3.4,
+        "type": "led",
+        "target": "left",
+        "preset": "yellow"
+      },
+      {
+        "at": 3.6,
+        "type": "led",
+        "target": "center",
+        "preset": "cyan"
+      },
+      {
+        "at": 3.8,
+        "type": "led",
+        "target": "right",
+        "preset": "yellow"
+      },
+      {
+        "at": 4.8,
+        "type": "ears",
+        "left": 8,
+        "right": 8
+      },
+      {
+        "at": 5.2,
+        "type": "led",
+        "target": "nose",
+        "preset": "white"
+      },
+      {
+        "at": 6.4,
+        "type": "ears",
+        "left": 15,
+        "right": 15
+      },
+      {
+        "at": 6.6,
+        "type": "led",
+        "target": "left",
+        "preset": "off"
+      },
+      {
+        "at": 6.8,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 7.0,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 7.4,
+        "type": "led",
+        "target": "bottom",
+        "preset": "off"
+      },
+      {
+        "at": 8.1,
+        "type": "ears",
+        "left": 5,
+        "right": 11
+      },
+      {
+        "at": 8.6,
+        "type": "led",
+        "target": "left",
+        "preset": "yellow"
+      },
+      {
+        "at": 8.8,
+        "type": "led",
+        "target": "center",
+        "preset": "white"
+      },
+      {
+        "at": 9.0,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 9.6,
+        "type": "ears",
+        "left": 8,
+        "right": 8
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "nose",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "left",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "bottom",
+        "preset": "off"
+      }
+    ]
+  },
+  {
+    "id": "sax-sunbeam",
+    "title": "Rayon de sax",
+    "duration_seconds": 10,
+    "audio_asset": "bundled-choreographies/sax-sunbeam.mp3",
+    "source_audio": "Kenney Music Jingles - jingles_SAX/jingles_SAX07.ogg",
+    "steps": [
+      {
+        "at": 0.0,
+        "type": "ears",
+        "left": 7,
+        "right": 9
+      },
+      {
+        "at": 0.0,
+        "type": "led",
+        "target": "nose",
+        "preset": "blue"
+      },
+      {
+        "at": 0.2,
+        "type": "led",
+        "target": "left",
+        "preset": "cyan"
+      },
+      {
+        "at": 0.4,
+        "type": "led",
+        "target": "center",
+        "preset": "white"
+      },
+      {
+        "at": 0.6,
+        "type": "led",
+        "target": "right",
+        "preset": "violet"
+      },
+      {
+        "at": 1.6,
+        "type": "ears",
+        "left": 13,
+        "right": 3
+      },
+      {
+        "at": 1.8,
+        "type": "led",
+        "target": "bottom",
+        "preset": "yellow"
+      },
+      {
+        "at": 2.2,
+        "type": "led",
+        "target": "nose",
+        "preset": "cyan"
+      },
+      {
+        "at": 3.2,
+        "type": "ears",
+        "left": 2,
+        "right": 14
+      },
+      {
+        "at": 3.4,
+        "type": "led",
+        "target": "left",
+        "preset": "white"
+      },
+      {
+        "at": 3.6,
+        "type": "led",
+        "target": "center",
+        "preset": "blue"
+      },
+      {
+        "at": 3.8,
+        "type": "led",
+        "target": "right",
+        "preset": "white"
+      },
+      {
+        "at": 4.8,
+        "type": "ears",
+        "left": 8,
+        "right": 8
+      },
+      {
+        "at": 5.2,
+        "type": "led",
+        "target": "nose",
+        "preset": "white"
+      },
+      {
+        "at": 6.4,
+        "type": "ears",
+        "left": 15,
+        "right": 15
+      },
+      {
+        "at": 6.6,
+        "type": "led",
+        "target": "left",
+        "preset": "off"
+      },
+      {
+        "at": 6.8,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 7.0,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 7.4,
+        "type": "led",
+        "target": "bottom",
+        "preset": "violet"
+      },
+      {
+        "at": 8.1,
+        "type": "ears",
+        "left": 5,
+        "right": 11
+      },
+      {
+        "at": 8.6,
+        "type": "led",
+        "target": "left",
+        "preset": "cyan"
+      },
+      {
+        "at": 8.8,
+        "type": "led",
+        "target": "center",
+        "preset": "white"
+      },
+      {
+        "at": 9.0,
+        "type": "led",
+        "target": "right",
+        "preset": "violet"
+      },
+      {
+        "at": 9.6,
+        "type": "ears",
+        "left": 8,
+        "right": 8
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "nose",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "left",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "bottom",
+        "preset": "off"
+      }
+    ]
+  },
+  {
+    "id": "button-spark",
+    "title": "Etincelle bouton",
+    "duration_seconds": 10,
+    "audio_asset": "bundled-choreographies/button-spark.mp3",
+    "source_audio": "Kenney Music Jingles - jingles_HIT/jingles_HIT15.ogg",
+    "steps": [
+      {
+        "at": 0.0,
+        "type": "ears",
+        "left": 4,
+        "right": 12
+      },
+      {
+        "at": 0.0,
+        "type": "led",
+        "target": "nose",
+        "preset": "white"
+      },
+      {
+        "at": 0.2,
+        "type": "led",
+        "target": "left",
+        "preset": "red"
+      },
+      {
+        "at": 0.4,
+        "type": "led",
+        "target": "center",
+        "preset": "yellow"
+      },
+      {
+        "at": 0.6,
+        "type": "led",
+        "target": "right",
+        "preset": "cyan"
+      },
+      {
+        "at": 1.6,
+        "type": "ears",
+        "left": 13,
+        "right": 3
+      },
+      {
+        "at": 1.8,
+        "type": "led",
+        "target": "bottom",
+        "preset": "green"
+      },
+      {
+        "at": 2.2,
+        "type": "led",
+        "target": "nose",
+        "preset": "yellow"
+      },
+      {
+        "at": 3.2,
+        "type": "ears",
+        "left": 2,
+        "right": 14
+      },
+      {
+        "at": 3.4,
+        "type": "led",
+        "target": "left",
+        "preset": "cyan"
+      },
+      {
+        "at": 3.6,
+        "type": "led",
+        "target": "center",
+        "preset": "white"
+      },
+      {
+        "at": 3.8,
+        "type": "led",
+        "target": "right",
+        "preset": "cyan"
+      },
+      {
+        "at": 4.8,
+        "type": "ears",
+        "left": 8,
+        "right": 8
+      },
+      {
+        "at": 5.2,
+        "type": "led",
+        "target": "nose",
+        "preset": "white"
+      },
+      {
+        "at": 6.4,
+        "type": "ears",
+        "left": 15,
+        "right": 15
+      },
+      {
+        "at": 6.6,
+        "type": "led",
+        "target": "left",
+        "preset": "off"
+      },
+      {
+        "at": 6.8,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 7.0,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 7.4,
+        "type": "led",
+        "target": "bottom",
+        "preset": "cyan"
+      },
+      {
+        "at": 8.1,
+        "type": "ears",
+        "left": 5,
+        "right": 11
+      },
+      {
+        "at": 8.6,
+        "type": "led",
+        "target": "left",
+        "preset": "red"
+      },
+      {
+        "at": 8.8,
+        "type": "led",
+        "target": "center",
+        "preset": "yellow"
+      },
+      {
+        "at": 9.0,
+        "type": "led",
+        "target": "right",
+        "preset": "cyan"
+      },
+      {
+        "at": 9.6,
+        "type": "ears",
+        "left": 8,
+        "right": 8
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "nose",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "left",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "bottom",
+        "preset": "off"
+      }
+    ]
+  },
+  {
+    "id": "nes-pirouette",
+    "title": "Pirouette pixel",
+    "duration_seconds": 10,
+    "audio_asset": "bundled-choreographies/nes-pirouette.mp3",
+    "source_audio": "Kenney Music Jingles - jingles_NES/jingles_NES13.ogg",
+    "steps": [
+      {
+        "at": 0.0,
+        "type": "ears",
+        "left": 5,
+        "right": 11
+      },
+      {
+        "at": 0.0,
+        "type": "led",
+        "target": "nose",
+        "preset": "yellow"
+      },
+      {
+        "at": 0.2,
+        "type": "led",
+        "target": "left",
+        "preset": "cyan"
+      },
+      {
+        "at": 0.4,
+        "type": "led",
+        "target": "center",
+        "preset": "white"
+      },
+      {
+        "at": 0.6,
+        "type": "led",
+        "target": "right",
+        "preset": "blue"
+      },
+      {
+        "at": 1.6,
+        "type": "ears",
+        "left": 13,
+        "right": 3
+      },
+      {
+        "at": 1.8,
+        "type": "led",
+        "target": "bottom",
+        "preset": "red"
+      },
+      {
+        "at": 2.2,
+        "type": "led",
+        "target": "nose",
+        "preset": "yellow"
+      },
+      {
+        "at": 3.2,
+        "type": "ears",
+        "left": 2,
+        "right": 14
+      },
+      {
+        "at": 3.4,
+        "type": "led",
+        "target": "left",
+        "preset": "white"
+      },
+      {
+        "at": 3.6,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 3.8,
+        "type": "led",
+        "target": "right",
+        "preset": "white"
+      },
+      {
+        "at": 4.8,
+        "type": "ears",
+        "left": 8,
+        "right": 8
+      },
+      {
+        "at": 5.2,
+        "type": "led",
+        "target": "nose",
+        "preset": "white"
+      },
+      {
+        "at": 6.4,
+        "type": "ears",
+        "left": 15,
+        "right": 15
+      },
+      {
+        "at": 6.6,
+        "type": "led",
+        "target": "left",
+        "preset": "off"
+      },
+      {
+        "at": 6.8,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 7.0,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 7.4,
+        "type": "led",
+        "target": "bottom",
+        "preset": "blue"
+      },
+      {
+        "at": 8.1,
+        "type": "ears",
+        "left": 5,
+        "right": 11
+      },
+      {
+        "at": 8.6,
+        "type": "led",
+        "target": "left",
+        "preset": "cyan"
+      },
+      {
+        "at": 8.8,
+        "type": "led",
+        "target": "center",
+        "preset": "white"
+      },
+      {
+        "at": 9.0,
+        "type": "led",
+        "target": "right",
+        "preset": "blue"
+      },
+      {
+        "at": 9.6,
+        "type": "ears",
+        "left": 8,
+        "right": 8
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "nose",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "left",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "bottom",
+        "preset": "off"
+      }
+    ]
+  },
+  {
+    "id": "pizza-moon",
+    "title": "Lune mozzarella",
+    "duration_seconds": 10,
+    "audio_asset": "bundled-choreographies/pizza-moon.mp3",
+    "source_audio": "Kenney Music Jingles - jingles_PIZZA/jingles_PIZZA03.ogg",
+    "steps": [
+      {
+        "at": 0.0,
+        "type": "ears",
+        "left": 6,
+        "right": 10
+      },
+      {
+        "at": 0.0,
+        "type": "led",
+        "target": "nose",
+        "preset": "green"
+      },
+      {
+        "at": 0.2,
+        "type": "led",
+        "target": "left",
+        "preset": "yellow"
+      },
+      {
+        "at": 0.4,
+        "type": "led",
+        "target": "center",
+        "preset": "cyan"
+      },
+      {
+        "at": 0.6,
+        "type": "led",
+        "target": "right",
+        "preset": "white"
+      },
+      {
+        "at": 1.6,
+        "type": "ears",
+        "left": 13,
+        "right": 3
+      },
+      {
+        "at": 1.8,
+        "type": "led",
+        "target": "bottom",
+        "preset": "blue"
+      },
+      {
+        "at": 2.2,
+        "type": "led",
+        "target": "nose",
+        "preset": "cyan"
+      },
+      {
+        "at": 3.2,
+        "type": "ears",
+        "left": 2,
+        "right": 14
+      },
+      {
+        "at": 3.4,
+        "type": "led",
+        "target": "left",
+        "preset": "white"
+      },
+      {
+        "at": 3.6,
+        "type": "led",
+        "target": "center",
+        "preset": "violet"
+      },
+      {
+        "at": 3.8,
+        "type": "led",
+        "target": "right",
+        "preset": "white"
+      },
+      {
+        "at": 4.8,
+        "type": "ears",
+        "left": 8,
+        "right": 8
+      },
+      {
+        "at": 5.2,
+        "type": "led",
+        "target": "nose",
+        "preset": "white"
+      },
+      {
+        "at": 6.4,
+        "type": "ears",
+        "left": 15,
+        "right": 15
+      },
+      {
+        "at": 6.6,
+        "type": "led",
+        "target": "left",
+        "preset": "off"
+      },
+      {
+        "at": 6.8,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 7.0,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 7.4,
+        "type": "led",
+        "target": "bottom",
+        "preset": "white"
+      },
+      {
+        "at": 8.1,
+        "type": "ears",
+        "left": 5,
+        "right": 11
+      },
+      {
+        "at": 8.6,
+        "type": "led",
+        "target": "left",
+        "preset": "yellow"
+      },
+      {
+        "at": 8.8,
+        "type": "led",
+        "target": "center",
+        "preset": "cyan"
+      },
+      {
+        "at": 9.0,
+        "type": "led",
+        "target": "right",
+        "preset": "white"
+      },
+      {
+        "at": 9.6,
+        "type": "ears",
+        "left": 8,
+        "right": 8
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "nose",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "left",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "bottom",
+        "preset": "off"
+      }
+    ]
+  },
+  {
+    "id": "steel-firefly",
+    "title": "Luciole metal",
+    "duration_seconds": 10,
+    "audio_asset": "bundled-choreographies/steel-firefly.mp3",
+    "source_audio": "Kenney Music Jingles - jingles_STEEL/jingles_STEEL14.ogg",
+    "steps": [
+      {
+        "at": 0.0,
+        "type": "ears",
+        "left": 7,
+        "right": 9
+      },
+      {
+        "at": 0.0,
+        "type": "led",
+        "target": "nose",
+        "preset": "red"
+      },
+      {
+        "at": 0.2,
+        "type": "led",
+        "target": "left",
+        "preset": "yellow"
+      },
+      {
+        "at": 0.4,
+        "type": "led",
+        "target": "center",
+        "preset": "white"
+      },
+      {
+        "at": 0.6,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 1.6,
+        "type": "ears",
+        "left": 13,
+        "right": 3
+      },
+      {
+        "at": 1.8,
+        "type": "led",
+        "target": "bottom",
+        "preset": "white"
+      },
+      {
+        "at": 2.2,
+        "type": "led",
+        "target": "nose",
+        "preset": "red"
+      },
+      {
+        "at": 3.2,
+        "type": "ears",
+        "left": 2,
+        "right": 14
+      },
+      {
+        "at": 3.4,
+        "type": "led",
+        "target": "left",
+        "preset": "yellow"
+      },
+      {
+        "at": 3.6,
+        "type": "led",
+        "target": "center",
+        "preset": "cyan"
+      },
+      {
+        "at": 3.8,
+        "type": "led",
+        "target": "right",
+        "preset": "yellow"
+      },
+      {
+        "at": 4.8,
+        "type": "ears",
+        "left": 8,
+        "right": 8
+      },
+      {
+        "at": 5.2,
+        "type": "led",
+        "target": "nose",
+        "preset": "white"
+      },
+      {
+        "at": 6.4,
+        "type": "ears",
+        "left": 15,
+        "right": 15
+      },
+      {
+        "at": 6.6,
+        "type": "led",
+        "target": "left",
+        "preset": "off"
+      },
+      {
+        "at": 6.8,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 7.0,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 7.4,
+        "type": "led",
+        "target": "bottom",
+        "preset": "off"
+      },
+      {
+        "at": 8.1,
+        "type": "ears",
+        "left": 5,
+        "right": 11
+      },
+      {
+        "at": 8.6,
+        "type": "led",
+        "target": "left",
+        "preset": "yellow"
+      },
+      {
+        "at": 8.8,
+        "type": "led",
+        "target": "center",
+        "preset": "white"
+      },
+      {
+        "at": 9.0,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 9.6,
+        "type": "ears",
+        "left": 8,
+        "right": 8
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "nose",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "left",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "bottom",
+        "preset": "off"
+      }
+    ]
+  },
+  {
+    "id": "sax-bloom",
+    "title": "Fleur de cuivre",
+    "duration_seconds": 10,
+    "audio_asset": "bundled-choreographies/sax-bloom.mp3",
+    "source_audio": "Kenney Music Jingles - jingles_SAX/jingles_SAX03.ogg",
+    "steps": [
+      {
+        "at": 0.0,
+        "type": "ears",
+        "left": 4,
+        "right": 12
+      },
+      {
+        "at": 0.0,
+        "type": "led",
+        "target": "nose",
+        "preset": "blue"
+      },
+      {
+        "at": 0.2,
+        "type": "led",
+        "target": "left",
+        "preset": "cyan"
+      },
+      {
+        "at": 0.4,
+        "type": "led",
+        "target": "center",
+        "preset": "white"
+      },
+      {
+        "at": 0.6,
+        "type": "led",
+        "target": "right",
+        "preset": "violet"
+      },
+      {
+        "at": 1.6,
+        "type": "ears",
+        "left": 13,
+        "right": 3
+      },
+      {
+        "at": 1.8,
+        "type": "led",
+        "target": "bottom",
+        "preset": "yellow"
+      },
+      {
+        "at": 2.2,
+        "type": "led",
+        "target": "nose",
+        "preset": "cyan"
+      },
+      {
+        "at": 3.2,
+        "type": "ears",
+        "left": 2,
+        "right": 14
+      },
+      {
+        "at": 3.4,
+        "type": "led",
+        "target": "left",
+        "preset": "white"
+      },
+      {
+        "at": 3.6,
+        "type": "led",
+        "target": "center",
+        "preset": "blue"
+      },
+      {
+        "at": 3.8,
+        "type": "led",
+        "target": "right",
+        "preset": "white"
+      },
+      {
+        "at": 4.8,
+        "type": "ears",
+        "left": 8,
+        "right": 8
+      },
+      {
+        "at": 5.2,
+        "type": "led",
+        "target": "nose",
+        "preset": "white"
+      },
+      {
+        "at": 6.4,
+        "type": "ears",
+        "left": 15,
+        "right": 15
+      },
+      {
+        "at": 6.6,
+        "type": "led",
+        "target": "left",
+        "preset": "off"
+      },
+      {
+        "at": 6.8,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 7.0,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 7.4,
+        "type": "led",
+        "target": "bottom",
+        "preset": "violet"
+      },
+      {
+        "at": 8.1,
+        "type": "ears",
+        "left": 5,
+        "right": 11
+      },
+      {
+        "at": 8.6,
+        "type": "led",
+        "target": "left",
+        "preset": "cyan"
+      },
+      {
+        "at": 8.8,
+        "type": "led",
+        "target": "center",
+        "preset": "white"
+      },
+      {
+        "at": 9.0,
+        "type": "led",
+        "target": "right",
+        "preset": "violet"
+      },
+      {
+        "at": 9.6,
+        "type": "ears",
+        "left": 8,
+        "right": 8
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "nose",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "left",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "bottom",
+        "preset": "off"
+      }
+    ]
+  },
+  {
+    "id": "tiny-fanfare",
+    "title": "Mini fanfare",
+    "duration_seconds": 10,
+    "audio_asset": "bundled-choreographies/tiny-fanfare.mp3",
+    "source_audio": "Kenney Music Jingles - jingles_NES/jingles_NES05.ogg",
+    "steps": [
+      {
+        "at": 0.0,
+        "type": "ears",
+        "left": 5,
+        "right": 11
+      },
+      {
+        "at": 0.0,
+        "type": "led",
+        "target": "nose",
+        "preset": "white"
+      },
+      {
+        "at": 0.2,
+        "type": "led",
+        "target": "left",
+        "preset": "red"
+      },
+      {
+        "at": 0.4,
+        "type": "led",
+        "target": "center",
+        "preset": "yellow"
+      },
+      {
+        "at": 0.6,
+        "type": "led",
+        "target": "right",
+        "preset": "cyan"
+      },
+      {
+        "at": 1.6,
+        "type": "ears",
+        "left": 13,
+        "right": 3
+      },
+      {
+        "at": 1.8,
+        "type": "led",
+        "target": "bottom",
+        "preset": "green"
+      },
+      {
+        "at": 2.2,
+        "type": "led",
+        "target": "nose",
+        "preset": "yellow"
+      },
+      {
+        "at": 3.2,
+        "type": "ears",
+        "left": 2,
+        "right": 14
+      },
+      {
+        "at": 3.4,
+        "type": "led",
+        "target": "left",
+        "preset": "cyan"
+      },
+      {
+        "at": 3.6,
+        "type": "led",
+        "target": "center",
+        "preset": "white"
+      },
+      {
+        "at": 3.8,
+        "type": "led",
+        "target": "right",
+        "preset": "cyan"
+      },
+      {
+        "at": 4.8,
+        "type": "ears",
+        "left": 8,
+        "right": 8
+      },
+      {
+        "at": 5.2,
+        "type": "led",
+        "target": "nose",
+        "preset": "white"
+      },
+      {
+        "at": 6.4,
+        "type": "ears",
+        "left": 15,
+        "right": 15
+      },
+      {
+        "at": 6.6,
+        "type": "led",
+        "target": "left",
+        "preset": "off"
+      },
+      {
+        "at": 6.8,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 7.0,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 7.4,
+        "type": "led",
+        "target": "bottom",
+        "preset": "cyan"
+      },
+      {
+        "at": 8.1,
+        "type": "ears",
+        "left": 5,
+        "right": 11
+      },
+      {
+        "at": 8.6,
+        "type": "led",
+        "target": "left",
+        "preset": "red"
+      },
+      {
+        "at": 8.8,
+        "type": "led",
+        "target": "center",
+        "preset": "yellow"
+      },
+      {
+        "at": 9.0,
+        "type": "led",
+        "target": "right",
+        "preset": "cyan"
+      },
+      {
+        "at": 9.6,
+        "type": "ears",
+        "left": 8,
+        "right": 8
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "nose",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "left",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "center",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "right",
+        "preset": "off"
+      },
+      {
+        "at": 9.8,
+        "type": "led",
+        "target": "bottom",
+        "preset": "off"
+      }
+    ]
+  }
+]

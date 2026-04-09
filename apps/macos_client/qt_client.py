@@ -103,6 +103,31 @@ class ConversationWorker(QThread):
             self.failed.emit(str(exc))
 
 
+class ChoreographyWorker(QThread):
+    finished_ok = Signal(dict)
+    failed = Signal(str)
+
+    def __init__(self, *, portal: str, token: str, rabbit_id: int) -> None:
+        super().__init__()
+        self.portal = portal
+        self.token = token
+        self.rabbit_id = rabbit_id
+
+    def run(self) -> None:
+        try:
+            response = client_support.http_json(
+                url=f"{self.portal}/mobile-api/v1/rabbits/{self.rabbit_id}/choreography/random",
+                method="POST",
+                token=self.token,
+                payload={},
+            )
+            if not response.get("ok"):
+                raise RuntimeError(response.get("message") or "Chorégraphie impossible.")
+            self.finished_ok.emit(response)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
 class AutoPerformanceWorker(QThread):
     finished_ok = Signal(dict)
     failed = Signal(str)
@@ -416,6 +441,7 @@ class LoginView(QWidget):
 
 class RabbitPanel(QWidget):
     send_requested = Signal(str)
+    choreography_requested = Signal()
     auto_performance_save_requested = Signal(dict)
     refresh_requested = Signal()
     add_rabbit_requested = Signal()
@@ -478,6 +504,9 @@ class RabbitPanel(QWidget):
         send_button = QPushButton("Envoyer au lapin")
         send_button.clicked.connect(self._emit_send)
         right_layout.addWidget(send_button)
+        choreography_button = QPushButton("Lancer une chorégraphie")
+        choreography_button.clicked.connect(self.choreography_requested.emit)
+        right_layout.addWidget(choreography_button)
 
         auto_card = QFrame()
         auto_card.setObjectName("loginCard")
@@ -696,6 +725,7 @@ class MainWindow(QMainWindow):
         self.login_worker: LoginWorker | None = None
         self.refresh_worker: RefreshWorker | None = None
         self.conversation_worker: ConversationWorker | None = None
+        self.choreography_worker: ChoreographyWorker | None = None
         self.auto_performance_worker: AutoPerformanceWorker | None = None
         self.provisioning_worker: ProvisioningWorker | None = None
         self.active_provisioning_workers: list[ProvisioningWorker] = []
@@ -756,6 +786,7 @@ class MainWindow(QMainWindow):
         self.login_view.login_requested.connect(self.login)
         self.rabbit_panel.refresh_requested.connect(self.refresh_rabbits)
         self.rabbit_panel.send_requested.connect(self.send_message)
+        self.rabbit_panel.choreography_requested.connect(self.launch_choreography)
         self.rabbit_panel.auto_performance_save_requested.connect(self.save_auto_performance)
         self.rabbit_panel.add_rabbit_requested.connect(lambda: self.show_provisioning_view(forced=True))
         self.rabbit_panel.logout_requested.connect(self.logout)
@@ -1713,6 +1744,33 @@ class MainWindow(QMainWindow):
             self.rabbit_panel.append_log(f"Réponse du lapin : {reply}")
 
     def _on_send_failed(self, message: str) -> None:
+        self.rabbit_panel.append_log(f"Erreur : {message}")
+
+    def launch_choreography(self) -> None:
+        current_item = self.rabbit_panel.rabbits_list.currentItem()
+        current_rabbit = current_item.data(Qt.UserRole) if current_item is not None else {}
+        if not isinstance(current_rabbit, dict) or current_rabbit.get("provisional"):
+            QMessageBox.warning(self, "Nabaztag", "Choisis un lapin rattaché.")
+            return
+        if self.selected_rabbit_id is None:
+            QMessageBox.warning(self, "Nabaztag", "Choisis un lapin.")
+            return
+
+        self.choreography_worker = ChoreographyWorker(
+            portal=self.portal,
+            token=self.api_token,
+            rabbit_id=self.selected_rabbit_id,
+        )
+        self.choreography_worker.finished_ok.connect(self._on_choreography_success)
+        self.choreography_worker.failed.connect(self._on_choreography_failed)
+        self.choreography_worker.start()
+        self.rabbit_panel.append_log("Lancement d'une chorégraphie au hasard…")
+
+    def _on_choreography_success(self, response: dict) -> None:
+        message = " ".join(str(response.get("message") or "").split()).strip()
+        self.rabbit_panel.append_log(message or "Chorégraphie lancée.")
+
+    def _on_choreography_failed(self, message: str) -> None:
         self.rabbit_panel.append_log(f"Erreur : {message}")
 
     def save_auto_performance(self, config: dict) -> None:
