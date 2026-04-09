@@ -1309,16 +1309,16 @@ def _clamp_ear_position(value: object, fallback: int = 8) -> int:
 
 def _enqueue_bundled_choreography_audio(rabbit: Rabbit, choreography: dict) -> None:
     audio_asset = choreography["audio_asset"]
+    broad_server = current_app.config["NABAZTAG_VL_BROAD_SERVER"]
     _enqueue_device_command(
         rabbit,
         command_type="audio",
         payload={
-            "url": f"broadcast/ojn_local/audio/{audio_asset}",
+            "url": f"http://{broad_server}/ojn_local/audio/{audio_asset}",
             "source": "bundled-choreography",
             "filename": audio_asset,
             "text": None,
             "mode": choreography["id"],
-            "with_chime": False,
         },
     )
 

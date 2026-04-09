@@ -459,7 +459,7 @@ def _record_active_session_heartbeat(serial: str) -> None:
 def _build_packet_for_command(command: RabbitDeviceCommand) -> EncodedPacket:
     payload = json.loads(command.payload or "{}")
     if command.command_type == "audio":
-        return build_audio_packet(payload["url"], with_chime=payload.get("with_chime", True) is not False)
+        return build_audio_packet(payload["url"])
     if command.command_type == "audio_stop":
         return build_audio_packet(payload["url"])
     if command.command_type == "choreography":
