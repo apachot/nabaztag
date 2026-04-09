@@ -8,4 +8,4 @@ Original package:
 
 License: Creative Commons CC0 / public domain dedication.
 
-The MP3 files in this directory are 10 second loops derived from selected OGG files in that package.
+The MP3 files in this directory keep the selected OGG jingle once and are padded with silence to 10 seconds so device-side choreography timing stays stable.
