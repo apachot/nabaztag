@@ -60,10 +60,13 @@ Le Green IT, ici, n'est pas un slogan. C'est une strategie de conception:
 Le depot reconstruit une chaine complete de controle et d'orchestration pour Nabaztag:
 
 - un portail web pour gerer ses lapins
+- une application compagnon macOS pour appairer et piloter un lapin
 - une API de pilotage des devices
 - des endpoints compatibles avec l'ecosysteme Violet/OpenJabNab
+- un serveur XMPP minimal pour recevoir les vraies connexions des Nabaztag
 - une couche conversationnelle appuyee sur les modeles Mistral
 - une synthese vocale moderne via Voxtral TTS
+- une bibliotheque embarquee de performances et de choregraphies pre-calculees
 
 Chaque lapin peut disposer:
 
@@ -76,6 +79,24 @@ Chaque lapin peut disposer:
 - de ses propres actions declenchees a la demande via un catalogue normalise
 
 Le but est d'arriver a des lapins qui ne sont pas des copies les uns des autres, mais de vrais personnages.
+
+## Etat actuel
+
+Le projet dispose maintenant d'une chaine utilisable de bout en bout sur du materiel Nabaztag/Nabaztag:tag non modifie:
+
+- le portail `nabaztag.org` gere les comptes, les lapins, le rattachement d'un serial physique et la fiche de pilotage
+- le serveur XMPP accepte les connexions device, observe les boutons/oreilles et distribue une file de commandes
+- l'application macOS guide la configuration Wi-Fi du lapin, recupere son serial depuis la page de setup, le cree sur le portail et le rattache au compte
+- le lapin peut lire des MP3 locaux servis par le portail, des streams radio simples et des reponses TTS
+- les oreilles, la LED du nez, la LED du dessous et les 3 LEDs du ventre sont pilotables
+- les messages utilisateur generent une reponse vocale et peuvent declencher des actions structurees: oreilles, LEDs, radio, connecteurs, sommeil/reveil
+- les interventions aleatoires peuvent etre programmees par lapin avec plage horaire et frequence minimale
+- des interventions de naissance et des interventions aleatoires sont pre-calculees pour reduire les couts d'appel LLM/TTS
+- 10 choregraphies musicales de 10 secondes sont embarquees: extrait musical CC0, mouvements d'oreilles et animation lumineuse, declenchables au hasard depuis le web ou l'app macOS
+- la petite musique systeme Nabaztag de fin d'audio est supprimee pour ces choregraphies, afin que seul le morceau choisi soit entendu
+- un DMG macOS local est produit par `apps/macos_client/build_dmg.sh`; le depot contient aussi la mise en scene du DMG avec un raccourci `Applications`
+
+Les choregraphies musicales utilisent des extraits de boucles CC0 publiees sur OpenGameArt par `drakzlin`. Les fichiers generes et leurs credits sont dans `apps/portal/portal_app/static/bundled-choreographies/`.
 
 ## Cas d'usage cibles
 
@@ -141,7 +162,7 @@ Aujourd'hui, cette couche prend la forme d'une architecture de `connecteurs exte
 - execution centralisee cote portail
 - formulaires de test sur la fiche d'un lapin
 
-Le contrat est documente dans [docs/connectors.md](/Users/apachot/Documents/GitHub/nabaztag/docs/connectors.md).
+Le contrat est documente dans [docs/connectors.md](docs/connectors.md).
 
 ## Vers un bridge local open source
 
@@ -184,7 +205,7 @@ Les connecteurs actuellement branches sont:
 
 Le projet est encore en construction et il est volontairement ouvert a la contribution. Si vous aimez les interfaces tangibles, les objets connectes atypiques, l'IA embarquee dans des experiences physiques, ou simplement le reemploi creatif d'objets anciens, vous etes au bon endroit.
 
-Pour un guide plus operationnel, voir aussi [CONTRIBUTING.md](/Users/apachot/Documents/GitHub/nabaztag/CONTRIBUTING.md).
+Pour un guide plus operationnel, voir aussi [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Les contributions utiles ne se limitent pas au code. Le projet a besoin de regards et de competences tres varies:
 
@@ -206,20 +227,31 @@ La plateforme couvre aujourd'hui les usages suivants:
 - inscription et connexion sur le portail
 - inventaire de lapins et fiche detaillee par lapin
 - association d'un device physique a un lapin
-- affichage de l'etat distant
+- provisioning Wi-Fi depuis l'application macOS
+- lecture du serial physique sur la page de configuration du lapin
+- rattachement automatique par serial lorsque le lapin se connecte au portail
+- suivi de presence via les sessions XMPP actives
 - controle des oreilles
-- controle des LEDs
+- controle des LEDs: nez, dessous, ventre gauche/centre/droite
 - lecture audio
+- lecture radio / stream MP3 simple
+- upload et lecture d'un fichier audio depuis le portail
 - prompt de personnalite editable pour chaque lapin
 - selection du modele Mistral par lapin
 - selection de la voix Voxtral par lapin
 - generation de performances expressives structurees
+- pre-calcul de performances avec MP3 et sidecar JSON
+- message vocal de premiere connexion choisi dans une bibliotheque embarquee
 - catalogue d'actions compatible LLM pour les oreilles, LEDs, radio, sommeil et reveil
 - conversations courtes avec memoire recente
 - purge agressive du contexte conversationnel pour stabiliser le systeme
 - interventions aleatoires selon une frequence et une plage horaire
+- interventions aleatoires avec mouvements d'oreilles et LEDs en plus de la voix
+- choregraphies musicales de 10 secondes avec audio, oreilles et LEDs
+- declenchement d'une choregraphie au hasard depuis le portail ou l'application macOS
 - interface mobile web dediee avec micro, reveil vocal `Ok <nom du lapin>` et conversation continue
 - acquittement sonore local et sur le lapin lors du reveil vocal mobile
+- application macOS Qt avec connexion, liste des lapins, conversation, programmation des interventions, provisioning Wi-Fi et declenchement de choregraphies
 - support de stations radio connues, dont `RFI Monde`
 - architecture de connecteurs externes avec action LLM generique `connector.invoke`
 - premier connecteur domotique `Home Assistant`
@@ -230,13 +262,22 @@ La plateforme couvre aujourd'hui les usages suivants:
 
 ## Architecture
 
-Le monorepo est organise autour de trois applications principales:
+Le monorepo est organise autour de plusieurs applications:
 
 - `apps/portal`
   Portail Flask pour les comptes, l'inventaire des lapins, la fiche detaillee, la configuration IA, le suivi des conversations et le pilotage des actions.
 
+- `apps/portal/portal_app/xmpp_server.py`
+  Serveur XMPP de production pour les connexions des vrais lapins. Il traduit la file de commandes du portail en paquets Nabaztag.
+
 - `apps/api`
   API FastAPI qui expose l'etat des lapins, les commandes, les evenements et la couche de communication avec les devices.
+
+- `apps/macos_client`
+  Application Qt pour macOS: appairage utilisateur, provisioning Wi-Fi, rattachement du serial, pilotage, conversation et programmation.
+
+- `apps/local_bridge`
+  Agent local experimental qui se connecte au portail en polling sortant et execute des capacites du reseau domestique.
 
 - `apps/web`
   Ancienne interface Next.js conservee comme reference exploratoire.
@@ -247,6 +288,12 @@ Pour eviter l'effet "grand depot opaque", voici les principaux points d'entree:
 
 - `apps/portal/portal_app/main.py`
   Le coeur du portail Flask: routes, logique applicative, actions sur les lapins, conversations, IA et orchestration.
+
+- `apps/portal/portal_app/device_protocol.py`
+  L'encodage des paquets audio, oreilles, LEDs et choregraphies envoyes aux lapins par XMPP.
+
+- `apps/portal/portal_app/xmpp_server.py`
+  La boucle XMPP: authentification simplifiee, presence, observation des boutons/oreilles et dispatch des commandes.
 
 - `apps/portal/portal_app/templates/`
   Les templates du portail, notamment les fiches lapins et les ecrans de configuration.
@@ -262,6 +309,12 @@ Pour eviter l'effet "grand depot opaque", voici les principaux points d'entree:
 
 - `apps/api/app/protocol/`
   La partie la plus utile si vous voulez travailler sur le protocole Nabaztag ou etendre les primitives supportees.
+
+- `apps/macos_client/qt_client.py`
+  Le client macOS moderne.
+
+- `apps/macos_client/provisioning_support.py`
+  La logique macOS Wi-Fi/CoreWLAN/CoreLocation et le parseur de la page de configuration du Nabaztag.
 
 - `docs/protocol-notes.md`
   Le bon point de depart pour comprendre l'etat actuel des connaissances sur le protocole.
