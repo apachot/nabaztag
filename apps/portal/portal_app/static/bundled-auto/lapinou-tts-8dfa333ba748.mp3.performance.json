@@ -1,0 +1,32 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-8dfa333ba748.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Ohé ohé, me voilà en mode explorateur de la cuisine ! Je renifle un bout de carotte... ou c'est un crayon ?... attends, est-ce que les crayons ont un goût de fromage ?",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 16
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 16
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      }
+    ]
+  }
+}

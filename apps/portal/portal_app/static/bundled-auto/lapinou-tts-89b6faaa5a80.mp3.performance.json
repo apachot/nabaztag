@@ -1,0 +1,65 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-89b6faaa5a80.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "C’est l’heure où le grille-pain hallucine en voyant son reflet dans la cafetière… et moi je hallucine en voyant ton grille-pain halluciner !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 16
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      },
+      {
+        "name": "led.set",
+        "target": "center",
+        "color": "#000000",
+        "preset": "off"
+      },
+      {
+        "name": "led.set",
+        "target": "left",
+        "color": "#00ffff",
+        "preset": "cyan"
+      },
+      {
+        "name": "led.set",
+        "target": "right",
+        "color": "#ffff00",
+        "preset": "yellow"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 16
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      },
+      {
+        "target": "center",
+        "color": "#000000",
+        "preset": "off"
+      },
+      {
+        "target": "left",
+        "color": "#00ffff",
+        "preset": "cyan"
+      },
+      {
+        "target": "right",
+        "color": "#ffff00",
+        "preset": "yellow"
+      }
+    ]
+  }
+}

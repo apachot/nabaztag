@@ -1,0 +1,25 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "birth-03.mp3",
+  "source": "bundled-birth",
+  "payload": {
+    "text": "De l'endroit d'ou je viens, tout etait un peu serre, un peu froisse, un peu somnolent. Ici, il y a de la place pour un premier regard. Alors je regarde. Et je vous trouve tres bien.",
+    "actions": [],
+    "ears": {
+      "left": 6,
+      "right": 10
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#ff00ff",
+        "preset": "violet"
+      },
+      {
+        "target": "bottom",
+        "color": "#ffffff",
+        "preset": "white"
+      }
+    ]
+  }
+}

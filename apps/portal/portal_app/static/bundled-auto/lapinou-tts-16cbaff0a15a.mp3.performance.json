@@ -1,0 +1,32 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-16cbaff0a15a.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Hé ho ! Le soleil a encore oublié de payer son abonnement électricité, alors il se cache derrière les nuages pour grignoter des nuages... Moi je grignote des idées, et aujourd'hui j'ai très faim !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 0
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 0
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      }
+    ]
+  }
+}

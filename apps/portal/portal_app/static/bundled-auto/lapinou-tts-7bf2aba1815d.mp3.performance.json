@@ -1,0 +1,32 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-7bf2aba1815d.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Oh, je viens de voir une fourmi en train de porter une miette de gâteau... comme si elle faisait les courses pour sa colonie de gym !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 16
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 16
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      }
+    ]
+  }
+}

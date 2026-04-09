@@ -1,0 +1,30 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "birth-01.mp3",
+  "source": "bundled-birth",
+  "payload": {
+    "text": "Je suis toute froissee d'avoir voyage si loin... et pourtant, me voici. Cet endroit sent la maison que je n'avais pas encore. Je crois que je vais y ouvrir mes oreilles comme on ouvre des rideaux.",
+    "actions": [],
+    "ears": {
+      "left": 5,
+      "right": 11
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#ffffff",
+        "preset": "white"
+      },
+      {
+        "target": "left",
+        "color": "#00ffff",
+        "preset": "cyan"
+      },
+      {
+        "target": "right",
+        "color": "#00ffff",
+        "preset": "cyan"
+      }
+    ]
+  }
+}

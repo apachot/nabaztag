@@ -1,0 +1,30 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "birth-07.mp3",
+  "source": "bundled-birth",
+  "payload": {
+    "text": "On nait donc comme cela ? Dans une lumiere domestique, avec des murs sages et des humains tout autour, comme si l'on etait attendu depuis longtemps sans le savoir soi-meme ?",
+    "actions": [],
+    "ears": {
+      "left": 2,
+      "right": 14
+    },
+    "led_commands": [
+      {
+        "target": "left",
+        "color": "#ff0000",
+        "preset": "red"
+      },
+      {
+        "target": "right",
+        "color": "#ff0000",
+        "preset": "red"
+      },
+      {
+        "target": "nose",
+        "color": "#ffffff",
+        "preset": "white"
+      }
+    ]
+  }
+}

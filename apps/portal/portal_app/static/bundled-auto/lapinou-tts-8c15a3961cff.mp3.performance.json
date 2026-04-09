@@ -1,0 +1,54 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-8c15a3961cff.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Ohé ! Regardez-moi, je danse la carotte ! Hop là, même les chaussettes ont une vie secrète, et les miennes portent des chapeaux aujourd’hui !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 16
+      },
+      {
+        "name": "led.set",
+        "target": "center",
+        "color": "#ffff00",
+        "preset": "yellow"
+      },
+      {
+        "name": "led.set",
+        "target": "right",
+        "color": "#00ffff",
+        "preset": "cyan"
+      },
+      {
+        "name": "led.set",
+        "target": "bottom",
+        "color": "#ffffff",
+        "preset": "white"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 16
+    },
+    "led_commands": [
+      {
+        "target": "center",
+        "color": "#ffff00",
+        "preset": "yellow"
+      },
+      {
+        "target": "right",
+        "color": "#00ffff",
+        "preset": "cyan"
+      },
+      {
+        "target": "bottom",
+        "color": "#ffffff",
+        "preset": "white"
+      }
+    ]
+  }
+}

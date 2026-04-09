@@ -1,0 +1,54 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-9229bb0e21fe.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Pfiou, la vie c'est comme les carottes : ça se croque mieux quand c'est croquant, mais parfois ça fait mal aux dents !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 0
+      },
+      {
+        "name": "led.set",
+        "target": "center",
+        "color": "#ff00ff",
+        "preset": "violet"
+      },
+      {
+        "name": "led.set",
+        "target": "bottom",
+        "color": "#00ff00",
+        "preset": "green"
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 0
+    },
+    "led_commands": [
+      {
+        "target": "center",
+        "color": "#ff00ff",
+        "preset": "violet"
+      },
+      {
+        "target": "bottom",
+        "color": "#00ff00",
+        "preset": "green"
+      },
+      {
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      }
+    ]
+  }
+}

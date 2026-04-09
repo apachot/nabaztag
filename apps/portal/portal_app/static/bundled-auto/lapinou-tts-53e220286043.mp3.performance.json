@@ -1,0 +1,43 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-53e220286043.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Oh regarde, mon nuage préféré vient de faire pipi en traversant la cuisine ! Et mon ombre ? Elle a volé ma carotte sur l’étagère !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 0
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      },
+      {
+        "name": "led.set",
+        "target": "bottom",
+        "color": "#000000",
+        "preset": "off"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 0
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      },
+      {
+        "target": "bottom",
+        "color": "#000000",
+        "preset": "off"
+      }
+    ]
+  }
+}

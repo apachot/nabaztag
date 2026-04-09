@@ -1,0 +1,25 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "birth-06.mp3",
+  "source": "bundled-birth",
+  "payload": {
+    "text": "Je m'etais imagine le monde autrement. Plus bruyant, peut-etre. Plus sec. Mais non. Il est la, tout pres, avec ses odeurs d'aujourd'hui et ses objets tranquilles. C'est tres rassurant pour un lapin neuf.",
+    "actions": [],
+    "ears": {
+      "left": 8,
+      "right": 8
+    },
+    "led_commands": [
+      {
+        "target": "bottom",
+        "color": "#00ffff",
+        "preset": "cyan"
+      },
+      {
+        "target": "nose",
+        "color": "#ffff00",
+        "preset": "yellow"
+      }
+    ]
+  }
+}

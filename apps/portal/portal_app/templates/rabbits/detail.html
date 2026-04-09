@@ -491,13 +491,13 @@
         <form method="post" action="{{ url_for('main.update_rabbit_auto_performance', rabbit_id=rabbit.id) }}" class="stack">
           <div class="meta">
             Le lapin peut prendre l'initiative et lancer tout seul une petite performance Mistral avec voix,
-            oreilles et LEDs, selon un rythme moyen et dans une plage horaire donnée.
+            oreilles et LEDs, selon un intervalle minimum et dans une plage horaire donnée.
           </div>
           <label style="display: flex; align-items: center; gap: 10px;">
             <input type="checkbox" name="auto_performance_enabled" {% if rabbit.auto_performance_enabled %}checked{% endif %}>
             <span>Activer les interventions aleatoires</span>
           </label>
-          <label>Frequence moyenne (minutes)</label>
+          <label>Intervalle minimum entre deux interventions (minutes)</label>
           <input
             type="number"
             name="auto_performance_frequency_minutes"

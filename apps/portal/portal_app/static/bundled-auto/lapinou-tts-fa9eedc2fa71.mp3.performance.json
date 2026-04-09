@@ -1,0 +1,54 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-fa9eedc2fa71.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Et hop ! Un nuage bleu qui passe… mon oreille gauche devient une antenne pour capter les rêves trop légers, et l’autre une cuillère magique pour servir du miel dans tes baffes de café !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 16
+      },
+      {
+        "name": "led.set",
+        "target": "left",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "name": "led.set",
+        "target": "right",
+        "color": "#ffff00",
+        "preset": "yellow"
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 16
+    },
+    "led_commands": [
+      {
+        "target": "left",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "target": "right",
+        "color": "#ffff00",
+        "preset": "yellow"
+      },
+      {
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      }
+    ]
+  }
+}

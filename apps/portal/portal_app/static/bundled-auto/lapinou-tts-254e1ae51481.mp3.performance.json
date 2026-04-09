@@ -1,0 +1,32 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-254e1ae51481.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "La machine à café a encore fait son numéro ce matin… elle a clignoté sa LED comme si elle allait gagner au Loto, mais elle a juste craché un fond de jus de chaussette froid. Pathétique !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 16
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 16
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      }
+    ]
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-acc8774ca432.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Zzzz... Oh ! Attends, je viens de faire un rêve où je dansais la carotte pole dance... et j'ai gagné une médaille en fourrure de chat !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 0
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "name": "led.set",
+        "target": "bottom",
+        "color": "#00ffff",
+        "preset": "cyan"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 0
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "target": "bottom",
+        "color": "#00ffff",
+        "preset": "cyan"
+      }
+    ]
+  }
+}

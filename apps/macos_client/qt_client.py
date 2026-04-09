@@ -7,6 +7,7 @@ from PySide6.QtCore import QThread, QTimer, Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QFrame,
     QGraphicsBlurEffect,
     QHBoxLayout,
@@ -97,6 +98,50 @@ class ConversationWorker(QThread):
             )
             if not response.get("ok"):
                 raise RuntimeError(response.get("message") or "Envoi impossible.")
+            self.finished_ok.emit(response)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
+class AutoPerformanceWorker(QThread):
+    finished_ok = Signal(dict)
+    failed = Signal(str)
+
+    def __init__(
+        self,
+        *,
+        portal: str,
+        token: str,
+        rabbit_id: int,
+        enabled: bool,
+        frequency_minutes: int,
+        window_start: str,
+        window_end: str,
+    ) -> None:
+        super().__init__()
+        self.portal = portal
+        self.token = token
+        self.rabbit_id = rabbit_id
+        self.enabled = enabled
+        self.frequency_minutes = frequency_minutes
+        self.window_start = window_start
+        self.window_end = window_end
+
+    def run(self) -> None:
+        try:
+            response = client_support.http_json(
+                url=f"{self.portal}/mobile-api/v1/rabbits/{self.rabbit_id}/auto-performance",
+                method="POST",
+                token=self.token,
+                payload={
+                    "enabled": self.enabled,
+                    "frequency_minutes": self.frequency_minutes,
+                    "window_start": self.window_start,
+                    "window_end": self.window_end,
+                },
+            )
+            if not response.get("ok"):
+                raise RuntimeError(response.get("message") or "Programmation impossible.")
             self.finished_ok.emit(response)
         except Exception as exc:
             self.failed.emit(str(exc))
@@ -371,6 +416,7 @@ class LoginView(QWidget):
 
 class RabbitPanel(QWidget):
     send_requested = Signal(str)
+    auto_performance_save_requested = Signal(dict)
     refresh_requested = Signal()
     add_rabbit_requested = Signal()
     logout_requested = Signal()
@@ -383,6 +429,15 @@ class RabbitPanel(QWidget):
         self.status_label = QLabel("Aucun lapin sélectionné.")
         self.message_input = QTextEdit()
         self.message_input.setPlaceholderText("Écris un message pour le lapin…")
+        self.auto_performance_enabled = QCheckBox("Autoriser ce lapin à intervenir spontanément")
+        self.auto_performance_frequency = QLineEdit("180")
+        self.auto_performance_frequency.setPlaceholderText("10")
+        self.auto_performance_window_start = QLineEdit("09:00")
+        self.auto_performance_window_start.setPlaceholderText("09:00")
+        self.auto_performance_window_end = QLineEdit("21:00")
+        self.auto_performance_window_end.setPlaceholderText("21:00")
+        self.auto_performance_next_label = QLabel("Prochaine intervention : non programmée")
+        self.auto_performance_next_label.setWordWrap(True)
         self.log_output = QTextEdit()
         self.log_output.setReadOnly(True)
 
@@ -423,6 +478,35 @@ class RabbitPanel(QWidget):
         send_button = QPushButton("Envoyer au lapin")
         send_button.clicked.connect(self._emit_send)
         right_layout.addWidget(send_button)
+
+        auto_card = QFrame()
+        auto_card.setObjectName("loginCard")
+        auto_layout = QVBoxLayout(auto_card)
+        auto_layout.addWidget(QLabel("Interventions aléatoires"))
+        auto_layout.addWidget(self.auto_performance_enabled)
+        frequency_row = QHBoxLayout()
+        frequency_row.addWidget(QLabel("Intervalle minimum"))
+        frequency_row.addWidget(self.auto_performance_frequency)
+        decrement_frequency_button = QPushButton("-5")
+        decrement_frequency_button.clicked.connect(lambda: self._adjust_auto_performance_frequency(-5))
+        increment_frequency_button = QPushButton("+5")
+        increment_frequency_button.clicked.connect(lambda: self._adjust_auto_performance_frequency(5))
+        frequency_row.addWidget(decrement_frequency_button)
+        frequency_row.addWidget(increment_frequency_button)
+        frequency_row.addWidget(QLabel("minutes"))
+        auto_layout.addLayout(frequency_row)
+        window_row = QHBoxLayout()
+        window_row.addWidget(QLabel("Entre"))
+        window_row.addWidget(self.auto_performance_window_start)
+        window_row.addWidget(QLabel("et"))
+        window_row.addWidget(self.auto_performance_window_end)
+        auto_layout.addLayout(window_row)
+        auto_layout.addWidget(self.auto_performance_next_label)
+        save_auto_button = QPushButton("Enregistrer cette programmation")
+        save_auto_button.clicked.connect(self._emit_auto_performance_save)
+        auto_layout.addWidget(save_auto_button)
+        right_layout.addWidget(auto_card)
+
         right_layout.addWidget(QLabel("Journal"))
         right_layout.addWidget(self.log_output)
 
@@ -436,6 +520,48 @@ class RabbitPanel(QWidget):
         if text:
             self.send_requested.emit(text)
 
+    def _emit_auto_performance_save(self) -> None:
+        self.auto_performance_save_requested.emit(
+            {
+                "enabled": self.auto_performance_enabled.isChecked(),
+                "frequency_minutes": self.auto_performance_frequency_minutes(),
+                "window_start": self.auto_performance_window_start.text().strip(),
+                "window_end": self.auto_performance_window_end.text().strip(),
+            }
+        )
+
+    def auto_performance_frequency_minutes(self) -> int:
+        digits = "".join(ch for ch in self.auto_performance_frequency.text() if ch.isdigit())
+        try:
+            frequency = int(digits)
+        except (TypeError, ValueError):
+            frequency = 180
+        frequency = max(5, min(1440, frequency))
+        self.auto_performance_frequency.setText(str(frequency))
+        return frequency
+
+    def _adjust_auto_performance_frequency(self, delta: int) -> None:
+        frequency = self.auto_performance_frequency_minutes()
+        frequency = max(5, min(1440, frequency + delta))
+        self.auto_performance_frequency.setText(str(frequency))
+
+    def set_auto_performance_state(self, rabbit: dict | None) -> None:
+        config = rabbit.get("auto_performance") if isinstance(rabbit, dict) else {}
+        config = config if isinstance(config, dict) else {}
+        self.auto_performance_enabled.setChecked(bool(config.get("enabled")))
+        try:
+            frequency = int(config.get("frequency_minutes") or 180)
+        except (TypeError, ValueError):
+            frequency = 180
+        self.auto_performance_frequency.setText(str(max(5, min(1440, frequency))))
+        self.auto_performance_window_start.setText(str(config.get("window_start") or "09:00"))
+        self.auto_performance_window_end.setText(str(config.get("window_end") or "21:00"))
+        next_at = " ".join(str(config.get("next_at") or "").split()).strip()
+        if next_at:
+            self.auto_performance_next_label.setText(f"Prochaine intervention : {next_at}")
+        else:
+            self.auto_performance_next_label.setText("Prochaine intervention : non programmée")
+
     def append_log(self, text: str) -> None:
         self.log_output.append(text)
 
@@ -443,6 +569,7 @@ class RabbitPanel(QWidget):
         self.rabbits_list.clearSelection()
         self.status_label.setText("Aucun lapin sélectionné.")
         self.message_input.clear()
+        self.set_auto_performance_state(None)
 
 
 class ProvisioningView(QWidget):
@@ -569,6 +696,7 @@ class MainWindow(QMainWindow):
         self.login_worker: LoginWorker | None = None
         self.refresh_worker: RefreshWorker | None = None
         self.conversation_worker: ConversationWorker | None = None
+        self.auto_performance_worker: AutoPerformanceWorker | None = None
         self.provisioning_worker: ProvisioningWorker | None = None
         self.active_provisioning_workers: list[ProvisioningWorker] = []
         self.delete_rabbit_worker: DeleteRabbitWorker | None = None
@@ -628,6 +756,7 @@ class MainWindow(QMainWindow):
         self.login_view.login_requested.connect(self.login)
         self.rabbit_panel.refresh_requested.connect(self.refresh_rabbits)
         self.rabbit_panel.send_requested.connect(self.send_message)
+        self.rabbit_panel.auto_performance_save_requested.connect(self.save_auto_performance)
         self.rabbit_panel.add_rabbit_requested.connect(lambda: self.show_provisioning_view(forced=True))
         self.rabbit_panel.logout_requested.connect(self.logout)
         self.rabbit_panel.delete_requested.connect(self.delete_selected_rabbit)
@@ -1550,6 +1679,7 @@ class MainWindow(QMainWindow):
             self.rabbit_panel.status_label.setText("Statut du lapin : non connecté")
         else:
             self.rabbit_panel.status_label.setText("Statut du lapin : inconnu")
+        self.rabbit_panel.set_auto_performance_state(rabbit if isinstance(rabbit, dict) else None)
 
     def send_message(self, text: str) -> None:
         current_item = self.rabbit_panel.rabbits_list.currentItem()
@@ -1583,6 +1713,65 @@ class MainWindow(QMainWindow):
             self.rabbit_panel.append_log(f"Réponse du lapin : {reply}")
 
     def _on_send_failed(self, message: str) -> None:
+        self.rabbit_panel.append_log(f"Erreur : {message}")
+
+    def save_auto_performance(self, config: dict) -> None:
+        current_item = self.rabbit_panel.rabbits_list.currentItem()
+        current_rabbit = current_item.data(Qt.UserRole) if current_item is not None else {}
+        if not isinstance(current_rabbit, dict) or current_rabbit.get("provisional"):
+            QMessageBox.warning(self, "Nabaztag", "Choisis un lapin rattaché.")
+            return
+        if self.selected_rabbit_id is None:
+            QMessageBox.warning(self, "Nabaztag", "Choisis un lapin.")
+            return
+        window_start = str(config.get("window_start") or "").strip()
+        window_end = str(config.get("window_end") or "").strip()
+        if not self._looks_like_clock_value(window_start) or not self._looks_like_clock_value(window_end):
+            QMessageBox.warning(self, "Nabaztag", "Utilise des horaires au format HH:MM, par exemple 09:00.")
+            return
+
+        self.auto_performance_worker = AutoPerformanceWorker(
+            portal=self.portal,
+            token=self.api_token,
+            rabbit_id=self.selected_rabbit_id,
+            enabled=bool(config.get("enabled")),
+            frequency_minutes=int(config.get("frequency_minutes") or 180),
+            window_start=window_start,
+            window_end=window_end,
+        )
+        self.auto_performance_worker.finished_ok.connect(self._on_auto_performance_success)
+        self.auto_performance_worker.failed.connect(self._on_auto_performance_failed)
+        self.auto_performance_worker.start()
+        enabled_label = "activées" if bool(config.get("enabled")) else "désactivées"
+        self.rabbit_panel.append_log(
+            "Enregistrement de la programmation… "
+            f"interventions {enabled_label}, intervalle {self.auto_performance_worker.frequency_minutes} min, "
+            f"plage {window_start}-{window_end}."
+        )
+
+    @staticmethod
+    def _looks_like_clock_value(value: str) -> bool:
+        parts = value.split(":")
+        if len(parts) != 2 or not parts[0].isdigit() or not parts[1].isdigit():
+            return False
+        hour = int(parts[0])
+        minute = int(parts[1])
+        return 0 <= hour <= 23 and 0 <= minute <= 59
+
+    def _on_auto_performance_success(self, response: dict) -> None:
+        message = " ".join(str(response.get("message") or "").split()).strip() or "Programmation enregistrée."
+        rabbit = response.get("rabbit") if isinstance(response.get("rabbit"), dict) else {}
+        rabbit_id = rabbit.get("id") if isinstance(rabbit, dict) else None
+        if isinstance(rabbit_id, int):
+            for index, entry in enumerate(self.rabbits):
+                if isinstance(entry, dict) and entry.get("id") == rabbit_id:
+                    self.rabbits[index] = dict(rabbit)
+                    break
+        self._rebuild_rabbits_list()
+        self.rabbit_panel.set_auto_performance_state(rabbit if isinstance(rabbit, dict) else None)
+        self.rabbit_panel.append_log(message)
+
+    def _on_auto_performance_failed(self, message: str) -> None:
         self.rabbit_panel.append_log(f"Erreur : {message}")
 
     def delete_selected_rabbit(self) -> None:

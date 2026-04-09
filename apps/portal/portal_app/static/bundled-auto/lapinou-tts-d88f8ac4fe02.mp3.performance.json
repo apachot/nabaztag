@@ -1,0 +1,32 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-d88f8ac4fe02.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Et si on transformait ton canapé en trampoline à moutons ? Hop ! Et hop ! ... Et crash. Bon, c'est moi qui atterris.",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 0
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 0
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      }
+    ]
+  }
+}

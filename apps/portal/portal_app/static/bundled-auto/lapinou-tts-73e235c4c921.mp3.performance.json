@@ -1,0 +1,43 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-73e235c4c921.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Ce matin, j’ai vu un escargot faire la course avec une feuille morte… Spoiler : la feuille a gagné, mais elle avait triché en roulant !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 16
+      },
+      {
+        "name": "led.set",
+        "target": "left",
+        "color": "#00ff00",
+        "preset": "green"
+      },
+      {
+        "name": "led.set",
+        "target": "right",
+        "color": "#0000ff",
+        "preset": "blue"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 16
+    },
+    "led_commands": [
+      {
+        "target": "left",
+        "color": "#00ff00",
+        "preset": "green"
+      },
+      {
+        "target": "right",
+        "color": "#0000ff",
+        "preset": "blue"
+      }
+    ]
+  }
+}

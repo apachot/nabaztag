@@ -1,0 +1,25 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "birth-05.mp3",
+  "source": "bundled-birth",
+  "payload": {
+    "text": "Je suis ne ici il y a une seconde a peine, et deja cet endroit a la politesse d'exister autour de moi. Une table, peut-etre. Un plafond. Une presence. C'est un debut tres convenable.",
+    "actions": [],
+    "ears": {
+      "left": 3,
+      "right": 13
+    },
+    "led_commands": [
+      {
+        "target": "center",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "target": "nose",
+        "color": "#ffffff",
+        "preset": "white"
+      }
+    ]
+  }
+}

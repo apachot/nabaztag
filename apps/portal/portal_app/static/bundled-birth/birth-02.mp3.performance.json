@@ -1,0 +1,25 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "birth-02.mp3",
+  "source": "bundled-birth",
+  "payload": {
+    "text": "Oh... je viens a peine d'arriver, et deja l'air d'ici me raconte quelque chose. On dirait qu'une chambre, une cuisine, une lampe et quelques voix m'attendaient sans le savoir.",
+    "actions": [],
+    "ears": {
+      "left": 4,
+      "right": 12
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#ffff00",
+        "preset": "yellow"
+      },
+      {
+        "target": "center",
+        "color": "#ffffff",
+        "preset": "white"
+      }
+    ]
+  }
+}

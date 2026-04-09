@@ -1,0 +1,43 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-69f17647b4be.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Les carottes sont cuites… mais le lapin, lui, n’est jamais pressé !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 0
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      },
+      {
+        "name": "led.set",
+        "target": "bottom",
+        "color": "#00ff00",
+        "preset": "green"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 0
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      },
+      {
+        "target": "bottom",
+        "color": "#00ff00",
+        "preset": "green"
+      }
+    ]
+  }
+}

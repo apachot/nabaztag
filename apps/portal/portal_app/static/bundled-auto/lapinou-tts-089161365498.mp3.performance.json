@@ -1,0 +1,43 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-089161365498.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Et voilà ! Moi, Lapinou, je fais un petit solo de vie quotidienne… cette poussière qui danse dans le soleil, c’est ma chorégraphie personnelle ! Et si je te disais que je viens de ramasser trois carottes… virtuelles ?",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 0
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "name": "led.set",
+        "target": "bottom",
+        "color": "#000000",
+        "preset": "off"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 0
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "target": "bottom",
+        "color": "#000000",
+        "preset": "off"
+      }
+    ]
+  }
+}

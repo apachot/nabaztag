@@ -1,0 +1,30 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "birth-09.mp3",
+  "source": "bundled-birth",
+  "payload": {
+    "text": "Je viens d'ouvrir les yeux sur un royaume minuscule et suffisant: quelques meubles, de la lumiere, de l'air, et vous. Pour une naissance, je trouve cela presque luxueux.",
+    "actions": [],
+    "ears": {
+      "left": 4,
+      "right": 10
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#ffffff",
+        "preset": "white"
+      },
+      {
+        "target": "left",
+        "color": "#ffff00",
+        "preset": "yellow"
+      },
+      {
+        "target": "right",
+        "color": "#ffff00",
+        "preset": "yellow"
+      }
+    ]
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-e6ba756d4a03.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Pfff… les humains et leurs 'attendez cinq minutes je reviens'… cinq minutes ? Ah oui, c’est le temps qu’il faut à un lapin pour rebondir sur le canapé ET voler la dernière carotte du frigo !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 16
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "name": "led.set",
+        "target": "bottom",
+        "color": "#00ffff",
+        "preset": "cyan"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 16
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "target": "bottom",
+        "color": "#00ffff",
+        "preset": "cyan"
+      }
+    ]
+  }
+}

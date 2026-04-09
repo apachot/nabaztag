@@ -1,0 +1,32 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-19185aae572f.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Parfait ! Le café est froid, le soleil m’a volé ma sieste, et mon plat de carottes est… une chaussette trouée ? La vie est une blague que quelqu’un a écrite en dormant !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 16
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 16
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      }
+    ]
+  }
+}

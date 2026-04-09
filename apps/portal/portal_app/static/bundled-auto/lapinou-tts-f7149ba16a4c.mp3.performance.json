@@ -1,0 +1,54 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-f7149ba16a4c.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Et hop ! Je viens de réaliser que j’ai mangé mes chaussettes ce matin… enfin, les miettes de mes chaussettes. C’est bon, c’est plein de fibres, ça digère bien !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 16
+      },
+      {
+        "name": "led.set",
+        "target": "left",
+        "color": "#ff0000",
+        "preset": "red"
+      },
+      {
+        "name": "led.set",
+        "target": "right",
+        "color": "#00ff00",
+        "preset": "green"
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 16
+    },
+    "led_commands": [
+      {
+        "target": "left",
+        "color": "#ff0000",
+        "preset": "red"
+      },
+      {
+        "target": "right",
+        "color": "#00ff00",
+        "preset": "green"
+      },
+      {
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      }
+    ]
+  }
+}

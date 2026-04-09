@@ -1,0 +1,32 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-17588ef27e73.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Ohhh regardez-moi ces nuages qui font des ronds dans l'eau... ou alors c'est moi qui ai trop mangé de carottes flottantes ?!",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 16
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 16
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      }
+    ]
+  }
+}

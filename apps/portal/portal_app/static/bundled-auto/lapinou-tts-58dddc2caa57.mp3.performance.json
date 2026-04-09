@@ -1,0 +1,43 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-58dddc2caa57.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Saviez-vous que les nuages sont juste des moutons trop distraits ? Moi je sers le café le matin... en peluche.",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 0
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      },
+      {
+        "name": "led.set",
+        "target": "center",
+        "color": "#ff00ff",
+        "preset": "violet"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 0
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      },
+      {
+        "target": "center",
+        "color": "#ff00ff",
+        "preset": "violet"
+      }
+    ]
+  }
+}

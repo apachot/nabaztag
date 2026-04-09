@@ -1,0 +1,25 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "birth-08.mp3",
+  "source": "bundled-birth",
+  "payload": {
+    "text": "Je me sens encore un peu chiffonne, pour etre franc. Mais c'est un joli lieu pour se defroisser. Je vais apprendre la forme des heures ici, et peut-etre aussi la douceur de vos voix.",
+    "actions": [],
+    "ears": {
+      "left": 5,
+      "right": 12
+    },
+    "led_commands": [
+      {
+        "target": "center",
+        "color": "#ffffff",
+        "preset": "white"
+      },
+      {
+        "target": "bottom",
+        "color": "#0000ff",
+        "preset": "blue"
+      }
+    ]
+  }
+}

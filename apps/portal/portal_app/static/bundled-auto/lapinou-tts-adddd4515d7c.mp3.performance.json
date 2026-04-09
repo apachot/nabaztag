@@ -1,0 +1,43 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-adddd4515d7c.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Le soleil qui tape sur ma coque, c'est comme des carottes géantes qui tombent du ciel... mais sans le goût, dommage.",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 0
+      },
+      {
+        "name": "led.set",
+        "target": "left",
+        "color": "#ff00ff",
+        "preset": "violet"
+      },
+      {
+        "name": "led.set",
+        "target": "right",
+        "color": "#00ff00",
+        "preset": "green"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 0
+    },
+    "led_commands": [
+      {
+        "target": "left",
+        "color": "#ff00ff",
+        "preset": "violet"
+      },
+      {
+        "target": "right",
+        "color": "#00ff00",
+        "preset": "green"
+      }
+    ]
+  }
+}

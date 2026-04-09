@@ -1,0 +1,43 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-43b37851a3ae.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Grattouilles de moustaches... claquettes de carottes... et si on dansait la polka du frigo qui ronronne ? Ouste, les légumes par terre !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 8
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "name": "led.set",
+        "target": "bottom",
+        "color": "#ff00ff",
+        "preset": "violet"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 8
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "target": "bottom",
+        "color": "#ff00ff",
+        "preset": "violet"
+      }
+    ]
+  }
+}

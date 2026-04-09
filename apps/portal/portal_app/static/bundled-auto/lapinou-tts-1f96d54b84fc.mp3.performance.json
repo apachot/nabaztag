@@ -1,0 +1,43 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-1f96d54b84fc.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Hé hé, regardez-moi ce sac de carottes qui joue à cache-cache derrière le frigo ! Bonjour la collation, tu vas être la reine du goûter… même si je suis déjà en train de la dévorer du regard !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 16
+      },
+      {
+        "name": "led.set",
+        "target": "center",
+        "color": "#00ff00",
+        "preset": "green"
+      },
+      {
+        "name": "led.set",
+        "target": "bottom",
+        "color": "#ffff00",
+        "preset": "yellow"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 16
+    },
+    "led_commands": [
+      {
+        "target": "center",
+        "color": "#00ff00",
+        "preset": "green"
+      },
+      {
+        "target": "bottom",
+        "color": "#ffff00",
+        "preset": "yellow"
+      }
+    ]
+  }
+}

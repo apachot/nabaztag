@@ -1,0 +1,65 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-ef1f9c7a59f0.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Aïe aïe aïe ! On dirait que mon café ce matin était un peu trop fort... ou alors c'est juste que j'ai avalé une carotte en dormant ?!",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 16
+      },
+      {
+        "name": "led.set",
+        "target": "left",
+        "color": "#ffff00",
+        "preset": "yellow"
+      },
+      {
+        "name": "led.set",
+        "target": "center",
+        "color": "#000000",
+        "preset": "off"
+      },
+      {
+        "name": "led.set",
+        "target": "right",
+        "color": "#00ffff",
+        "preset": "cyan"
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 16
+    },
+    "led_commands": [
+      {
+        "target": "left",
+        "color": "#ffff00",
+        "preset": "yellow"
+      },
+      {
+        "target": "center",
+        "color": "#000000",
+        "preset": "off"
+      },
+      {
+        "target": "right",
+        "color": "#00ffff",
+        "preset": "cyan"
+      },
+      {
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      }
+    ]
+  }
+}

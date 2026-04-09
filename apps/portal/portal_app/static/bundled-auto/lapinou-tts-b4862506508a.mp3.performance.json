@@ -1,0 +1,32 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-b4862506508a.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Ahhh, si la vie était une boîte de thon... moi je serais le lapin qui a oublié d’ouvrir le ouvre-boîte !",
+    "actions": [
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      },
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 16
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 16
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      }
+    ]
+  }
+}

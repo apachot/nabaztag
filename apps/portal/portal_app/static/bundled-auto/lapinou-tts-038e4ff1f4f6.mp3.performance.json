@@ -1,0 +1,54 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-038e4ff1f4f6.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Ouille, un nuage en coton ergoté, et moi j'ai oublié mes chaussures à claque-claque... La vie est une promenade en pantoufles invisibles !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 16
+      },
+      {
+        "name": "led.set",
+        "target": "center",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "name": "led.set",
+        "target": "bottom",
+        "color": "#00ff00",
+        "preset": "green"
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 16
+    },
+    "led_commands": [
+      {
+        "target": "center",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "target": "bottom",
+        "color": "#00ff00",
+        "preset": "green"
+      },
+      {
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      }
+    ]
+  }
+}

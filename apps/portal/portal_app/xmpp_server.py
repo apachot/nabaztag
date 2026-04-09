@@ -20,11 +20,12 @@ from .device_protocol import (
     build_init_packet,
     build_nose_or_bottom_packet,
 )
-from .models import DeviceObservation, RabbitDeviceCommand, RabbitEventLog, RabbitRecording, utc_now
+from .models import DeviceObservation, Rabbit, RabbitDeviceCommand, RabbitEventLog, RabbitRecording, utc_now
 from .extensions import db
 
 LOG = logging.getLogger("nabaztag.xmpp")
 LED_REFRESH_INTERVAL = timedelta(seconds=2)
+SESSION_HEARTBEAT_INTERVAL_SECONDS = 30.0
 
 SASL_NS = "urn:ietf:params:xml:ns:xmpp-sasl"
 STREAM_NS = "http://etherx.jabber.org/streams"
@@ -388,20 +389,42 @@ async def _handle_connection(reader: asyncio.StreamReader, writer: asyncio.Strea
     finally:
         if session.username:
             ACTIVE_SESSIONS.pop(session.username.lower(), None)
+            _record_device_event(
+                session.username,
+                "rabbit.xmpp.disconnected",
+                {"peer": peer, "resource": session.resource},
+                connected=False,
+                update_last_seen=False,
+            )
         LOG.info("xmpp disconnect %s", peer)
         writer.close()
         await writer.wait_closed()
 
 
-def _record_device_event(serial: str, event_type: str, payload: dict) -> None:
+def _record_device_event(
+    serial: str,
+    event_type: str,
+    payload: dict,
+    *,
+    connected: bool = True,
+    update_last_seen: bool = True,
+) -> None:
     with APP.app_context():
         normalized = serial.lower()
         observation = DeviceObservation.query.filter_by(serial=normalized).first()
-        rabbit_id = observation.rabbit_id if observation else None
-        if observation is not None:
-            observation.last_seen_at = utc_now()
-            observation.last_path = f"xmpp:{event_type}"
+        if observation is None:
+            observation = DeviceObservation(serial=normalized)
             db.session.add(observation)
+        rabbit_id = observation.rabbit_id
+        if update_last_seen:
+            observation.last_seen_at = utc_now()
+        observation.last_path = f"xmpp:{event_type}"
+        db.session.add(observation)
+        if rabbit_id is not None:
+            rabbit = db.session.get(Rabbit, rabbit_id)
+            if rabbit is not None:
+                rabbit.connection_status = "online" if connected else "offline"
+                db.session.add(rabbit)
         if rabbit_id is not None:
             db.session.add(
                 RabbitEventLog(
@@ -411,6 +434,26 @@ def _record_device_event(serial: str, event_type: str, payload: dict) -> None:
                     payload=json.dumps(payload),
                 )
             )
+        db.session.commit()
+
+
+def _record_active_session_heartbeat(serial: str) -> None:
+    with APP.app_context():
+        normalized = serial.lower()
+        observation = DeviceObservation.query.filter_by(serial=normalized).first()
+        if observation is None:
+            observation = DeviceObservation(serial=normalized)
+            db.session.add(observation)
+
+        observation.last_seen_at = utc_now()
+        observation.last_path = "xmpp:session.heartbeat"
+        db.session.add(observation)
+
+        if observation.rabbit_id is not None:
+            rabbit = db.session.get(Rabbit, observation.rabbit_id)
+            if rabbit is not None:
+                rabbit.connection_status = "online"
+                db.session.add(rabbit)
         db.session.commit()
 
 def _build_packet_for_command(command: RabbitDeviceCommand) -> EncodedPacket:
@@ -560,6 +603,17 @@ async def _dispatch_loop() -> None:
         await asyncio.sleep(1.0)
 
 
+async def _session_heartbeat_loop() -> None:
+    while True:
+        try:
+            active_serials = tuple(ACTIVE_SESSIONS.keys())
+            for serial in active_serials:
+                _record_active_session_heartbeat(serial)
+        except Exception:
+            LOG.exception("xmpp session heartbeat failure")
+        await asyncio.sleep(SESSION_HEARTBEAT_INTERVAL_SECONDS)
+
+
 async def _run() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -570,6 +624,7 @@ async def _run() -> None:
     server = await asyncio.start_server(_handle_connection, host, port)
     LOG.info("xmpp listener ready on %s:%s for domain %s", host, port, _xmpp_domain())
     asyncio.create_task(_dispatch_loop())
+    asyncio.create_task(_session_heartbeat_loop())
     async with server:
         await server.serve_forever()
 

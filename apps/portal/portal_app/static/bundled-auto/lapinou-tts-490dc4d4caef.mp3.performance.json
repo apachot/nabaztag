@@ -1,0 +1,43 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-490dc4d4caef.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Carottes en vue... mais c’est l’heure du goûter des voisins ! ... Ils ont oublié leur lapin électrique, c’est MOI le dessert aujourd’hui ?!",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 16
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      },
+      {
+        "name": "led.set",
+        "target": "bottom",
+        "color": "#000000",
+        "preset": "off"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 16
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      },
+      {
+        "target": "bottom",
+        "color": "#000000",
+        "preset": "off"
+      }
+    ]
+  }
+}

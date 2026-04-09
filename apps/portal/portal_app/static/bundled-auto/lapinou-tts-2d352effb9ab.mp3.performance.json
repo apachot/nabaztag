@@ -1,0 +1,54 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-2d352effb9ab.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Ohhh mais c’est l’heure du goûter dans le frigo ! Une LED verte par ci, une LED bleue par là... et hop, le frigo devient une boîte à musique !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 16
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "name": "led.set",
+        "target": "center",
+        "color": "#00ffff",
+        "preset": "cyan"
+      },
+      {
+        "name": "led.set",
+        "target": "bottom",
+        "color": "#ffff00",
+        "preset": "yellow"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 16
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "target": "center",
+        "color": "#00ffff",
+        "preset": "cyan"
+      },
+      {
+        "target": "bottom",
+        "color": "#ffff00",
+        "preset": "yellow"
+      }
+    ]
+  }
+}

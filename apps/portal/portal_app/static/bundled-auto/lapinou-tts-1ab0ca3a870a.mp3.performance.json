@@ -1,0 +1,43 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-1ab0ca3a870a.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Écoutez donc : un nuage est passé par la fenêtre et il avait une cravate ! Il a dit bonjour à la plante verte et il a cru que c'était un sapin de Noël... trop tôt pour les cadeaux !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 16
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      },
+      {
+        "name": "led.set",
+        "target": "left",
+        "color": "#00ffff",
+        "preset": "cyan"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 16
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      },
+      {
+        "target": "left",
+        "color": "#00ffff",
+        "preset": "cyan"
+      }
+    ]
+  }
+}

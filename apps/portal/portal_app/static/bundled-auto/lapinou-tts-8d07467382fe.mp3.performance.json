@@ -1,0 +1,43 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-8d07467382fe.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Regarde les miettes de ton goûter qui dansent sur l'assiette... c'est la mousson des gâteaux ! Et moi je fais l'arbre qui les regarde tomber, comme si j'avais jamais vu une miette de ma vie...",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 0
+      },
+      {
+        "name": "led.set",
+        "target": "left",
+        "color": "#00ff00",
+        "preset": "green"
+      },
+      {
+        "name": "led.set",
+        "target": "right",
+        "color": "#ffff00",
+        "preset": "yellow"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 0
+    },
+    "led_commands": [
+      {
+        "target": "left",
+        "color": "#00ff00",
+        "preset": "green"
+      },
+      {
+        "target": "right",
+        "color": "#ffff00",
+        "preset": "yellow"
+      }
+    ]
+  }
+}

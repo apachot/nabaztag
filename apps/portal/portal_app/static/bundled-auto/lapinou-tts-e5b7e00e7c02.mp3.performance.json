@@ -1,0 +1,32 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-e5b7e00e7c02.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Bzzzt... aujourd’hui c’est jour de panique dans la maison : le grille-pain a fondu et le canapé a décidé de faire la grève de l’assise !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 0
+      },
+      {
+        "name": "led.set",
+        "target": "left",
+        "color": "#ffff00",
+        "preset": "yellow"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 0
+    },
+    "led_commands": [
+      {
+        "target": "left",
+        "color": "#ffff00",
+        "preset": "yellow"
+      }
+    ]
+  }
+}

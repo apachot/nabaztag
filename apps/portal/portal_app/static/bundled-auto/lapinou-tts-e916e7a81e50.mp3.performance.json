@@ -1,0 +1,54 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-e916e7a81e50.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Soudain, mon plateau à crottes se transforme en piste de danse... et moi je suis la star du carrousel ! Hop là !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 16
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "name": "led.set",
+        "target": "left",
+        "color": "#ff00ff",
+        "preset": "violet"
+      },
+      {
+        "name": "led.set",
+        "target": "right",
+        "color": "#00ffff",
+        "preset": "cyan"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 16
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "target": "left",
+        "color": "#ff00ff",
+        "preset": "violet"
+      },
+      {
+        "target": "right",
+        "color": "#00ffff",
+        "preset": "cyan"
+      }
+    ]
+  }
+}

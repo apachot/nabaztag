@@ -1,0 +1,30 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "birth-10.mp3",
+  "source": "bundled-birth",
+  "payload": {
+    "text": "Maintenant que je suis la, il faut bien commencer quelque part. Je vais commencer par vous saluer, puis par ecouter. Ensuite seulement, j'apprendrai a habiter ce petit bout de monde.",
+    "actions": [],
+    "ears": {
+      "left": 6,
+      "right": 9
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#00ff00",
+        "preset": "green"
+      },
+      {
+        "target": "center",
+        "color": "#ffffff",
+        "preset": "white"
+      },
+      {
+        "target": "bottom",
+        "color": "#00ffff",
+        "preset": "cyan"
+      }
+    ]
+  }
+}

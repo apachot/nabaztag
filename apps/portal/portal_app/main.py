@@ -752,6 +752,19 @@ def _serialize_mobile_rabbit(rabbit: Rabbit) -> dict:
         "photo_url": _absolute_url(_rabbit_photo_url(rabbit) or url_for("main.default_rabbit_photo")),
         "device_serial": linked_device.serial if linked_device else None,
         "friends": [{"id": friend.id, "name": friend.name} for friend in _friends_for_rabbit(rabbit)],
+        "auto_performance": {
+            "enabled": bool(rabbit.auto_performance_enabled),
+            "frequency_minutes": _normalize_auto_performance_frequency(rabbit.auto_performance_frequency_minutes),
+            "window_start": _normalize_auto_performance_window(
+                rabbit.auto_performance_window_start,
+                fallback=AUTO_PERFORMANCE_DEFAULT_WINDOW_START,
+            ),
+            "window_end": _normalize_auto_performance_window(
+                rabbit.auto_performance_window_end,
+                fallback=AUTO_PERFORMANCE_DEFAULT_WINDOW_END,
+            ),
+            "next_at": _format_auto_performance_next_at(rabbit.auto_performance_next_at),
+        },
     }
 
 
@@ -910,7 +923,7 @@ def _compute_next_auto_performance_at(
         offset_minutes = random.randint(0, max(1, frequency))
         return (next_local + timedelta(minutes=offset_minutes)).astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
 
-    random_delay = random.randint(max(1, frequency // 2), max(2, frequency + max(1, frequency // 2)))
+    random_delay = random.randint(frequency, max(frequency + 1, frequency * 2))
     candidate_local = base_local + timedelta(minutes=random_delay)
     candidate_total = candidate_local.hour * 60 + candidate_local.minute
     if _is_within_daily_window(candidate_total, start_minutes=start_total, end_minutes=end_total):
@@ -954,15 +967,15 @@ def _bundled_auto_performances() -> tuple[dict, ...]:
         if not isinstance(raw_entry, dict):
             continue
         asset_name = " ".join(str(raw_entry.get("asset_name") or "").split()).strip()
-        payload = raw_entry.get("payload")
+        bundled_asset_name = f"bundled-auto/{asset_name}"
+        if not (_bundled_audio_assets_dir() / bundled_asset_name).exists():
+            continue
+        payload = _read_performance_sidecar(bundled_asset_name) or raw_entry.get("payload")
         if not asset_name or not isinstance(payload, dict):
             continue
         try:
             normalized_payload = _normalize_generated_performance(payload)
         except RuntimeError:
-            continue
-        bundled_asset_name = f"bundled-auto/{asset_name}"
-        if not (_bundled_audio_assets_dir() / bundled_asset_name).exists():
             continue
         entries.append(
             {
@@ -988,15 +1001,15 @@ def _load_bundled_performance_entries(directory_name: str) -> tuple[dict, ...]:
         if not isinstance(raw_entry, dict):
             continue
         asset_name = " ".join(str(raw_entry.get("asset_name") or "").split()).strip()
-        payload = raw_entry.get("payload")
+        bundled_asset_name = f"{directory_name}/{asset_name}"
+        if not (_bundled_audio_assets_dir() / bundled_asset_name).exists():
+            continue
+        payload = _read_performance_sidecar(bundled_asset_name) or raw_entry.get("payload")
         if not asset_name or not isinstance(payload, dict):
             continue
         try:
             normalized_payload = _normalize_generated_performance(payload)
         except RuntimeError:
-            continue
-        bundled_asset_name = f"{directory_name}/{asset_name}"
-        if not (_bundled_audio_assets_dir() / bundled_asset_name).exists():
             continue
         entries.append({"asset_name": bundled_asset_name, "payload": normalized_payload})
     return tuple(entries)
@@ -1027,7 +1040,7 @@ def _random_bundled_auto_performance() -> dict | None:
 
 def _generate_auto_performance_payload(rabbit: Rabbit, owner) -> dict:
     llm_model = _normalize_rabbit_llm_model(rabbit, _build_rabbit_llm_model_options())
-    return _generate_mistral_rabbit_performance(
+    performance = _generate_mistral_rabbit_performance(
         api_key=owner.mistral_api_key,
         model=llm_model,
         rabbit_name=rabbit.name,
@@ -1042,6 +1055,7 @@ def _generate_auto_performance_payload(rabbit: Rabbit, owner) -> dict:
         connector_context=connector_context_for_rabbit(rabbit),
         action_catalog=RABBIT_ACTION_CATALOG + connector_action_catalog(owner),
     )
+    return _ensure_auto_performance_body_cues(performance)
 
 
 def _create_precomputed_auto_performance(rabbit: Rabbit, owner) -> RabbitPrecomputedPerformance:
@@ -1052,6 +1066,12 @@ def _create_precomputed_auto_performance(rabbit: Rabbit, owner) -> RabbitPrecomp
         rabbit_slug=rabbit.slug,
         text=performance["text"],
         voice=voice,
+    )
+    _write_performance_sidecar(
+        _asset_path,
+        asset_name=asset_name,
+        performance=performance,
+        source="auto-precompute",
     )
     entry = RabbitPrecomputedPerformance(
         rabbit_id=rabbit.id,
@@ -1306,7 +1326,17 @@ def _run_auto_performance_for_rabbit(rabbit_id: int) -> None:
             )
             delivery_mode = "live"
         elif bundled_entry is None:
-            performance = json.loads(entry.payload)
+            performance = _ensure_auto_performance_body_cues(
+                _read_performance_sidecar(entry.asset_name) or json.loads(entry.payload)
+            )
+            sidecar_path = _performance_sidecar_path_for_audio(_audio_asset_path(entry.asset_name))
+            if not sidecar_path.exists():
+                _write_performance_sidecar(
+                    _audio_asset_path(entry.asset_name),
+                    asset_name=entry.asset_name,
+                    performance=performance,
+                    source="auto-precompute",
+                )
             _queue_performance_asset(
                 rabbit,
                 performance=performance,
@@ -1318,7 +1348,7 @@ def _run_auto_performance_for_rabbit(rabbit_id: int) -> None:
             db.session.delete(entry)
             delivery_mode = "precomputed"
         else:
-            performance = bundled_entry["payload"]
+            performance = _ensure_auto_performance_body_cues(bundled_entry["payload"])
             _queue_performance_asset(
                 rabbit,
                 performance=performance,
@@ -1744,6 +1774,53 @@ def _normalize_generated_performance(payload: dict) -> dict:
     }
 
 
+def _ensure_auto_performance_body_cues(performance: dict) -> dict:
+    enhanced = _normalize_generated_performance(performance)
+    actions = list(enhanced.get("actions") or [])
+    ears = dict(enhanced.get("ears") or {"left": None, "right": None})
+    led_commands = list(enhanced.get("led_commands") or [])
+
+    if ears.get("left") is None and ears.get("right") is None:
+        ears = random.choice(
+            [
+                {"left": 0, "right": 16},
+                {"left": 3, "right": 13},
+                {"left": 6, "right": 10},
+                {"left": 10, "right": 6},
+                {"left": 14, "right": 2},
+            ]
+        )
+        actions.append({"name": "ears.move", **ears})
+
+    if not led_commands:
+        led_commands = random.choice(
+            [
+                [
+                    {"target": "nose", "color": LED_COLOR_PRESETS["yellow"], "preset": "yellow"},
+                    {"target": "left", "color": LED_COLOR_PRESETS["cyan"], "preset": "cyan"},
+                    {"target": "right", "color": LED_COLOR_PRESETS["cyan"], "preset": "cyan"},
+                ],
+                [
+                    {"target": "nose", "color": LED_COLOR_PRESETS["white"], "preset": "white"},
+                    {"target": "center", "color": LED_COLOR_PRESETS["blue"], "preset": "blue"},
+                    {"target": "bottom", "color": LED_COLOR_PRESETS["cyan"], "preset": "cyan"},
+                ],
+                [
+                    {"target": "left", "color": LED_COLOR_PRESETS["yellow"], "preset": "yellow"},
+                    {"target": "center", "color": LED_COLOR_PRESETS["white"], "preset": "white"},
+                    {"target": "right", "color": LED_COLOR_PRESETS["yellow"], "preset": "yellow"},
+                    {"target": "nose", "color": LED_COLOR_PRESETS["red"], "preset": "red"},
+                ],
+            ]
+        )
+        actions.extend({"name": "led.set", **command} for command in led_commands)
+
+    enhanced["actions"] = actions
+    enhanced["ears"] = ears
+    enhanced["led_commands"] = led_commands
+    return enhanced
+
+
 def _serialize_conversation_turn(turn: RabbitConversationTurn) -> dict:
     payload = None
     if turn.payload:
@@ -1851,6 +1928,12 @@ def _queue_generated_performance(
         rabbit_slug=rabbit.slug,
         text=text,
         voice=voice,
+    )
+    _write_performance_sidecar(
+        asset_path,
+        asset_name=asset_name,
+        performance=performance,
+        source=source,
     )
     _queue_performance_asset(
         rabbit,
@@ -2164,6 +2247,55 @@ def _audio_assets_dir() -> Path:
 
 def _bundled_audio_assets_dir() -> Path:
     return Path(current_app.root_path) / "static"
+
+
+def _performance_sidecar_path_for_audio(audio_path: Path) -> Path:
+    return audio_path.with_name(f"{audio_path.name}.performance.json")
+
+
+def _audio_asset_path(asset_name: str) -> Path:
+    normalized_name = " ".join(str(asset_name or "").split()).strip()
+    if normalized_name.startswith("bundled-"):
+        return _bundled_audio_assets_dir() / normalized_name
+    return _audio_assets_dir() / normalized_name
+
+
+def _write_performance_sidecar(
+    audio_path: Path,
+    *,
+    asset_name: str,
+    performance: dict,
+    source: str,
+) -> None:
+    try:
+        normalized_payload = _normalize_generated_performance(performance)
+    except RuntimeError:
+        normalized_payload = performance
+    sidecar = {
+        "schema": "nabaztag.performance.v1",
+        "asset_name": asset_name,
+        "source": source,
+        "payload": normalized_payload,
+    }
+    _performance_sidecar_path_for_audio(audio_path).write_text(
+        json.dumps(sidecar, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _read_performance_sidecar(asset_name: str) -> dict | None:
+    sidecar_path = _performance_sidecar_path_for_audio(_audio_asset_path(asset_name))
+    if not sidecar_path.exists():
+        return None
+    try:
+        sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+        payload = sidecar.get("payload") if isinstance(sidecar, dict) else None
+        if not isinstance(payload, dict):
+            return None
+        return _normalize_generated_performance(payload)
+    except (OSError, json.JSONDecodeError, RuntimeError):
+        current_app.logger.warning("unable to read performance sidecar for %s", asset_name)
+        return None
 
 
 def _ensure_stream_interrupt_choreography() -> tuple[str, dict[str, str]]:
@@ -3822,6 +3954,53 @@ def mobile_api_rabbit_conversation(rabbit_id: int):
             "rabbit": _serialize_mobile_rabbit(rabbit),
             "reply": performance["text"],
             "performance": performance,
+        }
+    )
+
+
+@main_bp.post("/mobile-api/v1/rabbits/<int:rabbit_id>/auto-performance")
+def mobile_api_update_rabbit_auto_performance(rabbit_id: int):
+    user, _token_record = _current_mobile_user()
+    if user is None:
+        return _mobile_api_unauthorized()
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=user.id).first()
+    if rabbit is None:
+        return jsonify({"ok": False, "message": "Lapin introuvable."}), 404
+
+    payload = request.get_json(silent=True) or {}
+    rabbit.auto_performance_enabled = bool(payload.get("enabled"))
+    rabbit.auto_performance_frequency_minutes = _normalize_auto_performance_frequency(
+        payload.get("frequency_minutes")
+    )
+    rabbit.auto_performance_window_start = _normalize_auto_performance_window(
+        str(payload.get("window_start") or ""),
+        fallback=AUTO_PERFORMANCE_DEFAULT_WINDOW_START,
+    )
+    rabbit.auto_performance_window_end = _normalize_auto_performance_window(
+        str(payload.get("window_end") or ""),
+        fallback=AUTO_PERFORMANCE_DEFAULT_WINDOW_END,
+    )
+    rabbit.auto_performance_next_at = (
+        _compute_next_auto_performance_at(rabbit, after_utc=datetime.utcnow(), initial=True)
+        if rabbit.auto_performance_enabled
+        else None
+    )
+    db.session.commit()
+
+    if rabbit.auto_performance_enabled and user.mistral_api_key:
+        _schedule_auto_performance_pool_refill(
+            current_app._get_current_object(),
+            rabbit.id,
+            target_size=AUTO_PERFORMANCE_POOL_TARGET,
+            max_generate=AUTO_PERFORMANCE_POOL_TARGET,
+        )
+
+    state = "activées" if rabbit.auto_performance_enabled else "désactivées"
+    return jsonify(
+        {
+            "ok": True,
+            "message": f"Interventions aléatoires {state}.",
+            "rabbit": _serialize_mobile_rabbit(rabbit),
         }
     )
 

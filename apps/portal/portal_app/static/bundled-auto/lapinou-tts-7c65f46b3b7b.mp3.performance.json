@@ -1,0 +1,43 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-7c65f46b3b7b.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Pff... encore une journée à compter les carottes derrière les nuages... 1, 2, 3, 10, une forêt entière ! Et vous, vous rêvez de quoi aujourd'hui ?",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 16
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "name": "led.set",
+        "target": "bottom",
+        "color": "#ffffff",
+        "preset": "white"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 16
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "target": "bottom",
+        "color": "#ffffff",
+        "preset": "white"
+      }
+    ]
+  }
+}

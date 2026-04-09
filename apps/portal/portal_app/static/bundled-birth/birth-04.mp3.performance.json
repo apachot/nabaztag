@@ -1,0 +1,30 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "birth-04.mp3",
+  "source": "bundled-birth",
+  "payload": {
+    "text": "Je ne connais pas encore le nom des choses qui vivent ici, mais je sens deja qu'il y a des habitudes, des passages, des silences, et une petite place pour moi entre deux respirations.",
+    "actions": [],
+    "ears": {
+      "left": 7,
+      "right": 9
+    },
+    "led_commands": [
+      {
+        "target": "left",
+        "color": "#00ff00",
+        "preset": "green"
+      },
+      {
+        "target": "right",
+        "color": "#00ff00",
+        "preset": "green"
+      },
+      {
+        "target": "nose",
+        "color": "#ffffff",
+        "preset": "white"
+      }
+    ]
+  }
+}

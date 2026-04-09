@@ -1,0 +1,43 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-cd9b7a9ed6e9.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Regardez-moi ça : le soleil a décidé aujourd'hui de faire une sieste pile sur mon oreiller LED... et il a pris ma place sur le canapé ! Moi je suis là avec mes oreilles en mode 'surprise'... parce que blague à part, vous savez que les nuages, ils portent des chaussettes ?!",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 0
+      },
+      {
+        "name": "led.set",
+        "target": "left",
+        "color": "#ffff00",
+        "preset": "yellow"
+      },
+      {
+        "name": "led.set",
+        "target": "right",
+        "color": "#ffff00",
+        "preset": "yellow"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 0
+    },
+    "led_commands": [
+      {
+        "target": "left",
+        "color": "#ffff00",
+        "preset": "yellow"
+      },
+      {
+        "target": "right",
+        "color": "#ffff00",
+        "preset": "yellow"
+      }
+    ]
+  }
+}

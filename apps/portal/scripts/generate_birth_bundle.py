@@ -139,6 +139,29 @@ def synthesize_tts_asset(*, api_key: str, text: str, voice: str, asset_name: str
     return asset_path, asset_name
 
 
+def performance_sidecar_path(audio_path: Path) -> Path:
+    return audio_path.with_name(f"{audio_path.name}.performance.json")
+
+
+def write_performance_sidecar(
+    audio_path: Path,
+    *,
+    asset_name: str,
+    performance: dict,
+    source: str,
+) -> None:
+    sidecar = {
+        "schema": "nabaztag.performance.v1",
+        "asset_name": asset_name,
+        "source": source,
+        "payload": performance,
+    }
+    performance_sidecar_path(audio_path).write_text(
+        json.dumps(sidecar, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Generate the bundled first-connection birth audio assets."
@@ -173,11 +196,17 @@ def main() -> int:
             "led_commands": list(entry["led_commands"]),
         }
         asset_name = f"birth-{index:02d}.mp3"
-        _asset_path, asset_name = synthesize_tts_asset(
+        asset_path, asset_name = synthesize_tts_asset(
             api_key=api_key,
             text=entry["text"],
             voice=voice,
             asset_name=asset_name,
+        )
+        write_performance_sidecar(
+            asset_path,
+            asset_name=asset_name,
+            performance=performance,
+            source="birth-bundle",
         )
         manifest.append(
             {

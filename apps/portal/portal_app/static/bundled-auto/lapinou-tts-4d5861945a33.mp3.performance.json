@@ -1,0 +1,43 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-4d5861945a33.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Oh ! Regardez ça : la poussière qui tombe sur moi ressemble à une pluie de paillettes… ou alors le café que j’ai imaginé boire ce matin me donne des hallucinations en technicolor !",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 8
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "name": "led.set",
+        "target": "bottom",
+        "color": "#ffff00",
+        "preset": "yellow"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 8
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#0000ff",
+        "preset": "blue"
+      },
+      {
+        "target": "bottom",
+        "color": "#ffff00",
+        "preset": "yellow"
+      }
+    ]
+  }
+}

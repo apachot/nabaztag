@@ -1,0 +1,65 @@
+{
+  "schema": "nabaztag.performance.v1",
+  "asset_name": "lapinou-tts-451fb9b6a947.mp3",
+  "source": "bundled-auto",
+  "payload": {
+    "text": "Et hop ! Tiens une carotte qui rebondit sur ton clavier… et elle atterrit DANS TA BOUCHE !!!",
+    "actions": [
+      {
+        "name": "ears.move",
+        "left": 0,
+        "right": 0
+      },
+      {
+        "name": "led.set",
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      },
+      {
+        "name": "led.set",
+        "target": "left",
+        "color": "#ffff00",
+        "preset": "yellow"
+      },
+      {
+        "name": "led.set",
+        "target": "center",
+        "color": "#00ff00",
+        "preset": "green"
+      },
+      {
+        "name": "led.set",
+        "target": "right",
+        "color": "#00ffff",
+        "preset": "cyan"
+      }
+    ],
+    "ears": {
+      "left": 0,
+      "right": 0
+    },
+    "led_commands": [
+      {
+        "target": "nose",
+        "color": "#ff0000",
+        "preset": "red"
+      },
+      {
+        "target": "left",
+        "color": "#ffff00",
+        "preset": "yellow"
+      },
+      {
+        "target": "center",
+        "color": "#00ff00",
+        "preset": "green"
+      },
+      {
+        "target": "right",
+        "color": "#00ffff",
+        "preset": "cyan"
+      }
+    ]
+  }
+}
