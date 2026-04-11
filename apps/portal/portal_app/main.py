@@ -334,7 +334,10 @@ KNOWN_RADIO_STREAMS = {
 CONVERSATION_MAX_EXCHANGES = 4
 CONVERSATION_MAX_TURNS = CONVERSATION_MAX_EXCHANGES * 2
 CONVERSATION_RECENT_TURNS_LIMIT = CONVERSATION_MAX_TURNS
-CONVERSATION_MAX_AGE_MINUTES = 15
+CONVERSATION_RETAIN_RECENT_TURNS = 6
+CONVERSATION_COMPACT_AFTER_TURNS = 10
+CONVERSATION_MAX_STORED_TURNS = 40
+CONVERSATION_MEMORY_MAX_CHARS = 1400
 AUTO_PERFORMANCE_DEFAULT_FREQUENCY_MINUTES = 180
 AUTO_PERFORMANCE_MIN_FREQUENCY_MINUTES = 5
 AUTO_PERFORMANCE_MAX_FREQUENCY_MINUTES = 24 * 60
@@ -1309,12 +1312,11 @@ def _clamp_ear_position(value: object, fallback: int = 8) -> int:
 
 def _enqueue_bundled_choreography_audio(rabbit: Rabbit, choreography: dict) -> None:
     audio_asset = choreography["audio_asset"]
-    broad_server = current_app.config["NABAZTAG_VL_BROAD_SERVER"]
     _enqueue_device_command(
         rabbit,
         command_type="audio",
         payload={
-            "url": f"http://{broad_server}/ojn_local/audio/{audio_asset}",
+            "url": f"broadcast/ojn_local/audio/{audio_asset}",
             "source": "bundled-choreography",
             "filename": audio_asset,
             "text": None,
@@ -2018,40 +2020,125 @@ def _append_conversation_turn(
 
 
 def _prune_rabbit_conversation(rabbit: Rabbit) -> None:
-    had_summary = bool(rabbit.conversation_summary or rabbit.conversation_summary_turn_id)
-    cutoff_time = datetime.utcnow() - timedelta(minutes=CONVERSATION_MAX_AGE_MINUTES)
     retained_turns = (
         RabbitConversationTurn.query.filter_by(rabbit_id=rabbit.id)
-        .filter(RabbitConversationTurn.created_at >= cutoff_time)
         .order_by(RabbitConversationTurn.id.desc())
-        .limit(CONVERSATION_MAX_TURNS)
+        .limit(CONVERSATION_MAX_STORED_TURNS)
         .all()
     )
     retained_ids = {turn.id for turn in retained_turns}
-    stale_turns = (
+    summary_turn_id = rabbit.conversation_summary_turn_id or 0
+    stale_query = (
         RabbitConversationTurn.query.filter_by(rabbit_id=rabbit.id)
         .filter(~RabbitConversationTurn.id.in_(retained_ids))
-        .all()
-        if retained_ids
-        else []
     )
+    if summary_turn_id:
+        stale_query = stale_query.filter(RabbitConversationTurn.id <= summary_turn_id)
+    else:
+        stale_query = stale_query.filter(False)
+    stale_turns = stale_query.all() if retained_ids else []
     for stale_turn in stale_turns:
         db.session.delete(stale_turn)
 
-    rabbit.conversation_summary = None
-    rabbit.conversation_summary_turn_id = None
-
-    if stale_turns or had_summary:
+    if stale_turns:
         db.session.commit()
 
 
 def _maybe_compact_rabbit_conversation(rabbit: Rabbit, *, api_key: str, model: str) -> None:
-    del api_key, model
-    _prune_rabbit_conversation(rabbit)
+    turns = (
+        RabbitConversationTurn.query.filter_by(rabbit_id=rabbit.id)
+        .order_by(RabbitConversationTurn.id.asc())
+        .all()
+    )
+    if len(turns) <= CONVERSATION_COMPACT_AFTER_TURNS:
+        _prune_rabbit_conversation(rabbit)
+        return
+
+    retained_recent_turns = turns[-CONVERSATION_RETAIN_RECENT_TURNS:]
+    retained_recent_ids = {turn.id for turn in retained_recent_turns}
+    summary_turn_id = rabbit.conversation_summary_turn_id or 0
+    turns_to_summarize = [
+        turn
+        for turn in turns
+        if turn.id not in retained_recent_ids and turn.id > summary_turn_id and turn.role in {"user", "assistant"}
+    ]
+    if not turns_to_summarize:
+        _prune_rabbit_conversation(rabbit)
+        return
+
+    previous_summary = (rabbit.conversation_summary or "").strip()
+    transcript_lines = []
+    for turn in turns_to_summarize:
+        speaker = rabbit.name if turn.role == "assistant" else "Utilisateur"
+        transcript_lines.append(f"{speaker}: {turn.text}")
+    transcript = "\n".join(transcript_lines)
+    summary_instruction = (
+        "Tu maintiens la memoire longue duree d'un lapin Nabaztag conversationnel. "
+        "A partir de l'ancien resume et des nouveaux echanges, produis une memoire compacte en francais. "
+        "Conserve uniquement les informations utiles pour de futures conversations: preferences, faits personnels, "
+        "noms, habitudes, demandes recurrentes, promesses, contexte relationnel et sujets en cours. "
+        "Ignore les formulations jetables, les salutations et les details qui ne serviront probablement plus. "
+        f"Limite stricte: {CONVERSATION_MEMORY_MAX_CHARS} caracteres. "
+        'Reponds uniquement avec un JSON valide: {"summary":"..."}'
+    )
+    try:
+        response_payload = _mistral_json_request(
+            api_key=api_key,
+            url="https://api.mistral.ai/v1/chat/completions",
+            payload={
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": summary_instruction},
+                    {
+                        "role": "user",
+                        "content": (
+                            f"Ancienne memoire:\n{previous_summary or '(vide)'}\n\n"
+                            f"Nouveaux echanges a integrer:\n{transcript}"
+                        ),
+                    },
+                ],
+                "max_tokens": 450,
+                "temperature": 0.2,
+                "response_format": {"type": "json_object"},
+            },
+        )
+    except RuntimeError as exc:
+        current_app.logger.warning("rabbit conversation memory compaction failed for rabbit %s: %s", rabbit.id, exc)
+        _prune_rabbit_conversation(rabbit)
+        return
+    summary_text = ""
+    try:
+        summary_object = _extract_json_object(_extract_mistral_chat_text(response_payload))
+        summary_text = " ".join(str(summary_object.get("summary") or "").split()).strip()
+    except Exception:
+        summary_text = ""
+    if not summary_text:
+        current_app.logger.warning("rabbit conversation memory compaction returned an empty summary for rabbit %s", rabbit.id)
+        _prune_rabbit_conversation(rabbit)
+        return
+
+    if len(summary_text) > CONVERSATION_MEMORY_MAX_CHARS:
+        summary_text = summary_text[:CONVERSATION_MEMORY_MAX_CHARS].rsplit(" ", 1)[0].strip()
+    rabbit.conversation_summary = summary_text
+    rabbit.conversation_summary_turn_id = turns_to_summarize[-1].id
+    for turn in turns:
+        if turn.id <= rabbit.conversation_summary_turn_id and turn.id not in retained_recent_ids:
+            db.session.delete(turn)
+    db.session.commit()
 
 
 def _conversation_messages_for_generation(rabbit: Rabbit) -> list[dict[str, str]]:
     messages: list[dict[str, str]] = []
+    if rabbit.conversation_summary:
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "Memoire longue duree du lapin a prendre en compte sans la reciter explicitement: "
+                    f"{rabbit.conversation_summary}"
+                ),
+            }
+        )
     recent_turns = list(
         RabbitConversationTurn.query.filter_by(rabbit_id=rabbit.id)
         .order_by(RabbitConversationTurn.id.desc())
@@ -4000,6 +4087,7 @@ def mobile_api_rabbit_detail(rabbit_id: int):
         {
             "ok": True,
             "rabbit": _serialize_mobile_rabbit(rabbit),
+            "conversation_summary": rabbit.conversation_summary or "",
             "conversation": [_serialize_conversation_turn(turn) for turn in recent_turns],
         }
     )
@@ -4111,6 +4199,21 @@ def mobile_api_rabbit_conversation(rabbit_id: int):
             "performance": performance,
         }
     )
+
+
+@main_bp.delete("/mobile-api/v1/rabbits/<int:rabbit_id>/conversation")
+def mobile_api_clear_rabbit_conversation(rabbit_id: int):
+    user, _token_record = _current_mobile_user()
+    if user is None:
+        return _mobile_api_unauthorized()
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=user.id).first()
+    if rabbit is None:
+        return jsonify({"ok": False, "message": "Lapin introuvable."}), 404
+    RabbitConversationTurn.query.filter_by(rabbit_id=rabbit.id).delete()
+    rabbit.conversation_summary = None
+    rabbit.conversation_summary_turn_id = None
+    db.session.commit()
+    return jsonify({"ok": True, "message": "Mémoire conversationnelle effacée.", "rabbit": _serialize_mobile_rabbit(rabbit)})
 
 
 @main_bp.post("/mobile-api/v1/rabbits/<int:rabbit_id>/choreography/random")
@@ -4410,6 +4513,18 @@ def mobile_api_rabbit_wakeup(rabbit_id: int):
     except RuntimeError as exc:
         return jsonify({"ok": False, "message": str(exc)}), 400
     return jsonify({"ok": True, "message": "Réveil envoyé."})
+
+
+@main_bp.post("/rabbits/<int:rabbit_id>/conversation/memory/clear")
+@login_required
+def clear_rabbit_conversation_memory(rabbit_id: int):
+    rabbit = Rabbit.query.filter_by(id=rabbit_id, owner_id=current_user.id).first_or_404()
+    RabbitConversationTurn.query.filter_by(rabbit_id=rabbit.id).delete()
+    rabbit.conversation_summary = None
+    rabbit.conversation_summary_turn_id = None
+    db.session.commit()
+    flash("Mémoire conversationnelle effacée.", "success")
+    return redirect(url_for("main.rabbit_detail", rabbit_id=rabbit.id))
 
 
 @main_bp.post("/rabbits/<int:rabbit_id>/prompt")

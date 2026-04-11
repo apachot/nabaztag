@@ -472,6 +472,9 @@
               {{ rabbit.conversation_summary or "" }}
             </div>
           </div>
+          <form method="post" action="{{ url_for('main.clear_rabbit_conversation_memory', rabbit_id=rabbit.id) }}">
+            <button class="button ghost" type="submit">Effacer la mémoire</button>
+          </form>
           <div class="stack" id="conversation-turns" data-url="{{ url_for('main.rabbit_live_conversation', rabbit_id=rabbit.id) }}">
             {% for turn in conversation_turns %}
               <div class="rabbit-card">
