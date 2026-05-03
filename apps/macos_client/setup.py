@@ -25,6 +25,11 @@ OPTIONS = {
         "PySide6.QtWidgets",
         "shiboken6",
     ],
+    "excludes": [
+        "_tkinter",
+        "tkinter",
+        "Tkinter",
+    ],
     "iconfile": "assets/nabaztag.icns",
     "plist": {
         "CFBundleName": "Nabaztag",

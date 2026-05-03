@@ -243,7 +243,7 @@ def connect_wifi_network(ssid: str, password: str | None = None) -> tuple[str, s
     raise RuntimeError(f"Le Mac ne semble pas connecte au reseau {ssid} apres la tentative de bascule.")
 
 
-def _security_mode_value(security: str) -> str:
+def _security_mode_value(security: str, *, has_password: bool = False) -> str:
     lowered = security.lower()
     if "wpa2" in lowered or "wpa3" in lowered:
         return "64"
@@ -251,6 +251,8 @@ def _security_mode_value(security: str) -> str:
         return "32"
     if "wep" in lowered:
         return "16"
+    if has_password:
+        return "32"
     return "0"
 
 
@@ -528,6 +530,34 @@ def _fetch(
     return final_url, content
 
 
+def _fetch_with_retries(
+    opener,
+    *,
+    url: str,
+    method: str = "GET",
+    payload: dict[str, str] | None = None,
+    timeout: float = 15,
+    attempts: int = 3,
+    retry_delay: float = 1.0,
+) -> tuple[str, str]:
+    last_error: Exception | None = None
+    for attempt in range(max(1, attempts)):
+        try:
+            return _fetch(
+                opener,
+                url=url,
+                method=method,
+                payload=payload,
+                timeout=timeout,
+            )
+        except Exception as exc:
+            last_error = exc
+            if attempt >= attempts - 1 or not _looks_like_timeout(exc):
+                raise
+            time.sleep(retry_delay)
+    raise RuntimeError(str(last_error or f"Echec HTTP sur {url}."))
+
+
 def _parse(url: str, content: str) -> tuple[list[HtmlForm], list[HtmlLink]]:
     parser = _FormParser()
     parser.feed(content)
@@ -604,11 +634,59 @@ def _choose_option(field: HtmlField, preferences: list[str]) -> str | None:
     return field.options[0].value if field.options else None
 
 
+def _security_value_preferences(security: str, *, has_password: bool) -> list[str]:
+    target_value = _security_mode_value(security, has_password=has_password)
+    if target_value == "64":
+        return ["64", "32", "16", "0"]
+    if target_value == "32":
+        return ["32", "64", "16", "0"]
+    if target_value == "16":
+        return ["16", "0", "32", "64"]
+    return ["0", "16", "32", "64"]
+
+
+def _looks_like_security_select(field: HtmlField) -> bool:
+    option_values = {str(option.value).strip() for option in field.options if str(option.value).strip()}
+    if field.name == "m" and option_values.intersection({"0", "16", "32", "64"}):
+        return True
+    encryption_labels = sum(
+        1
+        for option in field.options
+        if any(
+            token in f"{option.label} {option.value}".lower()
+            for token in ("no encryption", "wep", "wpa", "wpa2")
+        )
+    )
+    return encryption_labels >= 2
+
+
+def _looks_like_security_radio_group(group_name: str, fields: list[HtmlField]) -> bool:
+    values = {str(field.value).strip() for field in fields if str(field.value).strip()}
+    if group_name == "m" and values.intersection({"0", "16", "32", "64"}):
+        return True
+    return values.issubset({"0", "16", "32", "64"}) and len(values) >= 3
+
+
+def _choose_security_radio_value(
+    fields: list[HtmlField],
+    *,
+    security: str,
+    has_password: bool,
+) -> str | None:
+    preferences = _security_value_preferences(security, has_password=has_password)
+    values = {str(field.value).strip(): field for field in fields if str(field.value).strip()}
+    for preference in preferences:
+        if preference in values:
+            return values[preference].value or preference
+    return None
+
+
 def _build_payload_for_form(
     form: HtmlForm,
     *,
     home_wifi_ssid: str,
     home_wifi_password: str,
+    home_wifi_security: str,
     violet_platform: str,
 ) -> tuple[dict[str, str], int]:
     payload: dict[str, str] = {}
@@ -638,8 +716,16 @@ def _build_payload_for_form(
             choice = None
             if "auth" in key:
                 choice = _choose_option(field, ["open", "opensystem", "open system"])
-            elif any(token in key for token in ("encrypt", "crypt", "secu", "security")):
-                choice = _choose_option(field, ["wpa2", "wpa", "aes", "no encryption", "none"])
+            elif any(token in key for token in ("encrypt", "crypt", "secu", "security")) or _looks_like_security_select(field):
+                choice = _choose_option(
+                    field,
+                    _security_value_preferences(
+                        home_wifi_security,
+                        has_password=bool(home_wifi_password),
+                    ),
+                )
+                if choice is None:
+                    choice = _choose_option(field, ["wpa2", "wpa", "aes", "no encryption", "none"])
             elif "dhcp" in key:
                 choice = _choose_option(field, ["yes", "true", "1", "enabled"])
             elif "proxy" in key:
@@ -650,16 +736,12 @@ def _build_payload_for_form(
     for group_name, fields in radio_groups.items():
         key = _field_key(group_name)
         chosen = None
-        if any(token in key for token in ("encrypt", "crypt", "secu", "security")):
-            preferred = ["wpa2", "wpa", "aes"] if home_wifi_password else ["none", "open", "no"]
-            for preference in preferred:
-                for field in fields:
-                    haystack = f"{field.name} {field.value}".lower()
-                    if preference in haystack:
-                        chosen = field.value or "on"
-                        break
-                if chosen:
-                    break
+        if any(token in key for token in ("encrypt", "crypt", "secu", "security")) or _looks_like_security_radio_group(group_name, fields):
+            chosen = _choose_security_radio_value(
+                fields,
+                security=home_wifi_security,
+                has_password=bool(home_wifi_password),
+            )
         elif "dhcp" in key:
             for field in fields:
                 if any(token in f"{field.name} {field.value}".lower() for token in ("1", "true", "yes", "on", "enable")):
@@ -673,6 +755,35 @@ def _build_payload_for_form(
     return payload, matched
 
 
+def _follow_link_with_timeout_fallback(
+    opener,
+    *,
+    current_url: str,
+    content: str,
+    forms: list[HtmlForm],
+    links: list[HtmlLink],
+    text_fragment: str,
+    attempts: int = 3,
+) -> tuple[str, str, list[HtmlForm], list[HtmlLink]]:
+    target_url = next((link.href for link in links if text_fragment in link.text.lower()), "")
+    if not target_url:
+        return current_url, content, forms, links
+    try:
+        next_url, next_content = _fetch_with_retries(
+            opener,
+            url=target_url,
+            attempts=attempts,
+        )
+    except Exception as exc:
+        if not _looks_like_timeout(exc):
+            raise
+        return current_url, content, forms, links
+    next_forms, next_links = _parse(next_url, next_content)
+    if next_forms or next_links:
+        return next_url, next_content, next_forms, next_links
+    return current_url, content, forms, links
+
+
 def configure_bootstrap_host(
     *,
     host: str,
@@ -683,21 +794,26 @@ def configure_bootstrap_host(
 ) -> dict[str, str | bool]:
     opener = urllib_request.build_opener(urllib_request.HTTPCookieProcessor(CookieJar()))
     root_url = f"http://{host.strip().rstrip('/')}/"
-    current_url, content = _fetch(opener, url=root_url)
+    current_url, content = _fetch_with_retries(opener, url=root_url, attempts=5)
     bootstrap_serial = _extract_bootstrap_serial(content)
     forms, links = _parse(current_url, content)
 
-    start_link = next((link.href for link in links if "start" in link.text.lower()), "")
-    if start_link:
-        current_url, content = _fetch(opener, url=start_link)
-        forms, links = _parse(current_url, content)
-
-    advanced_link = next((link.href for link in links if "advanced" in link.text.lower()), "")
-    if advanced_link:
-        advanced_url, advanced_content = _fetch(opener, url=advanced_link)
-        advanced_forms, _advanced_links = _parse(advanced_url, advanced_content)
-        if advanced_forms:
-            current_url, content, forms = advanced_url, advanced_content, advanced_forms
+    current_url, content, forms, links = _follow_link_with_timeout_fallback(
+        opener,
+        current_url=current_url,
+        content=content,
+        forms=forms,
+        links=links,
+        text_fragment="start",
+    )
+    current_url, content, forms, links = _follow_link_with_timeout_fallback(
+        opener,
+        current_url=current_url,
+        content=content,
+        forms=forms,
+        links=links,
+        text_fragment="advanced",
+    )
 
     if not forms:
         raise RuntimeError("Le configurateur local du lapin n'expose aucun formulaire exploitable.")
@@ -715,7 +831,10 @@ def configure_bootstrap_host(
         legacy_payload = {
             "w": "-",
             "k": home_wifi_ssid,
-            "m": _security_mode_value(home_wifi_security),
+            "m": _security_mode_value(
+                home_wifi_security,
+                has_password=bool(home_wifi_password),
+            ),
             "n": home_wifi_password,
             "l": "0",
             "f": "1",
@@ -774,6 +893,7 @@ def configure_bootstrap_host(
             form,
             home_wifi_ssid=home_wifi_ssid,
             home_wifi_password=home_wifi_password,
+            home_wifi_security=home_wifi_security,
             violet_platform=violet_platform,
         )
         if score > best_score:

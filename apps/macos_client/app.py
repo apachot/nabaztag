@@ -35,6 +35,7 @@ class NabaztagMacApp:
         self.bootstrap_setup_ssid_var = tk.StringVar(value="NabaztagXX")
         self.bootstrap_home_ssid_var = tk.StringVar()
         self.bootstrap_home_password_var = tk.StringVar()
+        self.bootstrap_home_security = ""
         self.bootstrap_wifi_status_var = tk.StringVar(value="Wi-Fi du Mac non détecté.")
         self.bootstrap_status_var = tk.StringVar(value="Prêt pour la mise en service locale du lapin.")
         self.bootstrap_violet_platform_var = tk.StringVar(
@@ -706,22 +707,28 @@ class NabaztagMacApp:
 
         def do_detect() -> None:
             interface, ssid = provisioning_support.current_wifi_ssid()
+            security = provisioning_support.current_wifi_security() or ""
             if not interface:
                 raise RuntimeError("Impossible d'identifier l'interface Wi-Fi du Mac.")
             password = provisioning_support.read_wifi_password(ssid or "") if ssid else None
 
             def update_ui() -> None:
+                self.bootstrap_home_security = security
                 if ssid:
                     self.bootstrap_home_ssid_var.set(ssid)
                 if password and not self.bootstrap_home_password_var.get().strip():
                     self.bootstrap_home_password_var.set(password)
                 if ssid and password:
                     self.bootstrap_wifi_status_var.set(
-                        f"Wi-Fi détecté sur {interface} : {ssid}. Mot de passe récupéré depuis le trousseau."
+                        f"Wi-Fi détecté sur {interface} : {ssid}"
+                        f"{f' ({security})' if security else ''}. "
+                        "Mot de passe récupéré depuis le trousseau."
                     )
                 elif ssid:
                     self.bootstrap_wifi_status_var.set(
-                        f"Wi-Fi détecté sur {interface} : {ssid}. Saisis le mot de passe pour le lapin."
+                        f"Wi-Fi détecté sur {interface} : {ssid}"
+                        f"{f' ({security})' if security else ''}. "
+                        "Saisis le mot de passe pour le lapin."
                     )
                 else:
                     self.bootstrap_wifi_status_var.set(
@@ -775,6 +782,7 @@ class NabaztagMacApp:
                 host=host,
                 home_wifi_ssid=home_wifi_ssid,
                 home_wifi_password=home_wifi_password,
+                home_wifi_security=self.bootstrap_home_security,
                 portal_base=self.portal_var.get(),
             )
 
