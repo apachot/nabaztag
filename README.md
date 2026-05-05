@@ -307,8 +307,14 @@ Pour eviter l'effet "grand depot opaque", voici les principaux points d'entree:
 - `apps/api/app/gateway.py`
   La couche d'abstraction pour piloter les lapins selon le driver retenu.
 
+- `apps/api/app/device_platform/`
+  La nouvelle couche d'abstraction par famille de device: primitives standardisees, catalogue des modeles, adaptateurs materiels et surfaces API/MCP.
+
 - `apps/api/app/protocol/`
   La partie la plus utile si vous voulez travailler sur le protocole Nabaztag ou etendre les primitives supportees.
+
+- `apps/api/app/device_platform/mcp_server.py`
+  Le serveur MCP qui expose la couche device-platform aux outils externes.
 
 - `apps/macos_client/qt_client.py`
   Le client macOS moderne.
@@ -318,6 +324,9 @@ Pour eviter l'effet "grand depot opaque", voici les principaux points d'entree:
 
 - `docs/protocol-notes.md`
   Le bon point de depart pour comprendre l'etat actuel des connaissances sur le protocole.
+
+- `docs/device-platform-architecture.md`
+  La note d'architecture de reference pour la future prise en charge independante des Nabaztag v1, Nabaztag:tag et Karotz.
 
 ## Pile IA
 
@@ -361,6 +370,19 @@ source .venv/bin/activate
 pip install -e ./apps/api
 uvicorn app.main:app --reload --app-dir apps/api
 ```
+
+### Lancement combine
+
+Pour lancer l'API et le portail ensemble en local:
+
+```bash
+bash ./run_local.sh
+```
+
+Options utiles:
+
+- `bash ./run_local.sh --skip-install`
+- `bash ./run_local.sh --no-reload`
 
 ### Interface legacy
 

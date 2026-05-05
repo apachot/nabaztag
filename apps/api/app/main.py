@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .dependencies import create_service
 from .config import load_gateway_settings
+from .device_platform.router import router as device_platform_router
 from .models import (
     AudioCommand,
     BootstrapConfigRequest,
@@ -52,6 +53,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(device_platform_router)
+
 
 @app.get("/health")
 def health() -> dict[str, str]:
@@ -65,6 +68,7 @@ def root() -> dict[str, str]:
         "status": "ok",
         "docs": "/docs",
         "health": "/health",
+        "device_platform_models": "/api/device-platform/models",
     }
 
 
