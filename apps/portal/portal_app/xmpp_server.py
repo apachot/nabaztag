@@ -22,10 +22,14 @@ from .device_protocol import (
 )
 from .models import DeviceObservation, Rabbit, RabbitDeviceCommand, RabbitEventLog, RabbitRecording, utc_now
 from .extensions import db
+from .xmpp_dispatch import build_round_robin_batch
 
 LOG = logging.getLogger("nabaztag.xmpp")
 LED_REFRESH_INTERVAL = timedelta(seconds=2)
 SESSION_HEARTBEAT_INTERVAL_SECONDS = 30.0
+DISPATCH_BATCH_SIZE = 50
+DISPATCH_LOOKAHEAD_PER_SERIAL = 50
+DISPATCH_SEND_TIMEOUT_SECONDS = 5.0
 
 SASL_NS = "urn:ietf:params:xml:ns:xmpp-sasl"
 STREAM_NS = "http://etherx.jabber.org/streams"
@@ -34,6 +38,13 @@ BIND_NS = "urn:ietf:params:xml:ns:xmpp-bind"
 SESSION_NS = "urn:ietf:params:xml:ns:xmpp-session"
 APP = create_app()
 ACTIVE_SESSIONS: dict[str, "XmppSession"] = {}
+
+
+def _release_active_session(serial: str, session: "XmppSession") -> None:
+    normalized = serial.lower()
+    current = ACTIVE_SESSIONS.get(normalized)
+    if current is session:
+        ACTIVE_SESSIONS.pop(normalized, None)
 
 
 def _age_exceeds(value, threshold: timedelta) -> bool:
@@ -388,7 +399,7 @@ async def _handle_connection(reader: asyncio.StreamReader, writer: asyncio.Strea
         LOG.exception("xmpp connection failure %s", peer)
     finally:
         if session.username:
-            ACTIVE_SESSIONS.pop(session.username.lower(), None)
+            _release_active_session(session.username, session)
             _record_device_event(
                 session.username,
                 "rabbit.xmpp.disconnected",
@@ -481,57 +492,102 @@ def _build_packet_for_command(command: RabbitDeviceCommand) -> EncodedPacket:
     raise RuntimeError(f"Unsupported command type: {command.command_type}")
 
 
-async def _dispatch_commands_once() -> None:
-    with APP.app_context():
-        queued = (
-            RabbitDeviceCommand.query.filter_by(status="queued")
-            .order_by(RabbitDeviceCommand.created_at.asc())
-            .limit(50)
-            .all()
-        )
+def _load_dispatch_command_ids() -> list[int]:
+    active_serials = tuple(
+        sorted({serial.lower() for serial, session in ACTIVE_SESSIONS.items() if session is not None and session.resource})
+    )
+    if not active_serials:
+        return []
 
-    for command in queued:
-        session = ACTIVE_SESSIONS.get(command.serial.lower())
+    per_serial_command_ids: dict[str, list[int]] = {}
+    oldest_by_serial: dict[str, object] = {}
+    with APP.app_context():
+        for serial in active_serials:
+            pending = (
+                RabbitDeviceCommand.query.filter_by(status="queued", serial=serial)
+                .order_by(RabbitDeviceCommand.created_at.asc(), RabbitDeviceCommand.id.asc())
+                .limit(DISPATCH_LOOKAHEAD_PER_SERIAL)
+                .all()
+            )
+            if not pending:
+                continue
+            per_serial_command_ids[serial] = [command.id for command in pending]
+            oldest_by_serial[serial] = pending[0].created_at
+
+    return build_round_robin_batch(
+        per_serial_command_ids,
+        oldest_by_serial=oldest_by_serial,
+        limit=DISPATCH_BATCH_SIZE,
+    )
+
+
+def _mark_command_sent(command_id: int, *, description: str) -> None:
+    with APP.app_context():
+        current = db.session.get(RabbitDeviceCommand, command_id)
+        if current is None or current.status != "queued":
+            return
+        current.status = "sent"
+        current.sent_at = utc_now()
+        db.session.add(current)
+        db.session.add(
+            RabbitEventLog(
+                rabbit_id=current.rabbit_id,
+                source="device",
+                event_type=f"rabbit.command.{current.command_type}.sent",
+                payload=json.dumps({"serial": current.serial, "description": description}),
+            )
+        )
+        db.session.commit()
+
+
+def _mark_command_failed(command_id: int, *, error: Exception) -> None:
+    with APP.app_context():
+        current = db.session.get(RabbitDeviceCommand, command_id)
+        if current is None or current.status != "queued":
+            return
+        current.status = "failed"
+        current.error = str(error)
+        db.session.add(current)
+        db.session.add(
+            RabbitEventLog(
+                rabbit_id=current.rabbit_id,
+                source="device",
+                event_type=f"rabbit.command.{current.command_type}.failed",
+                payload=json.dumps({"serial": current.serial, "error": str(error)}),
+                level="error",
+            )
+        )
+        db.session.commit()
+
+
+async def _dispatch_commands_once() -> None:
+    for command_id in _load_dispatch_command_ids():
+        with APP.app_context():
+            command = db.session.get(RabbitDeviceCommand, command_id)
+            if command is None or command.status != "queued":
+                continue
+            serial = command.serial.lower()
+            try:
+                packet = _build_packet_for_command(command)
+            except Exception as exc:
+                LOG.exception("command build failure id=%s", command_id)
+                _mark_command_failed(command_id, error=exc)
+                continue
+
+        session = ACTIVE_SESSIONS.get(serial)
         if session is None or not session.resource:
             continue
+
         try:
-            packet = _build_packet_for_command(command)
-            await session.send_packet(packet)
-            with APP.app_context():
-                current = db.session.get(RabbitDeviceCommand, command.id)
-                if current is None:
-                    continue
-                current.status = "sent"
-                current.sent_at = utc_now()
-                db.session.add(current)
-                db.session.add(
-                    RabbitEventLog(
-                        rabbit_id=current.rabbit_id,
-                        source="device",
-                        event_type=f"rabbit.command.{current.command_type}.sent",
-                        payload=json.dumps({"serial": current.serial, "description": packet.description}),
-                    )
-                )
-                db.session.commit()
+            await asyncio.wait_for(session.send_packet(packet), timeout=DISPATCH_SEND_TIMEOUT_SECONDS)
+            _mark_command_sent(command_id, description=packet.description)
+        except (asyncio.TimeoutError, BrokenPipeError, ConnectionError, OSError) as exc:
+            LOG.warning("command dispatch stalled id=%s serial=%s error=%s", command_id, serial, exc)
+            _release_active_session(serial, session)
         except Exception as exc:
-            LOG.exception("command dispatch failure id=%s", command.id)
-            with APP.app_context():
-                current = db.session.get(RabbitDeviceCommand, command.id)
-                if current is None:
-                    continue
-                current.status = "failed"
-                current.error = str(exc)
-                db.session.add(current)
-                db.session.add(
-                    RabbitEventLog(
-                        rabbit_id=current.rabbit_id,
-                        source="device",
-                        event_type=f"rabbit.command.{current.command_type}.failed",
-                        payload=json.dumps({"serial": current.serial, "error": str(exc)}),
-                        level="error",
-                    )
-                )
-                db.session.commit()
+            LOG.exception("command dispatch failure id=%s", command_id)
+            _release_active_session(serial, session)
+            _mark_command_failed(command_id, error=exc)
 
     await _refresh_sticky_leds()
 
